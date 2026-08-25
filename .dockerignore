@@ -1,0 +1,9 @@
+.git
+.venv
+.plot-deps
+__pycache__
+*.pyc
+*.egg-info
+.cursor
+results/experiments
+results/*.log

@@ -36,6 +36,14 @@ RUN uv python install 3.10 && \
 ENV VIRTUAL_ENV=/opt/venv
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 
+# ---- 依赖安装(可重建路径,替代 docker commit)----
+# 锁定清单由 pdblend:v2 导出:docker run --rm pdblend:v2 /opt/venv/bin/pip freeze > requirements.txt
+# torch 系列 +cu128 轮子来自 PyTorch 官方索引,其余包走 PyPI;可用 --build-arg 换镜像源
+COPY requirements.txt /tmp/requirements.txt
+ARG UV_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cu128
+RUN uv pip install -r /tmp/requirements.txt --extra-index-url ${UV_EXTRA_INDEX_URL} \
+    && /opt/venv/bin/python -c "import torch, vllm; print('torch', torch.__version__, '| vllm', vllm.__version__)"
+
 WORKDIR /workspace
 
 CMD ["/bin/bash"]
