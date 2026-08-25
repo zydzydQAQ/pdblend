@@ -1,0 +1,103 @@
+defaults:
+  model: /models/Qwen2.5-7B-Instruct
+  max_model_len: 4096
+  gpu_memory_utilization: 0.75
+  kv_buffer_size: 3000000000
+  kv_connector: nixl
+  startup_timeout_s: 900
+  sample_interval_s: 0.05
+  idle_seconds: 60
+  warmup_requests: 2
+  cooldown_s: 2
+  repeats: 2
+  randomize_case_order: true
+  order_seed: 20260824
+
+suites:
+  phase_a100:
+    mode: profile
+    profile_gpu: 0
+    idle_clocks_mhz: {"0": 1410}
+    cases:
+      - {name: prefill_f615, input_len: 2048, output_len: 1, num_requests: 6, request_rate: 0.5, max_concurrency: 1, clocks_mhz: {"0": 615}, seed: 11}
+      - {name: prefill_f930, input_len: 2048, output_len: 1, num_requests: 6, request_rate: 0.5, max_concurrency: 1, clocks_mhz: {"0": 930}, seed: 11}
+      - {name: prefill_f1410, input_len: 2048, output_len: 1, num_requests: 6, request_rate: 0.5, max_concurrency: 1, clocks_mhz: {"0": 1410}, seed: 11}
+      - {name: decode_f615, input_len: 32, output_len: 256, num_requests: 6, request_rate: 0.12, max_concurrency: 1, clocks_mhz: {"0": 615}, seed: 13}
+      - {name: decode_f930, input_len: 32, output_len: 256, num_requests: 6, request_rate: 0.12, max_concurrency: 1, clocks_mhz: {"0": 930}, seed: 13}
+      - {name: decode_f1410, input_len: 32, output_len: 256, num_requests: 6, request_rate: 0.12, max_concurrency: 1, clocks_mhz: {"0": 1410}, seed: 13}
+
+  phase_v100:
+    mode: profile
+    profile_gpu: 1
+    idle_clocks_mhz: {"1": 1380}
+    cases:
+      - {name: prefill_f600, input_len: 2048, output_len: 1, num_requests: 6, request_rate: 0.4, max_concurrency: 1, clocks_mhz: {"1": 600}, seed: 17}
+      - {name: prefill_f900, input_len: 2048, output_len: 1, num_requests: 6, request_rate: 0.4, max_concurrency: 1, clocks_mhz: {"1": 900}, seed: 17}
+      - {name: prefill_f1380, input_len: 2048, output_len: 1, num_requests: 6, request_rate: 0.4, max_concurrency: 1, clocks_mhz: {"1": 1380}, seed: 17}
+      - {name: decode_f600, input_len: 32, output_len: 256, num_requests: 6, request_rate: 0.08, max_concurrency: 1, clocks_mhz: {"1": 600}, seed: 19}
+      - {name: decode_f900, input_len: 32, output_len: 256, num_requests: 6, request_rate: 0.08, max_concurrency: 1, clocks_mhz: {"1": 900}, seed: 19}
+      - {name: decode_f1380, input_len: 32, output_len: 256, num_requests: 6, request_rate: 0.08, max_concurrency: 1, clocks_mhz: {"1": 1380}, seed: 19}
+
+  phase_a100_confirm:
+    mode: profile
+    profile_gpu: 0
+    idle_clocks_mhz: {"0": 930}
+    cases:
+      - {name: prefill_f930, input_len: 2048, output_len: 1, num_requests: 6, request_rate: 0.5, max_concurrency: 1, clocks_mhz: {"0": 930}, seed: 11, repeats: 3}
+
+  phase_v100_confirm:
+    mode: profile
+    profile_gpu: 1
+    idle_clocks_mhz: {"1": 900}
+    cases:
+      - {name: prefill_f900, input_len: 2048, output_len: 1, num_requests: 6, request_rate: 0.4, max_concurrency: 1, clocks_mhz: {"1": 900}, seed: 17, repeats: 3}
+
+  crossover_colocated:
+    mode: colocated
+    weights: [2, 1]
+    idle_clocks_mhz: {"0": 1410, "1": 1380}
+    cases: &colocated_cases
+      - {name: short_low_max, input_len: 128, output_len: 128, num_requests: 6, request_rate: 0.2, max_concurrency: 4, clocks_mhz: {"0": 1410, "1": 1380}, seed: 31}
+      - {name: short_medium_max, input_len: 128, output_len: 128, num_requests: 8, request_rate: 0.5, max_concurrency: 8, clocks_mhz: {"0": 1410, "1": 1380}, seed: 31}
+      - {name: prefill_low_max, input_len: 2048, output_len: 128, num_requests: 6, request_rate: 0.15, max_concurrency: 4, clocks_mhz: {"0": 1410, "1": 1380}, seed: 37}
+      - {name: prefill_medium_max, input_len: 2048, output_len: 128, num_requests: 8, request_rate: 0.35, max_concurrency: 8, clocks_mhz: {"0": 1410, "1": 1380}, seed: 37}
+      - {name: balanced_low_max, input_len: 1024, output_len: 256, num_requests: 6, request_rate: 0.1, max_concurrency: 4, clocks_mhz: {"0": 1410, "1": 1380}, seed: 41}
+      - {name: balanced_medium_max, input_len: 1024, output_len: 256, num_requests: 8, request_rate: 0.25, max_concurrency: 8, clocks_mhz: {"0": 1410, "1": 1380}, seed: 41}
+      - {name: decode_low_max, input_len: 128, output_len: 512, num_requests: 6, request_rate: 0.05, max_concurrency: 4, clocks_mhz: {"0": 1410, "1": 1380}, seed: 43}
+      - {name: decode_medium_max, input_len: 128, output_len: 512, num_requests: 8, request_rate: 0.12, max_concurrency: 8, clocks_mhz: {"0": 1410, "1": 1380}, seed: 43}
+      - {name: prefill_medium_eco, input_len: 2048, output_len: 128, num_requests: 8, request_rate: 0.35, max_concurrency: 8, clocks_mhz: {"0": 930, "1": 900}, seed: 47}
+      - {name: decode_medium_eco, input_len: 128, output_len: 512, num_requests: 8, request_rate: 0.12, max_concurrency: 8, clocks_mhz: {"0": 930, "1": 900}, seed: 53}
+
+  crossover_a100_prefill:
+    mode: disagg
+    prefill_gpu: 0
+    decode_gpu: 1
+    idle_clocks_mhz: {"0": 1410, "1": 1380}
+    cases:
+      - {name: short_low_max, input_len: 128, output_len: 128, num_requests: 6, request_rate: 0.2, max_concurrency: 4, clocks_mhz: {"0": 1410, "1": 1380}, seed: 31}
+      - {name: short_medium_max, input_len: 128, output_len: 128, num_requests: 8, request_rate: 0.5, max_concurrency: 8, clocks_mhz: {"0": 1410, "1": 1380}, seed: 31}
+      - {name: prefill_low_max, input_len: 2048, output_len: 128, num_requests: 6, request_rate: 0.15, max_concurrency: 4, clocks_mhz: {"0": 1410, "1": 1380}, seed: 37}
+      - {name: prefill_medium_max, input_len: 2048, output_len: 128, num_requests: 8, request_rate: 0.35, max_concurrency: 8, clocks_mhz: {"0": 1410, "1": 1380}, seed: 37}
+      - {name: balanced_low_max, input_len: 1024, output_len: 256, num_requests: 6, request_rate: 0.1, max_concurrency: 4, clocks_mhz: {"0": 1410, "1": 1380}, seed: 41}
+      - {name: balanced_medium_max, input_len: 1024, output_len: 256, num_requests: 8, request_rate: 0.25, max_concurrency: 8, clocks_mhz: {"0": 1410, "1": 1380}, seed: 41}
+      - {name: decode_low_max, input_len: 128, output_len: 512, num_requests: 6, request_rate: 0.05, max_concurrency: 4, clocks_mhz: {"0": 1410, "1": 1380}, seed: 43}
+      - {name: decode_medium_max, input_len: 128, output_len: 512, num_requests: 8, request_rate: 0.12, max_concurrency: 8, clocks_mhz: {"0": 1410, "1": 1380}, seed: 43}
+      - {name: prefill_medium_eco, input_len: 2048, output_len: 128, num_requests: 8, request_rate: 0.35, max_concurrency: 8, clocks_mhz: {"0": 1410, "1": 600}, seed: 47}
+      - {name: decode_medium_eco, input_len: 128, output_len: 512, num_requests: 8, request_rate: 0.12, max_concurrency: 8, clocks_mhz: {"0": 1410, "1": 600}, seed: 53}
+
+  crossover_v100_prefill:
+    mode: disagg
+    prefill_gpu: 1
+    decode_gpu: 0
+    idle_clocks_mhz: {"0": 1410, "1": 1380}
+    cases:
+      - {name: short_low_max, input_len: 128, output_len: 128, num_requests: 6, request_rate: 0.2, max_concurrency: 4, clocks_mhz: {"0": 1410, "1": 1380}, seed: 31}
+      - {name: short_medium_max, input_len: 128, output_len: 128, num_requests: 8, request_rate: 0.5, max_concurrency: 8, clocks_mhz: {"0": 1410, "1": 1380}, seed: 31}
+      - {name: prefill_low_max, input_len: 2048, output_len: 128, num_requests: 6, request_rate: 0.15, max_concurrency: 4, clocks_mhz: {"0": 1410, "1": 1380}, seed: 37}
+      - {name: prefill_medium_max, input_len: 2048, output_len: 128, num_requests: 8, request_rate: 0.35, max_concurrency: 8, clocks_mhz: {"0": 1410, "1": 1380}, seed: 37}
+      - {name: balanced_low_max, input_len: 1024, output_len: 256, num_requests: 6, request_rate: 0.1, max_concurrency: 4, clocks_mhz: {"0": 1410, "1": 1380}, seed: 41}
+      - {name: balanced_medium_max, input_len: 1024, output_len: 256, num_requests: 8, request_rate: 0.25, max_concurrency: 8, clocks_mhz: {"0": 1410, "1": 1380}, seed: 41}
+      - {name: decode_low_max, input_len: 128, output_len: 512, num_requests: 6, request_rate: 0.05, max_concurrency: 4, clocks_mhz: {"0": 1410, "1": 1380}, seed: 43}
+      - {name: decode_medium_max, input_len: 128, output_len: 512, num_requests: 8, request_rate: 0.12, max_concurrency: 8, clocks_mhz: {"0": 1410, "1": 1380}, seed: 43}
+      - {name: prefill_medium_eco, input_len: 2048, output_len: 128, num_requests: 8, request_rate: 0.35, max_concurrency: 8, clocks_mhz: {"0": 615, "1": 1380}, seed: 47}
+      - {name: decode_medium_eco, input_len: 128, output_len: 512, num_requests: 8, request_rate: 0.12, max_concurrency: 8, clocks_mhz: {"0": 615, "1": 1380}, seed: 53}

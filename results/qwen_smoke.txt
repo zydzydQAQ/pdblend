@@ -1,0 +1,2 @@
+PROMPT: Write one sentence about GPUs.
+OUTPUT:  GPUs, or Graphics Processing Units, are specialized processors designed to handle complex graphical computations and are widely used in gaming, machine learning, and scientific simulations.

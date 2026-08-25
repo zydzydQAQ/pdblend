@@ -1,0 +1,9 @@
+.venv/
+.plot-deps/
+__pycache__/
+*.pyc
+results/*.log
+results/dmon-*.csv
+*.egg-info/
+
+results/experiments/

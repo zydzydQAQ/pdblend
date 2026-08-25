@@ -1,0 +1,2 @@
+2026-08-23T07:32:59+00:00 start cwd=/workspace gpu0=NVIDIA A100-PCIE-40GB
+2026-08-23T07:32:59+00:00 install vLLM (torch-backend=cu128)
