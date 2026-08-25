@@ -1,17 +1,11 @@
 #!/usr/bin/env bash
-# Start the pdblend CUDA 12.8 image with only GPU0 (A100).
-# Interactive (default):
-#   ./docker/run_a100.sh
-# Detached (then docker exec):
-#   ./docker/run_a100.sh --detach
+# 单卡(A100=GPU0)容器,约定与 run_dual_gpu.sh 相同(宿主无关)。
+# 可选环境变量: IMAGE / NAME / WORKSPACE / MODELS_DIR / DATA_DIR / HF_CACHE / BIND_ADDR
+# 用法: ./docker/run_a100.sh [--detach] [其他 docker run 参数]
 set -euo pipefail
 
-IMAGE="${IMAGE:-pdblend:vllm-cu128}"
+IMAGE="${IMAGE:-pdblend:latest}"
 NAME="${NAME:-pdblend-vllm}"
-HF_CACHE="${HF_CACHE:-${HOME}/.cache/huggingface}"
-WORKSPACE="${WORKSPACE:-/home/zyd/code/pdblend}"
-DATA_DIR="${DATA_DIR:-/mnt/data}"
-MODELS_DIR="${MODELS_DIR:-${HOME}/data/models}"
 
 docker_bin() {
   if docker info >/dev/null 2>&1; then
@@ -19,18 +13,10 @@ docker_bin() {
   elif sudo -n docker info >/dev/null 2>&1; then
     sudo -n docker "$@"
   else
-    echo "Need docker. If the image is already running, inside it run:" >&2
-    echo "  bash /workspace/scripts/in_container.sh" >&2
-    echo "To start a new container from a host terminal:" >&2
-    echo "  sudo docker run --gpus '\"device=0\"' --name ${NAME} --ipc=host --shm-size=16g -it \\" >&2
-    echo "    -p 8000:8000 -v ${WORKSPACE}:/workspace -v ${DATA_DIR}:${DATA_DIR} \\" >&2
-    echo "    -v ${MODELS_DIR}:/models -v ${HF_CACHE}:/root/.cache/huggingface \\" >&2
-    echo "    -e CUDA_VISIBLE_DEVICES=0 -e VIRTUAL_ENV=/opt/venv -e UV_PROJECT_ENVIRONMENT=/opt/venv -e HF_TOKEN ${IMAGE} bash" >&2
+    echo "Need docker access (docker group or passwordless sudo)." >&2
     exit 1
   fi
 }
-
-mkdir -p "${HF_CACHE}" "${MODELS_DIR}"
 
 detach=0
 extra=()
@@ -41,6 +27,12 @@ for arg in "$@"; do
     extra+=("${arg}")
   fi
 done
+
+mounts=()
+[[ -n "${WORKSPACE:-}" ]] && mounts+=(-v "${WORKSPACE}:/workspace")
+[[ -n "${MODELS_DIR:-}" ]] && mounts+=(-v "${MODELS_DIR}:/models")
+[[ -n "${DATA_DIR:-}" ]] && mounts+=(-v "${DATA_DIR}:${DATA_DIR}")
+[[ -n "${HF_CACHE:-}" ]] && mounts+=(-v "${HF_CACHE}:/root/.cache/huggingface")
 
 if docker_bin ps -a --format '{{.Names}}' | grep -qx "${NAME}"; then
   echo "container ${NAME} already exists; starting / attaching"
@@ -63,11 +55,8 @@ run=(
   --name "${NAME}"
   --ipc=host
   --shm-size=16g
-  -p 8000:8000
-  -v "${WORKSPACE}:/workspace"
-  -v "${DATA_DIR}:${DATA_DIR}"
-  -v "${MODELS_DIR}:/models"
-  -v "${HF_CACHE}:/root/.cache/huggingface"
+  -p "${BIND_ADDR:-127.0.0.1}:8000:8000"
+  "${mounts[@]}"
   -e CUDA_VISIBLE_DEVICES=0
   -e VIRTUAL_ENV=/opt/venv
   -e UV_PROJECT_ENVIRONMENT=/opt/venv

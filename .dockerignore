@@ -5,5 +5,5 @@ __pycache__
 *.pyc
 *.egg-info
 .cursor
-results/experiments
-results/*.log
+results
+papers

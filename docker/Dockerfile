@@ -31,24 +31,28 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 RUN uv python install 3.10 && \
     uv venv /opt/venv --python 3.10 --seed
 
-# /workspace is bind-mounted from the host and may contain a host .venv whose
-# python symlink does not exist in the container. Point uv at the image venv.
+# 统一使用镜像内 venv(/opt/venv);开发模式挂载宿主代码也不会被宿主 .venv 干扰
 ENV VIRTUAL_ENV=/opt/venv
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 
-# ---- 依赖安装(可重建路径,替代 docker commit)----
-# 锁定清单由 pdblend:v2 导出:docker run --rm pdblend:v2 /opt/venv/bin/pip freeze > requirements.txt
-# torch 系列 +cu128 轮子来自 PyTorch 官方索引,其余包走 PyPI。
-# 国内构建可换镜像,例如:
+# ---- 依赖安装:默认最小 PD 分离依赖集,自包含、可重建 ----
+# 国内网络构建建议换镜像:
 #   --build-arg UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
 #   --build-arg UV_EXTRA_INDEX_URL=https://mirrors.aliyun.com/pytorch-wheels/cu128
-COPY requirements.txt /tmp/requirements.txt
+ARG REQUIREMENTS_FILE=requirements-pd.txt
 ARG UV_INDEX_URL=https://pypi.org/simple
 ARG UV_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cu128
+COPY ${REQUIREMENTS_FILE} /tmp/requirements.txt
 RUN uv pip install -r /tmp/requirements.txt \
     --index-url ${UV_INDEX_URL} \
     --extra-index-url ${UV_EXTRA_INDEX_URL} \
-    && /opt/venv/bin/python -c "import torch, vllm; print('torch', torch.__version__, '| vllm', vllm.__version__)"
+    && /opt/venv/bin/python -c "import torch, vllm, aiohttp; print('torch', torch.__version__, '| vllm', vllm.__version__)"
+
+# ---- 实验代码内置:镜像自包含,运行不依赖宿主任何目录 ----
+# 需要改代码立即生效时,用宿主目录挂载覆盖:
+#   WORKSPACE=/home/zyd/code/pdblend ./docker/run_dual_gpu.sh
+COPY experiments /workspace/experiments
+COPY scripts /workspace/scripts
 
 WORKDIR /workspace
 
