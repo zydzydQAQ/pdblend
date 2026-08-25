@@ -4,6 +4,11 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV CUDA_HOME=/usr/local/cuda
 ENV PATH=/usr/local/cuda/bin:/root/.local/bin:/opt/venv/bin:${PATH}
 ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
+# 双机兼容:172.31.225.231 驱动 570.x,47.115.217.105 驱动 580.x(CUDA 13.0)。
+# 本镜像基于 CUDA 12.8.1,其 NVIDIA_REQUIRE_CUDA 只认识 <=571 的驱动,
+# 580+ 会被宿主 nvidia hook 以 "unsupported driver version" 拒绝启动。
+# 两机驱动均 >=570(满足 torch cu128 轮子要求),关闭该守卫安全。
+ENV NVIDIA_DISABLE_REQUIRE=true
 
 RUN apt-get update && apt-get install -y \
     git \
