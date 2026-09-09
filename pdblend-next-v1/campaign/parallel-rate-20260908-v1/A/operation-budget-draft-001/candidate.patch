@@ -1,0 +1,70 @@
+--- P7/capacity_executor.py
++++ draft/capacity_executor.py
+@@ -8,6 +8,7 @@
+ from dataclasses import asdict
+ import hashlib
+ import json
++import math
+ import os
+ from pathlib import Path
+ import time
+@@ -149,10 +150,17 @@
+ 
+ class PhysicalCapacityExecutor:
+     def __init__(self, backend, adapter, inventory, *, deadline_s, max_residents,
+-                 cleanup_reserve_s=120., validate_proposal=None, lease_check=check_lease):
++                 cleanup_reserve_s=120., validate_proposal=None, lease_check=check_lease,
++                 physical_operation_timeout_s=None):
+         require(max_residents in (4, 8), 'authorized TP1/TP2 eight-card maximum required')
+         self.backend, self.adapter, self.inventory = backend, adapter, inventory
+         self.deadline_s, self.max_residents = deadline_s, max_residents
++        require(physical_operation_timeout_s is None or
++            (type(physical_operation_timeout_s) in (int, float)
++             and math.isfinite(physical_operation_timeout_s)
++             and 1 <= physical_operation_timeout_s <= 360),
++            'physical operation timeout must be finite and within the original calibration safety budget')
++        self.physical_operation_timeout_s = physical_operation_timeout_s
+         self.cleanup_reserve_s = cleanup_reserve_s
+         self.validate_proposal, self.lease_check = validate_proposal, lease_check
+         self.lock = asyncio.Lock()
+@@ -162,8 +170,28 @@
+     async def execute(self, proposal):
+         require(not self.failed, 'prior transition failed; no automatic retry')
+         require(self.validate_proposal is not None, 'measured capacity calibration required')
+-        return await self._execute(proposal.action, proposal.gpus, proposal.remove_id,
+-            proposal.duration_upper_s, proposal=proposal, kind='policy_transition')
++        budget = self.physical_operation_timeout_s
++        if budget is None:
++            return await self._execute(proposal.action, proposal.gpus, proposal.remove_id,
++                proposal.duration_upper_s, proposal=proposal, kind='policy_transition')
++        require(budget >= proposal.duration_upper_s, 'physical safety budget cannot truncate the measured estimate')
++        self.inventory.event('physical_operation_budget',
++            planning_empirical_duration_s=proposal.duration_upper_s,
++            physical_safety_timeout_s=budget, planning_estimate_unchanged=True,
++            native_and_frequency_qualification_unchanged=True)
++        result = await self._execute(proposal.action, proposal.gpus, proposal.remove_id,
++            budget, proposal=proposal, kind='policy_transition')
++        measured = result['measurement']
++        duration = max(result['finished_s'] - result['started_s'], measured['duration_s'])
++        energy = measured['energy_j']
++        if self.physical_operation_timeout_s is not None and (
++            duration > proposal.duration_upper_s or energy > proposal.action_energy_upper_j):
++            self.inventory.event('empirical_transition_estimate_exceeded',
++                transaction=result['transaction'], actual_duration_s=duration, actual_energy_j=energy,
++                planning_duration_s=proposal.duration_upper_s, planning_energy_j=proposal.action_energy_upper_j,
++                old_estimate_qualification_preserved_as_negative=True,
++                request_or_native_failure_waived=False)
++        return result
+ 
+     async def calibrate(self, operation, gpus, *, remove_id=None, declaration):
+         """Explicit development measurement, never a certified planner proposal."""
+--- P7/capacity_runtime.py
++++ draft/capacity_runtime.py
+@@ -141,6 +141,7 @@
+         self.backend = PinnedDockerBackend(controller, binding, self.inventory)
+         self.executor = PhysicalCapacityExecutor(self.backend, self.adapter, self.inventory,
+             deadline_s=binding['deadline_s'], max_residents=8//self.identity.tp,
++            physical_operation_timeout_s=binding.get('physical_operation_timeout_s'),
+             validate_proposal=self.revalidate if require_calibration else None,
+             lease_check=lambda: check_lease(authority=controller.config.get('capacity_lease_authority'),
+                 expected_inventory=controller.config['capacity_inventory_path'],

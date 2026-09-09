@@ -1,0 +1,135 @@
+--- v1/deploy.py
++++ v2/deploy.py
+@@ -55,17 +55,22 @@
+     except FileNotFoundError:return False
+     return 'five-system-execution-' in cmd and (str(binding) in cmd or str(manifest) in cmd)
+ 
+-def terminal_group(binding_path,manifest_path,*,system='pdblend',datasets=None,check_processes=True):
+-    """Require real complete raw-backed main/scale CPs, not invocation count."""
++def terminal_group(binding_path,manifest_path,*,system='pdblend',datasets=None,phases=None,check_processes=True):
++    """Require only explicitly selected phases, without claiming missing scales complete."""
+     b=read(binding_path);m=read(manifest_path);out=Path(b['output'])
+     require(b['protocol_id']==m['protocol_id']==PROTOCOL and b['system']==system,'predecessor identity differs')
+     require(b['files'].get(str(Path(manifest_path).resolve()))==sha(manifest_path),'predecessor manifest not frozen')
+-    ds=set(datasets or ('alpaca','sharegpt','longbench'))
+-    rows=[r for r in m['cells'] if r['system']==system and r['dataset'] in ds]
+-    counts={p:sum(r['phase']==p for r in rows) for p in ('main','scale')}
+-    require(counts==dict(main=10*len(ds),scale=6*len(ds)),'predecessor declared group is not 10+6 cells per dataset')
+-    checkpoints={}
+-    for row in rows:
++    ds=set(datasets if datasets is not None else ('alpaca','sharegpt','longbench'))
++    selected_phases=phase_selection(phases)
++    require(ds and ds<=set(SLOS),'invalid predecessor datasets')
++    declared=[r for r in m['cells'] if r['system']==system and r['dataset'] in ds]
++    require(len({r['cell_id'] for r in declared})==len(declared),'duplicate predecessor cell identity')
++    require(all(sum(r['dataset']==d and r['phase']==p for r in declared)==n
++        for d in ds for p,n in [('main',10),('scale',6)]),'predecessor declaration is not 10+6 per dataset')
++    rows=[r for r in declared if r['phase'] in selected_phases]
++    counts={p:sum(r['phase']==p for r in rows) for p in selected_phases}
++    checkpoints={};reference_checkpoints={}
++    def verify_checkpoint(row):
+         p=out/'checkpoints'/(row['cell_id']+'.json');cp=read(p)
+         require(cp['row']==row and cp.get('measurement_valid') is True,'incomplete/foreign predecessor checkpoint')
+         require(sha(cp['receipt'])==cp['receipt_sha256'],'predecessor receipt changed')
+@@ -73,12 +78,18 @@
+         require(receipt.get('measurement_valid') is True and receipt.get('child_stopped') is True
+             and receipt.get('clock_restore_complete') is True,'predecessor cleanup not complete')
+         require(cp.get('artifacts'),'predecessor checkpoint lacks raw SHA references')
+-        verify_files(cp['artifacts']);checkpoints[str(p)]=sha(p)
++        verify_files(cp['artifacts'])
++        return p,cp
++    by_id={r['cell_id']:r for r in declared}
++    for row in rows:
++        p,cp=verify_checkpoint(row);checkpoints[str(p)]=sha(p)
+         if row['phase']=='scale':
+-            ref=read(out/'checkpoints'/(row['reuse_main_cell_id']+'.json'))
+-            require(ref['row']['trace_sha256']==row['trace_sha256'],'predecessor scale trace reference differs')
++            reference=by_id.get(row['reuse_main_cell_id'])
++            require(reference and reference['phase']=='main' and reference['dataset']==row['dataset']
++                and reference['trace_sha256']==row['trace_sha256'],'predecessor scale reference is foreign')
++            rp,ref=verify_checkpoint(reference);reference_checkpoints[str(rp)]=sha(rp)
+     invs=[(p,read(p)) for p in (out/'invocations').glob('*.json')]
+-    for phase in ('main','scale'):
++    for phase in selected_phases:
+         candidates=[(p,x) for p,x in invs if x.get('system')==system and x.get('phase')==phase]
+         require(candidates,'predecessor phase invocation missing')
+         latest=max(candidates,key=lambda z:z[1].get('started_s',0))
+@@ -87,8 +98,36 @@
+     if check_processes:
+         require(not any(source_process_alive(x.get('pid'),binding_path,manifest_path) for _,x in invs),
+                 'predecessor runner process is still alive')
+-    return dict(system=system,datasets=sorted(ds),counts=counts,checkpoint_sha256=checkpoints,
++    return dict(system=system,datasets=sorted(ds),phases=selected_phases,counts=counts,
++        unrequested_phases=[p for p in ('main','scale') if p not in selected_phases],
++        unrequested_phase_completion_claimed=False,checkpoint_sha256=checkpoints,reference_checkpoint_sha256=reference_checkpoints,
+         binding_sha256=sha(binding_path),manifest_sha256=sha(manifest_path))
++
++def phase_selection(phases):
++    selected=list(('main','scale') if phases is None else phases)
++    require(selected and len(selected)==len(set(selected)) and set(selected)<=set(('main','scale')),
++        'nonempty unique predecessor phase selection required')
++    return [p for p in ('main','scale') if p in selected]
++
++def predecessor_requirements(args, prior):
++    require(prior['model']==args.model and prior['system']=='pdblend','wrong source PDB binding')
++    pdb_phases=phase_selection(getattr(args,'pdb_phase',None))
++    previous_phases=phase_selection(getattr(args,'previous_phase',None))
++    if getattr(args,'previous_phase',None) is not None:
++        require(args.previous_binding is not None,'previous phase requires explicit previous binding')
++    required=[dict(binding=str(args.pdb_binding.resolve()),manifest=str(args.workloads.resolve()),
++        system='pdblend',datasets=list(SLOS),phases=pdb_phases)]
++    previous=args.previous_binding.resolve() if args.previous_binding else args.pdb_binding.resolve()
++    if args.previous_binding:
++        pb=read(previous)
++        require(pb['model']==args.model and pb['protocol_id']==PROTOCOL,'wrong actual previous model/protocol')
++        require(pb['instances'],'actual previous deployment must list its owned instances')
++        if getattr(args,'layout',None)=='distserve-longbench':
++            require(pb['system']=='distserve' and set(args.previous_dataset or ())=={'alpaca','sharegpt'},
++                'A heterogeneous switch requires actual resident DistServe Alpaca/ShareGPT predecessor')
++        required.append(dict(binding=str(previous),manifest=str(args.workloads.resolve()),system=pb['system'],
++            datasets=args.previous_dataset or list(SLOS),phases=previous_phases))
++    return required,previous,pdb_phases,previous_phases
+ 
+ def prepare(args):
+     package_check();model=args.model;meta=META[model]
+@@ -135,10 +174,9 @@
+     prior=read(args.pdb_binding)
+     require(prior['model']==model and prior['system']=='pdblend','wrong source PDB binding')
+     require(read(args.workloads)['model']==model,'wrong model workload source')
+-    required=[dict(binding=str(args.pdb_binding.resolve()),manifest=str(args.workloads.resolve()),system='pdblend',datasets=list(SLOS))]
+-    previous=args.previous_binding.resolve() if args.previous_binding else args.pdb_binding.resolve()
+-    if args.previous_binding:
+-        pb=read(previous);required.append(dict(binding=str(previous),manifest=str(args.workloads.resolve()),system=pb['system'],datasets=args.previous_dataset or list(SLOS)))
++    if args.layout=='distserve-longbench':
++        require(args.previous_binding is not None,'A heterogeneous switch requires explicit previous resident binding')
++    required,previous,pdb_phases,previous_phases=predecessor_requirements(args,prior)
+     files={str(p):sha(p) for p in ROOT.rglob('*') if p.is_file() and '__pycache__' not in p.parts}
+     files.update(historical_files)
+     for p in [args.pdb_binding,args.workloads,args.host/'manifest.json',previous,*[Path(i['config']) for i in new]]:files[str(p.resolve())]=sha(p)
+@@ -148,6 +186,8 @@
+     record=dict(schema=1,protocol_id=PROTOCOL,model=model,layout=args.layout,hostname=prior['hostname'],deadline_s=DEADLINE,
+         out=str(out),host_release=str(args.host.resolve()),executor_release=str(args.executor.resolve()),
+         instances=new,required_predecessors=required,previous_binding=str(previous),pdb_binding=str(args.pdb_binding.resolve()),
++        previous_phases=previous_phases,pdb_phases=pdb_phases,
++        unrequested_predecessor_phases_claimed_complete=False,
+         workloads=str(args.workloads.resolve()),image=IMAGE,files=files,
+         supported_datasets=['longbench'] if suffix=='l' else list(SLOS),source_entry=str(entry),
+         deployment_budget_s=720,cleanup_budget_s=120,does_not_certify_kv_output_correctness=True)
+@@ -241,7 +281,7 @@
+     spec=read(args.spec);verify_files(spec['files'])
+     require(spec['hostname']==socket.gethostname(),'wrong physical node')
+     require(time.time()+spec['deployment_budget_s']+spec['cleanup_budget_s']<DEADLINE,'insufficient original deadline for deployment and cleanup')
+-    proof=[terminal_group(r['binding'],r['manifest'],system=r['system'],datasets=r['datasets']) for r in spec['required_predecessors']]
++    proof=[terminal_group(r['binding'],r['manifest'],system=r['system'],datasets=r['datasets'],phases=r.get('phases')) for r in spec['required_predecessors']]
+     executor=load('deployment_five_system_executor',Path(spec['executor_release'])/'run.py')
+     previous=read(spec['previous_binding']);executor.validate_binding(previous)
+     out=Path(spec['out']);require(not (out/'deployment-receipt.json').exists(),'deployment attempt already has a receipt')
+@@ -409,6 +449,8 @@
+     for k in ('pdb-binding','workloads','host','out'):a.add_argument('--'+k,type=Path,required=True)
+     a.add_argument('--executor',type=Path,default=WORKSPACE/'campaign/five-system-execution-v3')
+     a.add_argument('--previous-binding',type=Path);a.add_argument('--previous-dataset',action='append',choices=SLOS)
++    a.add_argument('--previous-phase',action='append',choices=('main','scale'),help='Actual previous layout phases required before switch; default main+scale')
++    a.add_argument('--pdb-phase',action='append',choices=('main','scale'),help='Explicit PDB predecessor phases; default main+scale')
+     a=sub.add_parser('deploy');a.add_argument('--spec',type=Path,required=True);a.add_argument('--run',action='store_true')
+     a=sub.add_parser('bind')
+     for k in ('spec','receipt','out','output'):a.add_argument('--'+k,type=Path,required=True)

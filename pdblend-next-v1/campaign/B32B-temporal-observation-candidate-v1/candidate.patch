@@ -1,0 +1,84 @@
+--- actual/vllm/worker/model_runner.py
++++ candidate/vllm/worker/model_runner.py
+@@ -67,6 +67,8 @@
+ 
+ logger = init_logger(__name__)
+ 
++from vllm import pdblend_diagnostics as _pdb_diag
++
+ LORA_WARMUP_RANK = 8
+ 
+ _NUM_WARMUP_ITERS = 2
+@@ -104,6 +106,7 @@
+     async_callback: Optional[Callable] = None
+     scheduler_outputs: Optional[SchedulerOutputs] = None
+     previous_hidden_states: Optional[torch.Tensor] = None
++    diagnostic_bindings: Optional[Dict[str, Any]] = None
+ 
+     def as_broadcastable_tensor_dict(self) -> Dict[str, Any]:
+         tensor_dict = {
+@@ -119,6 +122,8 @@
+             "request_ids_to_seq_ids": self.request_ids_to_seq_ids,
+             "finished_requests_ids": self.finished_requests_ids,
+         }
++        if self.diagnostic_bindings is not None:
++            tensor_dict["diagnostic_bindings"] = self.diagnostic_bindings
+         _add_attn_metadata_broadcastable_dict(tensor_dict, self.attn_metadata)
+         return tensor_dict
+ 
+@@ -170,6 +175,8 @@
+             "request_ids_to_seq_ids": self.request_ids_to_seq_ids,
+             "finished_requests_ids": self.finished_requests_ids,
+         }
++        if self.diagnostic_bindings is not None:
++            tensor_dict["diagnostic_bindings"] = self.diagnostic_bindings
+         _add_attn_metadata_broadcastable_dict(tensor_dict, self.attn_metadata)
+         _add_sampling_metadata_broadcastable_dict(tensor_dict,
+                                                   self.sampling_metadata)
+@@ -1750,7 +1757,10 @@
+         return dataclasses.replace(model_input,
+                                    sampling_metadata=sampling_metadata,
+                                    is_prompt=is_prompt,
+-                                   virtual_engine=virtual_engine)
++                                   virtual_engine=virtual_engine,
++                                   diagnostic_bindings=_pdb_diag.bind(
++                                       seq_group_metadata_list, model_input,
++                                       sampling_metadata, self.block_size))
+ 
+     @torch.inference_mode()
+     def execute_model(
+@@ -1824,6 +1834,14 @@
+                     kv_caches=kv_caches
+                 )
+ 
++        diagnostic_context = None
++        if model_input.diagnostic_bindings is not None:
++            diagnostic_context = _pdb_diag.begin(
++                model_input, get_tensor_model_parallel_rank(),
++                self.parallel_config.tensor_parallel_size,
++                self.parallel_config.pipeline_parallel_size,
++                self.model_config.enforce_eager)
++
+         multi_modal_kwargs = model_input.multi_modal_kwargs or {}
+         seqlen_agnostic_kwargs = {
+             "finished_requests_ids": model_input.finished_requests_ids,
+@@ -1897,6 +1915,8 @@
+ 
+         logits = self.model.compute_logits(hidden_or_intermediate_states,
+                                            model_input.sampling_metadata)
++        if diagnostic_context and self.is_driver_worker:
++            _pdb_diag.capture_logits(diagnostic_context, logits)
+ 
+         if self.is_driver_worker:
+             if model_input.async_callback is not None:
+@@ -1949,6 +1969,10 @@
+                         assert len(sequence_group_output.samples) == 1
+                         sequence_group_output.samples[
+                             0].output_embed = token_embed
++
++        if diagnostic_context:
++            _pdb_diag.finish(diagnostic_context,
++                             output if self.is_driver_worker else None)
+ 
+         if not self.is_driver_worker:
+             return []

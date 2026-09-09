@@ -1,0 +1,5 @@
+--- a/src/ecopadg/serving/runtime.py
++++ b/src/ecopadg/serving/runtime.py
+@@ -1021,1 +1021,1 @@
+-                self.slow_task=asyncio.create_task(self.capacity_service.tick(time.time()))
++                self.slow_task=asyncio.create_task(self.capacity_service.tick())

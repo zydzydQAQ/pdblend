@@ -1,0 +1,11 @@
+--- v1/prepare.py
++++ v2/prepare.py
+@@ -17,6 +17,8 @@
+ ADAPTER=CAMPAIGN/'service-dvfs-off-execution-v2/adapter.py'
+ ADAPTER_SHA='b9761c8c61d138ec70483f7f4f822215978230c086ac9e270563651f55eb9dae'
+ MODELS={
++ '32b':dict(hostname='iZwz9i5bte3xkpmcoes3t2Z',ablation='B32B-service-dvfs-off-v2',
++  candidate='B32B-batch16-short512-candidate-v2',manifest='0d8788a2c6a683f020d5d050994563edd0f1e75bde2e9e036ad81c1bb047a102'),
+  '14b':dict(hostname='iZwz92bdfqihqp38tekqjyZ',ablation='A14B-service-dvfs-off-v2',
+   candidate='A14B-batch19-13-context-candidate-v1',manifest='25feddd47cade9b73e05221487934975fdbc91d83bd8ae414dec7f099eab3823'),
+  '7b':dict(hostname='iZwz9gfq11hx1sbob59yrgZ',ablation='C7B-service-dvfs-off-v2',

@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pdblend"
+version = "0.1.0"
+description = "SLO-constrained energy control for LLM serving"
+requires-python = ">=3.10"
+dependencies = [
+  "aiohttp",
+  "numpy",
+  "pynvml",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "..", "."]

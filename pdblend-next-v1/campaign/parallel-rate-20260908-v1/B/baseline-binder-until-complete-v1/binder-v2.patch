@@ -1,0 +1,74 @@
+--- v1/bind.py
++++ v2/bind.py
+@@ -134,6 +134,24 @@
+         no_controls_or_serving_requests=True,original_restore_unchanged=True))
+     return dict(binding=str(bp.resolve()),sha256=sha(bp),performance_eligible=False)
+ 
++def legacy_exact_evidence(checks):
++    temporal=checks.get('temporal',{})
++    require(temporal.get('complete') is True,'complete original temporal outputs required')
++    references,outputs=temporal.get('reference_token_ids'),temporal.get('token_ids')
++    require(isinstance(references,list) and isinstance(outputs,list) and len(references)==len(outputs)==2,
++        'original two solos/two pair outputs required')
++    require(all(isinstance(tokens,list) and len(tokens)==64 and all(type(t) is int and t>=0 for t in tokens)
++        for tokens in references+outputs),'original four full64 outputs required')
++    differences=[next((dict(position_one_based=k,reference=x,observed=y) for k,(x,y) in enumerate(zip(a,b),1) if x!=y),None)
++        for a,b in zip(references,outputs)]
++    require(any(differences) and temporal.get('first_differences')==differences,'actual legacy mismatch must be retained exactly')
++    flags=checks.get('checks',{})
++    present='temporal_exact' in flags
++    require(not present or flags['temporal_exact'] is False,'existing legacy exact flag must remain false')
++    return dict(header_present=present,header_value=flags.get('temporal_exact'),
++        recomputed_exact=False,first_differences=differences,
++        missing_header_scope='Original Checks raises on mismatch before setting its exact flag; absence is preserved, not rewritten.')
++
+ def qualification_contract(q,binding,gate,inventory):
+     require(q.get('schema')==2 and q.get('kind')=='temporal-default-trajectory-qualification'
+         and q.get('protocol_id')==CORRECTNESS and q.get('passed') is True
+@@ -147,8 +165,9 @@
+         and old.get('native_cleanup_complete') is True and old.get('clock_restore_complete') is True
+         and not old.get('sampling_error') and not old.get('cleanup_errors')
+         and old.get('finished_s') is not None,'original fresh gate must finish measured/native clean')
+-    require(old.get('passed') is False and old.get('mechanism_gate',{}).get('temporal') is False
+-        and checks.get('checks',{}).get('temporal_exact') is False,'do not rewrite original failed exact gate')
++    require(old.get('passed') is False and old.get('mechanism_gate',{}).get('temporal') is False,
++        'do not rewrite original failed exact gate')
++    legacy=legacy_exact_evidence(checks)
+     require(q.get('original_mechanism_gate')==old['mechanism_gate'],'qualification changed original mechanism flags')
+     bound=inventory_contract(binding,inventory)
+     original=[]
+@@ -167,7 +186,7 @@
+     for cid in bound:require(original[0][cid]['provenance']==original[1][cid]['provenance'],'full imported provenance changed during gate')
+     rawfiles={str(p.resolve()):sha(p) for p in gate.rglob('*') if p.is_file() and '__pycache__' not in p.parts}
+     require(rawfiles and all(q['files'].get(p)==h for p,h in rawfiles.items()),'qualification omitted or changed fresh gate raw')
+-    return old,checks,rawfiles
++    return old,checks,rawfiles,legacy
+ 
+ def load_qualifier(path,digest):
+     path=path.resolve();require(path.parent==QUALIFIER_DIR and valid_sha(digest) and sha(path)==digest,
+@@ -197,7 +216,7 @@
+         and q['inputs'].get('binding_canonical_sha256')==canonical(b)
+         and q['inputs'].get('oracle_canonical_sha256')==canonical(oracle),
+         'qualification revalidated another bootstrap/oracle/gate')
+-    original,checks,gate_files=qualification_contract(q,b,a.gate.resolve(),inventory)
++    original,checks,gate_files,legacy=qualification_contract(q,b,a.gate.resolve(),inventory)
+     files=dict(b['files'])
+     for mapping in (policy_files,module_files,q['files'],gate_files):
+         for path,digest in mapping.items():
+@@ -228,6 +247,7 @@
+         qualified_bootstrap=dict(path=str(a.bootstrap.resolve()),sha256=a.bootstrap_sha256),
+         oracle=dict(path=str(a.oracle.resolve()),sha256=a.oracle_sha256),
+         legacy_output_correctness_verified=False,legacy_single_vs_pair_exact=False,
++        legacy_exact_evidence=legacy,
+         mechanism_proof=dict(required=['ordinary','temporal_native_trajectory_exact'],verified=copy.deepcopy(q['verified']),
+             legacy_verified=copy.deepcopy(original['mechanism_gate']),overall_runtime_gate_passed=False,
+             qualified_under_explicit_protocol=CORRECTNESS,original_failure_preserved=True),
+@@ -235,7 +255,7 @@
+     verify_files(files);bp=a.out/'binding.json';write(bp,result)
+     receipt=dict(complete=True,binding=dict(path=str(bp.resolve()),sha256=sha(bp)),system='ecoserve',main_cells=30,
+         future_scale_cells=18,qualification=result['qualification'],correctness_protocol_id=CORRECTNESS,
+-        original_gate_passed=False,original_temporal_exact=False,measurement_or_controls_started=False,
++        original_gate_passed=False,original_temporal_exact=False,legacy_exact_evidence=legacy,measurement_or_controls_started=False,
+         actual_live_recheck_still_required=True,finished_s=time.time())
+     write(a.out/'binding-receipt.json',receipt);return receipt
+ 

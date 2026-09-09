@@ -1,0 +1,12 @@
+--- releases/five-system100-C7B-baseline-v1-runtime/src/ecopadg/serving/admission.py
++++ src/ecopadg/serving/admission.py
+@@ -29,6 +29,9 @@
+ 
+     async def get(self):
+         while True:
++            # Ready items and uncontended async locks need not suspend.
++            # Yield before selection so every dispatcher branch remains cooperative.
++            await asyncio.sleep(0)
+             now=time.monotonic()
+             ready=[(sequence,rid) for rid,(sequence,retry) in self.entries.items() if retry<=now]
+             if ready:

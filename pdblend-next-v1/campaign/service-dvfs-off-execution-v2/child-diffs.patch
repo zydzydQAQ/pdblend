@@ -1,0 +1,57 @@
+--- /root/workspace/pdblend-next-v1/campaign/A14B-deadline-matrix-v1/child.py
++++ /root/workspace/pdblend-next-v1/campaign/A14B-service-dvfs-off-v2/child.py
+@@ -1,5 +1,6 @@
+ """One unchanged schema3 cell with durable pre-dispatch request ownership records."""
+ import asyncio
++from clock_commands import capture_clock_commands
+ import inspect
+ import json
+ from pathlib import Path
+@@ -66,7 +67,8 @@
+             return await original(self,method,url,**kwargs)
+         aiohttp.ClientSession._request=request
+         try:
+-            result=await run_cell(cell_arguments(row))
++            with capture_clock_commands(operation):
++                result=await run_cell(cell_arguments(row))
+             if not gate.checked:raise RuntimeError('actual benchmark epoch gate did not execute')
+             result.update(slo_protocol=row['slo_protocol'],declared_dataset_slo={k:row[k] for k in ('slo_ttft_s','slo_tpot_s')})
+             target=ROOT/'cells'/cell_id/'summary.json'
+--- /root/workspace/pdblend-next-v1/campaign/B32B-main-scale-fixed-window-v1/child.py
++++ /root/workspace/pdblend-next-v1/campaign/B32B-service-dvfs-off-v2/child.py
+@@ -1,5 +1,6 @@
+ """One unchanged schema3 cell with durable pre-dispatch request ownership records."""
+ import asyncio
++from clock_commands import capture_clock_commands
+ import inspect
+ import json
+ from pathlib import Path
+@@ -49,7 +50,8 @@
+             return await original(self,method,url,**kwargs)
+         aiohttp.ClientSession._request=request
+         try:
+-            result=await run_cell(cell_arguments(row))
++            with capture_clock_commands(operation):
++                result=await run_cell(cell_arguments(row))
+             result.update(slo_protocol=row['slo_protocol'],declared_dataset_slo={k:row[k] for k in ('slo_ttft_s','slo_tpot_s')})
+             target=ROOT/'cells'/cell_id/'summary.json'
+             target.write_text(json.dumps(result,indent=2,allow_nan=False)+'\n')
+--- /root/workspace/pdblend-next-v1/campaign/C7B-deadline-matrix-v1/child.py
++++ /root/workspace/pdblend-next-v1/campaign/C7B-service-dvfs-off-v2/child.py
+@@ -1,5 +1,6 @@
+ """Original fixed-window run_cell plus real epoch gate and durable request ownership."""
+ import asyncio
++from clock_commands import capture_clock_commands
+ import importlib.util
+ import inspect
+ import json
+@@ -69,7 +70,8 @@
+         aiohttp.ClientSession._request=request;bench.evaluation_headers=headers
+         backend.ClockOwner=OwnedClocks;runtime_module.ClockOwner=OwnedClocks
+         try:
+-            result=await run_cell(b.cell_args(row,ROOT/'cells'/cell_id))
++            with capture_clock_commands(operation):
++                result=await run_cell(b.cell_args(row,ROOT/'cells'/cell_id))
+             b.require(gate.seen,'actual benchmark epoch was not observed before dispatch')
+             return bool(result.get('measurement_valid') and result.get('fixed_window_valid')
+                 and result.get('post_measurement_cleanup',{}).get('cleanup_complete'))

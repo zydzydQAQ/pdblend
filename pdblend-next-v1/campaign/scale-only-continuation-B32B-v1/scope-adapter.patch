@@ -1,0 +1,56 @@
+--- scale-only-continuation-v3/contract.py
++++ scale-only-continuation-B32B-v1/contract.py
+@@ -29,18 +29,23 @@
+ finally:
+     if _previous_partition is None:sys.modules.pop('partition',None)
+     else:sys.modules['partition']=_previous_partition
+-_model_release=CAMPAIGN/'model-main-release-v1/release.py'
+-require(sha(_model_release)=='33e5e9288e7c97a2717960eb2817cb958ce0d661f807be5d3093148a06e66dbf','frozen model release changed')
+-released=load('scale_model_release_v1',_model_release)
++_model_release=CAMPAIGN/'B32B-qualified-main-release-v1/release.py'
++require(sha(_model_release)=='39e408a369c9e7eec9e60c8978524b9a31013d8f76230f3d690baabdc79b0a22','frozen B qualified model release changed')
++released=load('scale_B32B_qualified_model_release_v1',_model_release)
+ revision=released.p
+ 
+ 
+ def qualified_gate(binding,datasets):
+     """Reconstruct each required mechanism from original HTTP/tokens/events.
+ 
+-    The A/C reader also accepts the original B four-TP2 raw schema; a real B
+-    ordinary+PD success / temporal failure is a regression input below.
++    B Eco delegates the explicitly versioned native-trajectory qualification.
++    Other systems retain the original ordinary/PD reader and raw exact flags.
+     """
++    require(binding.get('model')=='32b','this adapter only permits B32B')
++    if binding.get('system')=='ecoserve':
++        require(datasets and set(datasets)<=set(binding.get('configs',{})),
++            'qualified Eco scale dataset configuration missing')
++        return released.audit_eco_binding(binding)
+     gate=Path(binding['correctness_evidence'])
+     reader=load('scale_legacy_gate',CAMPAIGN/'AC-baseline-binding-v2/gate_evidence.py')
+     power=load('scale_original_power',HERE/'power_evidence.frozen.py')
+@@ -102,6 +107,7 @@
+ def compatible_bindings(main_ref,scale_ref,datasets,identity_mode):
+     require(identity_mode in ('same_process','restarted'),'measurement needs an explicit deployment identity mode')
+     main,current=reference(main_ref),reference(scale_ref)
++    require(main.get('model')==current.get('model')=='32b','this adapter only permits B32B')
+     for key in ('protocol_id','deadline_s','model','system','hostname'):
+         require(main[key]==current[key],'scale changed bound '+key)
+     require(current['protocol_id']==PROTOCOL and current['deadline_s']==DEADLINE,'wrong scale protocol/deadline')
+@@ -124,6 +130,8 @@
+         else:
+             require(old['container']['StartedAt']!=new['container']['StartedAt'] and before[cid]['State']['Pid']!=after[cid]['State']['Pid'],
+                 'restart requires actual fresh StartedAt AND host State.Pid; namespace PID=1 is insufficient')
++    if identity_mode=='same_process' and current['system']=='ecoserve':
++        qualified_gate(current,datasets)
+     if identity_mode=='restarted':
+         require(main_ref!=scale_ref and current.get('output_correctness_verified') is True
+             and not current.get('correctness_gate_required_before_performance') and current.get('mechanism_proof'),
+@@ -347,6 +355,7 @@
+ 
+ 
+ def check_spec(spec,release_path,release_sha,selected=None):
++    require(spec.get('model')=='32b','this adapter only permits B32B')
+     checked_release=released.verify_release(release_path,release_sha,expected_protocol_id=PROTOCOL,expected_deadline_s=DEADLINE,expected_model=spec.get('model'))
+     release=read(release_path)
+     require(spec['schema']==2 and spec['protocol_id']==PROTOCOL and spec['deadline_s']==DEADLINE,'scale spec protocol/deadline differs')

@@ -1,0 +1,42 @@
+--- frozen-legacy/engine.py
++++ observation-only/engine.py
+@@ -140,12 +140,20 @@
+         if self.config.get('peers') and time.monotonic()-self.transfer_snapshot_s>.1:
+             from vllm.pdblend_runtime import transfer_state
+             transfers=self.control_rpc(transfer_state)
++            if len(transfers)!=self.config["tp"]:
++                raise RuntimeError("incomplete actual TP-rank transfer snapshot")
+             allocations={rid:max(s.get('allocations',{}).get(rid,0) for s in transfers)
+                          for s in transfers for rid in s.get('allocations',{})}
+             self.transfer_snapshot=dict(
+                 free_transfer_bytes=max(0,min(s['buffer_capacity_bytes'] for s in transfers)-sum(allocations.values())),
+                 transfer_bytes_per_token=self.transfer_bytes_per_token,
+                 transfer_allocations=allocations,
++                transfer_buffered_tensors=sum(t["buffered_tensors"] for t in transfers),
++                transfer_inflight_receives=sum(t["inflight_receives"] for t in transfers),
++                transfer_inflight_sends=(sum(t["inflight_sends"] for t in transfers)
++                    if all("inflight_sends" in t for t in transfers) else None),
++                transfer_inflight_sends_observed=all("inflight_sends" in t for t in transfers),
++                transfer_observed_s=time.time(),
+                 transport_healthy=all(s['listener_alive'] for s in transfers))
+             self.transfer_snapshot_s=time.monotonic()
+         sched = self.engine.scheduler[0]
+@@ -419,11 +427,17 @@
+                         raise TimeoutError('drain deadline expired')
+                     await asyncio.sleep(.01)
+                 transfers=await self.call(self.control_rpc,transfer_state)
++                if len(transfers)!=self.config["tp"]:
++                    raise RuntimeError("incomplete actual TP-rank drain barrier")
+                 if any(s['buffered_tensors'] or s['inflight_receives'] or not s['listener_alive'] for s in transfers):
+                     raise RuntimeError('transport did not drain')
+                 await self.call(self.commit_state,dict(self.state,generation=self.state['generation']+1,
+                     admit_prefill=False))
+-                return web.json_response(dict(self.state,accepting=False,drained=True))
++                # The unchanged legacy EngineArgs fixes PUT+strict receiver ACK.
++                # control_rpc executes on the real owner after all TP steps.
++                return web.json_response(dict(self.state,accepting=False,drained=True,
++                    drain_proof_type='synchronous_put_owner_barrier',
++                    transfer_observed_s=time.time(),transfers=transfers))
+             except Exception:
+                 self.accepting=not bool(self.error)
+                 raise

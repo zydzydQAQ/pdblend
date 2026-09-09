@@ -7,3 +7,23 @@ results/dmon-*.csv
 *.egg-info/
 
 results/experiments/
+
+# Local dependencies, credentials, and generated PDblend artifacts
+.runtime-deps/
+.pytest_cache/
+*.pyo
+.env
+.env.*
+!.env.example
+/models/
+/pdblend/new-results/
+
+# Campaign source is versioned; runtime inputs and outputs stay local.
+/pdblend-next-v1/campaign/**/*.json
+/pdblend-next-v1/campaign/**/*.jsonl
+/pdblend-next-v1/campaign/**/*.csv
+/pdblend-next-v1/campaign/**/*.log
+/pdblend-next-v1/campaign/**/*.parquet
+/pdblend-next-v1/campaign/**/*.pkl
+/pdblend-next-v1/campaign/**/*.npz
+/pdblend-next-v1/campaign/**/*.npy
