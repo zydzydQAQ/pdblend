@@ -1,12 +1,12 @@
 # PDblend
 
-PDblend 是面向大语言模型推理服务的 SLO 约束能耗控制项目。本仓库保留已有部署与 Selective PD 实验文件，并收录 2026-09-09 工作区中可用的 PDblend 源码。
+PDblend 是面向大语言模型推理服务的 SLO 约束能耗控制项目。本仓库保留已有部署与 Selective PD 实验文件，并收录 2026-09-10 工作区中可用的 PDblend 源码。
 
 ## 目录
 
 | 目录 | 内容 |
 | --- | --- |
-| `pdblend/` | 主 Python 包 `ecopadg`、项目配置和测试 |
+| `pdblend/` | 主 Python 包 `ecopadg`、可扩展性评估模块、项目配置和测试 |
 | `pdblend-next-v1/releases/` | 各版本运行时源码、版本说明、清单和补丁 |
 | `pdblend-next-v1/campaign/` | 实验开发与执行脚本、候选实现和补丁；保留原相对路径 |
 | `pdblend-next-v1/tests/` | 后续版本测试 |
@@ -29,6 +29,8 @@ python -m pip install -e ./pdblend
 已有 Selective PD 实验的运行方式见 [experiments/selective_pd/README.md](experiments/selective_pd/README.md)。现有 Dockerfile 构建的是该实验环境，不会自动安装新收录的主 Python 包。
 
 ## 测试与快照范围
+
+2026-09-10 更新收录可扩展性评估模块及测试、最新速率与 SLO 实验源码和运行时快照，并支持通过 `engine_request_timeout_s` 配置引擎请求超时。已验证可扩展性测试 144 项、异步运行时及回滚验证测试 32 项，共 176 项通过。
 
 主程序测试位于 `pdblend/tests/`，可安装 `pytest` 后按需执行。当前工作区缺少部分测试所引用的 `script/bench/`、`pdblend/new-results/scripts/` 和实验测量表，因此完整测试套件仍需要补齐这些输入；本次源码上传不表示完整测试或 GPU 实验已经通过。
 

@@ -1,0 +1,143 @@
+--- /root/workspace/pdblend-next-v1/campaign/B32B-temporal-observation-execution-v4/child.py
++++ /root/workspace/pdblend-next-v1/campaign/B32B-native-default-reference-execution-v1/child.py
+@@ -1,4 +1,4 @@
+-"""HTTP-only six-request diagnostic child. Parent owns identity/lease/GPU/power.
++"""HTTP-only four-request diagnostic child. Parent owns identity/lease/GPU/power.
+ 
+ Exact mismatches are observations, not exceptions that discard the control pair.
+ """
+@@ -18,9 +18,9 @@
+ ROOT=Path(__file__).resolve().parent
+ CHECKS=ROOT.parent/'B32B-legacy-baseline-correctness-v1/checks.py'
+ CHECKS_SHA='e0965f922ae42245b275d9c17342c31689290c61bcac5dfaf33a2a352fd29931'
+-SPEC=ROOT.parent/'B32B-temporal-solo-pair-observation-v1/spec.json'
+-SPEC_SHA='77ce7b8d8011ae1779f9e0d4e986517b2d61dc3508e5debbf5bc4517f37417e1'
+-LABELS=('golden-first','golden-second','temporal-first','temporal-second','continuous-first','continuous-second')
++SPEC=ROOT/'request-spec.json'
++SPEC_SHA='9b3b218388534462fc1de0be9526c5ed6155bc7971d4fd837fd40d2857d78370'
++LABELS=('golden-first','golden-second','temporal-first','temporal-second')
+ 
+ def require(ok,why):
+     if not ok:raise RuntimeError(why)
+@@ -34,7 +34,7 @@
+     s=importlib.util.spec_from_file_location('temporal_original_legacy_checks',CHECKS);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+ 
+ def validate_job(job):
+-    require(sha(SPEC)==SPEC_SHA,'original six-request declaration changed')
++    require(sha(SPEC)==SPEC_SHA,'original four-request declaration changed')
+     require(Path(job['binding_path']).is_absolute() and sha(job['binding_path'])==job['binding_sha256']
+         and read(job['binding_path'])==job['binding'],'job binding does not equal frozen actual file')
+     binding=job['binding'];ii=binding['instances']
+@@ -45,17 +45,18 @@
+     require(Path(job['observation_spec']).is_absolute() and sha(job['observation_spec'])==job['observation_spec_sha256'],
+         'observation spec SHA differs')
+     spec=read(job['observation_spec']);original=read(SPEC);expected=copy.deepcopy(original)
+-    expected['output_dir']=spec['output_dir'];require(spec==expected,'only output_dir may differ from frozen six-request spec')
++    expected['output_dir']=spec['output_dir'];require(spec==expected,'only output_dir may differ from frozen four-request spec')
+     capture=Path(spec['output_dir']);require(capture.is_absolute() and ROOT.parent in capture.parents and '..' not in capture.parts,
+         'independent absolute campaign capture path required')
+-    require([x['label'] for x in spec['requests']]==list(LABELS),'six request order differs')
+-    require(len({x['request_uuid'] for x in spec['requests']})==6,'six disjoint UUIDs required')
++    require([x['label'] for x in spec['requests']]==list(LABELS),'four request order differs')
++    require(len({x['request_uuid'] for x in spec['requests']})==4,'four disjoint UUIDs required')
+     require(spec['request_ids']==[spec['requests'][1]['request_uuid'],spec['requests'][3]['request_uuid']],
+         'only golden-second and temporal-second UUIDs may be observed')
+     for k in ('work_deadline_s','cleanup_deadline_s'):
+         require(type(job[k]) in (int,float) and math.isfinite(job[k]),'finite actual epoch deadline required')
+     require(time.time()<job['work_deadline_s']<job['cleanup_deadline_s']<=spec['global_deadline_s']
+         and job['work_deadline_s']-time.time()<=390.1,'original global/work deadline exceeded')
++    require(0<job['cleanup_deadline_s']-job['work_deadline_s']<=90,'original cleanup cap exceeded')
+     require(Path(job['output_dir']).is_absolute(),'absolute child output required')
+     return spec
+ 
+@@ -87,58 +88,27 @@
+ class Observation:
+     def __init__(self,job,spec,checker,base,out,status):
+         self.job=job;self.spec=spec;self.c=checker;self.base=base;self.out=out;self.status=status
+-        self.i=job['binding']['instances'][0];self.requests={x['label']:x for x in spec['requests']}
+-        self.outputs={};self.status['phases']={};self.status['completed_request_labels']=[]
++        self.i=job['binding']['instances'][0];self.outputs={};self.status['completed_request_labels']=[]
+     def save(self):
+         self.status['completed_requests']=len(self.outputs)
+         write(self.out/'status.json',self.status)
+         write(self.out/'full-outputs.json',dict(token_ids_by_request_uuid=self.outputs,
+-            completed_request_labels=self.status['completed_request_labels'],all_six_full64=len(self.outputs)==6,
++            completed_request_labels=self.status['completed_request_labels'],all_four_full64=len(self.outputs)==4,
+             observation_spec_sha256=self.job['observation_spec_sha256'],binding_sha256=self.job['binding_sha256'],
+-            scope='actual completed HTTP full64 outputs only; not capture/native/physical correctness proof'))
+-    async def generate(self,label):
+-        req=self.requests[label]
+-        values=await self.c.generate(self.i,req['prompt_length'],label,req['request_uuid'],copy.deepcopy(req['body']))
+-        require(len(values)==64 and all(type(x) is int for x in values),'full original64 output absent')
+-        self.outputs[req['request_uuid']]=values;self.status['completed_request_labels'].append(label);self.save();return values
+-    async def allocation(self,rid,task,phase):
+-        end=time.monotonic()+min(30,self.c.limit.remaining())
+-        while True:
+-            raw=await self.c.runtime(self.i)
+-            if type(raw.get('kv_allocations',{}).get(rid)) is int and raw['kv_allocations'][rid]>=1 and raw.get('running')==1:
+-                phase['first_allocated']=raw;self.save();return
+-            require(not task.done() and time.monotonic()<end,'original first-allocation gate missed')
+-            await asyncio.sleep(.005)
+-    async def pair(self,mode,refs):
+-        await self.c.idle(self.i)
+-        control=await self.c.control(self.i,role='mixed',mode=mode,admit_prefill=True,admit_decode=True)
+-        phase=self.status['phases'][mode]=dict(control=control,started_s=time.time(),complete=False);self.save()
+-        first=self.requests[mode+'-first'];second=self.requests[mode+'-second']
+-        t1=self.c.task(self.generate(mode+'-first'));await self.allocation(first['request_uuid'],t1,phase)
+-        if mode=='temporal':
+-            phase['close_prefill']=await self.c.control(self.i,admit_prefill=False)
+-            t2=self.c.task(self.generate(mode+'-second'));await asyncio.sleep(.1)
+-            held=await self.c.runtime(self.i);phase['held']=held;self.save()
+-            require(second['request_uuid'] not in held.get('kv_allocations',{}) and held.get('waiting',0)>=1
+-                and held.get('admit_prefill') is False and held.get('admit_decode') is True and held.get('mode')=='temporal'
+-                and held['generation']==phase['close_prefill']['after']['generation'],'original closed-prefill hold failed')
+-            phase['open_prefill']=await self.c.control(self.i,admit_prefill=True)
+-        else:
+-            phase['stagger_start_s']=time.time();await asyncio.sleep(.1)
+-            phase['first_still_pending_at_second_dispatch']=not t1.done()
+-            t2=self.c.task(self.generate(mode+'-second'))
+-        values=await asyncio.gather(t1,t2)
+-        phase.update(complete=True,finished_s=time.time(),first_differences=[self.base.difference(a,b) for a,b in zip(refs,values)])
+-        phase['exact_passed']=not any(phase['first_differences']);self.save()
+-        # Exact disagreement is retained and does not prevent the causal control.
+-        return values
++            scope='independently generated native-default full64; original temporal gate unchanged'))
+     async def run(self):
+         await self.c.idle(self.i)
+-        self.status['initial_control']=await self.c.control(self.i,role='mixed',mode='continuous',admit_prefill=True,admit_decode=True)
+-        refs=[await self.generate('golden-first'),await self.generate('golden-second')]
+-        await self.pair('temporal',refs);await self.pair('continuous',refs)
+-        self.status['complete']=len(self.outputs)==6
+-        self.status['exact_passed']=all(self.status['phases'][x]['exact_passed'] for x in ('temporal','continuous'));self.save()
++        for request in self.spec['requests']:self.c.own(self.i,request['request_uuid'])
++        response=await self.c.http(self.i,'/native-reference',dict(requests=self.spec['requests'],
++            work_deadline_s=self.job['work_deadline_s']),timeout=self.c.limit.remaining())
++        require(response.get('complete') is True,'native driver incomplete')
++        values=response['token_ids_by_request_uuid'];ids=[r['request_uuid'] for r in self.spec['requests']]
++        require(set(values)==set(ids) and all(len(values[r])==64 and all(type(x) is int and x>=0 for x in values[r]) for r in ids),'four complete actual64 outputs')
++        self.outputs=values;self.status['completed_request_labels']=list(LABELS)
++        differences=[self.base.difference(values[ids[j]],values[ids[j+2]]) for j in range(2)]
++        self.status.update(complete=True,exact_passed=not any(differences),first_differences=differences,
++            original_temporal_gate_changed=False,reference_is_independent_numerical_implementation=False)
++        self.save()
+ 
+ async def execute(job_path,*,session_factory=None,checker_class=None):
+     """Parent invokes one subprocess. No parent measurement or capture proof is asserted."""
+@@ -161,7 +131,7 @@
+             cls=checker_class or deadline_checks(base);checker=cls(session,job['binding'],out/'checks')
+             checker.set_phase(job['work_deadline_s']);observation=Observation(job,spec,checker,base,out,status);observation.save()
+             try:
+-                status['phase']='six-original-requests';observation.save()
++                status['phase']='four-native-reference-requests';observation.save()
+                 await asyncio.wait_for(observation.run(),checker.limit.remaining())
+             except BaseException as e:failure=e;status['errors'].append(repr(e));status['cancelled']=isinstance(e,asyncio.CancelledError)
+             finally:
+@@ -186,7 +156,7 @@
+             try:checker.close()
+             except Exception:pass
+         write(out/'status.json',status)
+-        if not (out/'full-outputs.json').exists():write(out/'full-outputs.json',{'token_ids_by_request_uuid':{},'all_six_full64':False})
++        if not (out/'full-outputs.json').exists():write(out/'full-outputs.json',{'token_ids_by_request_uuid':{},'all_four_full64':False})
+     finally:
+         for sig in (signal.SIGTERM,signal.SIGINT):loop.remove_signal_handler(sig)
+     status['child_exit_ok']=bool(status['complete'] and status['cleanup_complete'] and not status['errors'])

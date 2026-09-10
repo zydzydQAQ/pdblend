@@ -1,0 +1,93 @@
+--- v2/archive.py
++++ v2-r2/archive.py
+@@ -10,7 +10,9 @@
+     result={}
+     for instance in binding['instances']:
+         cfg=c.read(instance['engine_config']);base=Path(cfg['runtime_dir'])/(instance['id']+'.control.json')
+-        result[instance['id']]={'control':base,'events':base.with_suffix('.events.jsonl')}
++        c.require(instance['tp']==2,'original B TP2 runtime namespace required')
++        result[instance['id']]={'control':base,'events':base.with_suffix('.events.jsonl'),
++            'kv_rank_0':Path(str(base)+'.kv.0.jsonl'),'kv_rank_1':Path(str(base)+'.kv.1.jsonl')}
+     c.require(len(result)==4,'four original runtime namespaces required')
+     return result
+ 
+@@ -63,11 +65,14 @@
+             report['instances'][iid]={}
+             for kind,p in group.items():report['instances'][iid][kind]=copy_exact(p,out/(iid+'.'+kind),end_s,mono_end)
+             if initial is not None:
+-                old=initial['instances'][iid]['events'];current=report['instances'][iid]['events']
+-                c.require(current['source']==old['source'] and current['size']>=old['size'],'original event prefix path/size changed')
+-                c.require(prefix_digest(Path(current['source']),old['size'],end_s,mono_end)==old['sha256'],
+-                    'original event prefix changed between pre-control and stopped snapshots')
+-                report['instances'][iid]['initial_prefix_sha256']=old['sha256']
++                prefix_hashes={}
++                for kind in ('events','kv_rank_0','kv_rank_1'):
++                    old=initial['instances'][iid][kind];current=report['instances'][iid][kind]
++                    c.require(current['source']==old['source'] and current['size']>=old['size'],'original event prefix path/size changed')
++                    c.require(prefix_digest(Path(current['source']),old['size'],end_s,mono_end)==old['sha256'],
++                        'original event prefix changed between pre-control and stopped snapshots')
++                    prefix_hashes[kind]=old['sha256']
++                report['instances'][iid]['initial_prefix_sha256']=prefix_hashes
+             c.write(out/'archive.json',report)
+         report.update(complete=True,finished_s=time.time());c.write(out/'archive.json',report);return report
+     except BaseException as exc:
+@@ -81,12 +86,19 @@
+         c.require(str(event)==old['events']['source'] and current.st_size>=old['events']['size'],'restored event prefix truncated/path changed')
+         digest=prefix_digest(event,old['events']['size'],end_s,mono_end)
+         c.require(digest==old['events']['sha256'],'restored event prefix content changed')
+-        for kind in ('control','events'):
++        for kind in ('control','events','kv_rank_0','kv_rank_1'):
+             c.require(c.sha(old[kind]['archive'])==old[kind]['sha256'],'immutable stopped runtime archive changed')
++        kv_prefixes={}
++        for kind in ('kv_rank_0','kv_rank_1'):
++            p=group[kind];size=p.stat().st_size
++            c.require(str(p)==old[kind]['source'] and size>=old[kind]['size'],'restored KV event prefix truncated/path changed')
++            h=prefix_digest(p,old[kind]['size'],end_s,mono_end)
++            c.require(h==old[kind]['sha256'],'restored KV event prefix content changed')
++            kv_prefixes[kind]=dict(prefix_sha256=h,old_bytes=old[kind]['size'],current_bytes=size,appended_bytes=size-old[kind]['size'])
+         control=c.read(group['control']);after=native['instances'][iid]['after']
+         c.require(all(control.get(k)==after.get(k) for k in ('generation','role','mode','admit_prefill','admit_decode')),
+             'restored control file differs from final actual native ACK')
+-        result[iid]=dict(event_prefix_sha256=digest,old_event_bytes=old['events']['size'],current_event_bytes=current.st_size,
++        result[iid]=dict(kv_rank_prefixes=kv_prefixes,event_prefix_sha256=digest,old_event_bytes=old['events']['size'],current_event_bytes=current.st_size,
+             appended_event_bytes=current.st_size-old['events']['size'],stopped_control_sha256=old['control']['sha256'],
+             restored_control_sha256=c.sha(group['control']),restored_control=control,final_actual_generation=after['generation'])
+     guard(end_s,mono_end)
+--- v2/run.py
++++ v2-r2/run.py
+@@ -378,7 +378,8 @@
+     c.require(spec['hostname']==socket.gethostname()==c.NODE and spec['deadline_s']==c.DEADLINE,'wrong node/deadline')
+     c.require(spec['candidate_manifest_sha256']==c.CANDIDATE_SHA and spec['parent_image']==c.IMAGE,'wrong diagnostic candidate')
+     c.require(not os.environ.get('PDBLEND_NODE_LOCK_FD'),'diagnostic must acquire a fresh node lease')
+-    c.require(not (c.ROOT.parent/'B32B-temporal-observation-execution-v1/execution-once.json').exists(),'prior v1 attempt claim exists; no automatic retry')
++    for revision in ('v1','v2'):
++        c.require(not (c.ROOT.parent/('B32B-temporal-observation-execution-'+revision)/'execution-once.json').exists(),'prior attempt claim exists; no automatic retry')
+     c.require(not (c.ROOT/'STOP').exists() and not Path(spec['results']).exists(),'STOP/existing attempt; no automatic retry')
+     sys.path[:0]=[str(c.HOST/'src'),str(c.HOST),'/root/workspace/pdblend/.runtime-deps']
+     from ecopadg.serving.campaign import node_lease
+--- v2/test_archive.py
++++ v2-r2/test_archive.py
+@@ -12,7 +12,8 @@
+         state=dict(generation=10,role='mixed',mode='continuous',admit_prefill=True,admit_decode=True)
+         c.write(tmp_path/(iid+'.control.json'),state)
+         (tmp_path/(iid+'.control.events.jsonl')).write_bytes(b'{"old":1}\n{"old":2}\n')
+-        instances.append(dict(id=iid,engine_config=str(cfg),container={'id':'cid'+str(n)}))
++        for rank in (0,1):(tmp_path/(iid+'.control.json.kv.'+str(rank)+'.jsonl')).write_bytes(b'{"old_kv":1}\n')
++        instances.append(dict(id=iid,tp=2,engine_config=str(cfg),container={'id':'cid'+str(n)}))
+         stopped.append(dict(Id='cid'+str(n),State=dict(Running=False,Pid=0)))
+         native['instances'][iid]={'after':state}
+     return {'instances':instances},stopped,native
+@@ -75,3 +76,13 @@
+     b,stopped,native=fixture(tmp_path)
+     with pytest.raises(RuntimeError,match='deadline'):a.capture(b,tmp_path/'final',time.time()-1,stopped=stopped)
+     assert not (tmp_path/'final').exists()
++
++
++@pytest.mark.parametrize('kind',['kv_rank_0','kv_rank_1'])
++def test_original_rank_event_logs_are_not_left_unprotected(tmp_path,kind):
++    b,stopped,native=fixture(tmp_path);initial=a.capture(b,tmp_path/'initial',time.time()+20)
++    final=a.capture(b,tmp_path/'final',time.time()+20,stopped=stopped,initial=initial)
++    rank=a.paths(b)['b0'][kind]
++    assert Path(final['instances']['b0'][kind]['archive']).read_bytes()==rank.read_bytes()
++    rank.write_bytes(b'{"changed":1}\n')
++    with pytest.raises(RuntimeError,match='KV event prefix'):a.verify_prefix_after_restore(b,final,native,time.time()+20)

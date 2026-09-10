@@ -1,0 +1,53 @@
+--- /root/workspace/pdblend-next-v1/campaign/B32B-temporal-observation-execution-v2-r2/run.py
++++ /root/workspace/pdblend-next-v1/campaign/B32B-temporal-observation-execution-v2-r4/run.py
+@@ -177,9 +177,15 @@
+         self.terminal['http_child_exited']=True;self.state['child_exitcode']=self.child.returncode
+     async def run_child(self):
+         self.phase('six_http_requests')
++        issued_s=time.time()
++        child_work_end=min(self.limits['work_end_s'],issued_s+390)
++        child_cleanup_end=min(self.limits['cleanup_end_s'],child_work_end+90)
++        c.require(issued_s<child_work_end<child_cleanup_end,'no bounded child work/cleanup interval remains')
++        self.deadline=child_work_end
++        self.state['child_limits']=dict(issued_s=issued_s,work_end_s=child_work_end,cleanup_end_s=child_cleanup_end)
+         job=dict(binding=self.diag_binding,binding_path=str(self.out/'diagnostic-binding.json'),binding_sha256=c.sha(self.out/'diagnostic-binding.json'),
+             observation_spec=self.spec['observation_spec'],observation_spec_sha256=self.spec['observation_spec_sha256'],
+-            output_dir=str(self.out/'child'),work_deadline_s=self.limits['work_end_s'],cleanup_deadline_s=self.limits['cleanup_end_s'])
++            output_dir=str(self.out/'child'),work_deadline_s=child_work_end,cleanup_deadline_s=child_cleanup_end)
+         c.write(self.out/'job.json',job);self.child_log=(self.out/'child.log').open('xb')
+         env=dict(os.environ);env.pop('PDBLEND_NODE_LOCK_FD',None);env['PYTHONPATH']=str(c.HOST/'src')+':'+str(c.HOST)+':/root/workspace/pdblend/.runtime-deps'
+         self.child=await asyncio.create_subprocess_exec(sys.executable,str(c.ROOT/'child.py'),'--job',str(self.out/'job.json'),
+@@ -187,7 +193,7 @@
+         self.state['child_pid']=self.child.pid;self.state['child_argv']=[sys.executable,str(c.ROOT/'child.py'),'--job',str(self.out/'job.json')];self.save()
+         while self.child.returncode is None:
+             if self.stop or (c.ROOT/'STOP').exists() or (self.out/'STOP').exists() or self.sampler.error or not self.before_deadline():
+-                self.state['work_interrupt_reason']='STOP/deadline/sensor';self.deadline=self.limits['cleanup_end_s'];self.restoring=True
++                self.state['work_interrupt_reason']='STOP/deadline/sensor';self.deadline=child_cleanup_end;self.restoring=True
+                 await self.stop_child();break
+             await asyncio.sleep(.1)
+         self.terminal['http_child_exited']=self.child.returncode is not None;self.state['child_exitcode']=self.child.returncode
+@@ -368,6 +374,9 @@
+                 self.save()
+         return self.state
+ 
++def no_prior_claims():
++    c.require(not list(c.ROOT.parent.glob('B32B-temporal-observation-execution-*/execution-once.json')),'prior attempt claim exists; no automatic retry')
++
+ def main():
+     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--spec',type=Path);p.add_argument('--spec-sha256');p.add_argument('--run',action='store_true');a=p.parse_args()
+     c.package_check()
+@@ -378,12 +387,12 @@
+     c.require(spec['hostname']==socket.gethostname()==c.NODE and spec['deadline_s']==c.DEADLINE,'wrong node/deadline')
+     c.require(spec['candidate_manifest_sha256']==c.CANDIDATE_SHA and spec['parent_image']==c.IMAGE,'wrong diagnostic candidate')
+     c.require(not os.environ.get('PDBLEND_NODE_LOCK_FD'),'diagnostic must acquire a fresh node lease')
+-    for revision in ('v1','v2'):
+-        c.require(not (c.ROOT.parent/('B32B-temporal-observation-execution-'+revision)/'execution-once.json').exists(),'prior attempt claim exists; no automatic retry')
++    no_prior_claims()
+     c.require(not (c.ROOT/'STOP').exists() and not Path(spec['results']).exists(),'STOP/existing attempt; no automatic retry')
+     sys.path[:0]=[str(c.HOST/'src'),str(c.HOST),'/root/workspace/pdblend/.runtime-deps']
+     from ecopadg.serving.campaign import node_lease
+     with node_lease():
++        no_prior_claims()
+         c.main_gate(spec['main_proof']);deadline_limits(time.time())
+         # Atomic package-global one-shot claim survives failed/partial executions.
+         with Path(spec['attempt_claim']).open('x') as f:json.dump(dict(spec=str(a.spec.resolve()),sha256=c.sha(a.spec),pid=os.getpid(),claimed_s=time.time()),f)

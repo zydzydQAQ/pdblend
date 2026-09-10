@@ -1,0 +1,32 @@
+--- actual-d114-scheduler.py
++++ official-v0.9.2-scheduler.py
+@@ -16,8 +16,6 @@
+ from vllm.logger import init_logger
+ from vllm.lora.request import LoRARequest
+ from vllm.prompt_adapter.request import PromptAdapterRequest
+-from vllm.pdblend_telemetry import (apply_scheduler_control,
+-                                    emit_scheduler_snapshot)
+ from vllm.sequence import (Sequence, SequenceData, SequenceGroup,
+                            SequenceGroupBase, SequenceGroupMetadata,
+                            SequenceGroupMetadataDelta, SequenceStage,
+@@ -1508,11 +1506,6 @@
+ 
+     def _schedule(self) -> SchedulerOutputs:
+         """Schedule queued requests."""
+-        from vllm.pdblend_runtime import read_runtime, schedule
+-        runtime = read_runtime(self)
+-        if runtime is not None:
+-            return schedule(self, runtime)
+-        apply_scheduler_control(self)
+         if self.scheduler_config.chunked_prefill_enabled:
+             return self._schedule_chunked_prefill()
+         else:
+@@ -1703,8 +1696,6 @@
+         # Move to next cache (if exists)
+         self.cache_id = self.next_cache_id
+ 
+-        emit_scheduler_snapshot(self, scheduler_outputs)
+-
+         # Return results
+         return (seq_group_metadata_list, scheduler_outputs,
+                 allow_async_output_proc)

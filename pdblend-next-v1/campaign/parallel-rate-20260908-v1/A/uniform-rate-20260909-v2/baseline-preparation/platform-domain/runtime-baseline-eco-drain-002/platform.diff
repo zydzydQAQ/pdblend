@@ -1,0 +1,393 @@
+--- /root/workspace/pdblend-next-v1/releases/five-system100-A14B-baseline-eco-drain-v1-runtime/src/ecopadg/serving/backend.py
++++ /root/workspace/pdblend-next-v1/campaign/parallel-rate-20260908-v1/A/uniform-rate-20260909-v2/baseline-preparation/platform-domain/runtime-baseline-eco-drain-002/src/ecopadg/serving/backend.py
+@@ -13,7 +13,8 @@
+ 
+ class ClockOwner:
+     def __init__(self, hardware, gpus, lock_dir="/root/workspace/pdblend/new-results/.clock-locks",
+-                 settle_timeout_s=.3):
++                 settle_timeout_s=.3,max_frequency=2520):
++        self.max_frequency = max_frequency
+         self.hardware, self.gpus = hardware, tuple(sorted(gpus))
+         self.pool = ThreadPoolExecutor(1, thread_name_prefix="gpu-clock-owner")
+         self.lock = asyncio.Lock()
+@@ -83,10 +84,10 @@
+                     # the maximum command and record uncertainty; do not turn
+                     # one uncertain frequency observation into a node outage.
+                     for gpu in gpus:
+-                        if self.applied.get(gpu)!=2520:
+-                            await loop.run_in_executor(self.pool,partial(self.hardware.set_clock,gpu,2520))
++                        if self.applied.get(gpu)!=self.max_frequency:
++                            await loop.run_in_executor(self.pool,partial(self.hardware.set_clock,gpu,self.max_frequency))
+                             self.last_write_finished_s=time.time()
+-                        self.applied[gpu]=2520
++                        self.applied[gpu]=self.max_frequency
+                         self.deferred.pop(gpu,None)
+                         self.fallbacks[gpu]=dict(at_s=time.time(),requested=frequency,
+                             reason='observed SM clock below target after settling bound')
+@@ -120,9 +121,9 @@
+                 if now-item['active_since']<self.settle_timeout_s: continue
+                 for member in item['gpus']:
+                     if self.applied.get(member)!=item['target']: continue
+-                    await loop.run_in_executor(self.pool,partial(self.hardware.set_clock,member,2520))
++                    await loop.run_in_executor(self.pool,partial(self.hardware.set_clock,member,self.max_frequency))
+                     self.last_write_finished_s=time.time()
+-                    self.applied[member]=2520
++                    self.applied[member]=self.max_frequency
+                     self.deferred.pop(member,None)
+                     event=dict(at_s=time.time(),requested=item['target'],
+                         reason='active SM clock below target after idle wakeup settling bound')
+@@ -161,13 +162,14 @@
+ 
+ 
+ class HttpEngineBackend:
+-    def __init__(self, instances, session, clocks=None,park_grace_s=.5):
++    def __init__(self, instances, session, clocks=None,park_grace_s=.5,max_frequency=2520):
++        self.max_frequency = clocks.max_frequency if clocks is not None else max_frequency
+         self.instances = {i["id"]:i for i in instances}
+         self.session, self.clocks = session, clocks
+         self.version = 0
+         self.topology_version = 0
+         self.role_locks = {i:asyncio.Lock() for i in self.instances}
+-        self.frequency = {i:2520 for i in self.instances}
++        self.frequency = {i:self.max_frequency for i in self.instances}
+         self.last = {}
+         self.parked=set()
+         self.idle_since={}
+@@ -198,7 +200,7 @@
+                 raw = self.last.get(i,{})
+                 fresh = False
+             return InstanceState(i,raw.get("role",c["role"]),c["tp"],tuple(c["gpus"]),
+-                raw.get("timestamp",0),raw.get("generation",0),self.frequency.get(i,2520),
++                raw.get("timestamp",0),raw.get("generation",0),self.frequency.get(i,self.max_frequency),
+                 raw.get("free_kv_tokens",0),raw.get("running",0),raw.get("waiting",0),
+                 accepting=fresh and raw.get("accepting",False),
+                 kv_allocations=tuple((rid.split(':')[1] if rid.startswith('pdb:') else rid,n)
+@@ -225,7 +227,7 @@
+             if config['id'] in updated:
+                 raise ValueError('duplicate replacement instance')
+             updated[config['id']]=dict(config)
+-            self.frequency[config['id']]=2520
++            self.frequency[config['id']]=self.max_frequency
+             self.role_locks[config['id']]=asyncio.Lock()
+         self.instances=updated
+         self.topology_version+=1
+@@ -249,7 +251,7 @@
+         # to the route executor, never concurrent fire-and-forget tasks.
+         for action in plan.frequencies:
+             started=time.time()
+-            desired=2520 if started<self.dvfs_resume_s.get(action.instance_id,0) else action.frequency_mhz
++            desired=self.max_frequency if started<self.dvfs_resume_s.get(action.instance_id,0) else action.frequency_mhz
+             if self.clocks:
+                 await self.clocks.set(self.instances[action.instance_id]["gpus"],desired)
+             elif action.frequency_mhz != self.frequency[action.instance_id]:
+@@ -327,8 +329,8 @@
+         if not failed: return
+         for instance_id,config in self.instances.items():
+             if set(config['gpus']).intersection(failed):
+-                self.frequency[instance_id]=max(self.clocks.applied.get(g,2520) for g in config['gpus'])
++                self.frequency[instance_id]=max(self.clocks.applied.get(g,self.max_frequency) for g in config['gpus'])
+                 self.dvfs_resume_s[instance_id]=time.time()+5
+-                self.frequency_outcomes.append(dict(instance_id=instance_id,commanded=2520,
++                self.frequency_outcomes.append(dict(instance_id=instance_id,commanded=self.max_frequency,
+                     conservative_fallback=True,reason='active wakeup verification',at_s=time.time()))
+         self.frequency_outcomes=self.frequency_outcomes[-256:]
+--- /root/workspace/pdblend-next-v1/releases/five-system100-A14B-baseline-eco-drain-v1-runtime/src/ecopadg/serving/baselines.py
++++ /root/workspace/pdblend-next-v1/campaign/parallel-rate-20260908-v1/A/uniform-rate-20260909-v2/baseline-preparation/platform-domain/runtime-baseline-eco-drain-002/src/ecopadg/serving/baselines.py
+@@ -41,7 +41,8 @@
+ 
+ class DistServeSearch:
+     """Independent stage batching, TP and instance search under KV/SLO limits."""
+-    def __init__(self,profiles,transfers,gpu_count=8,topology=None):
++    def __init__(self,profiles,transfers,gpu_count=8,topology=None,max_frequency=2520):
++        self.max_frequency=max_frequency
+         self.profiles,self.transfers,self.gpu_count=profiles,tuple(transfers),gpu_count
+         self.topology=topology
+         self.transfer_point=lru_cache(maxsize=4096)(TransferStore(self.transfers,topology).lookup)
+@@ -57,8 +58,8 @@
+                 yield ps+ds
+ 
+     def search(self,input_tokens,predicted_output,ttft_s,tpot_s,rate,kv_capacity):
+-        ppoints=online_profile_points(self.profiles,'prefill',input_tokens,input_tokens+1)
+-        dpoints=online_profile_points(self.profiles,'decode',input_tokens,input_tokens+predicted_output)
++        ppoints=online_profile_points(self.profiles,'prefill',input_tokens,input_tokens+1,self.max_frequency)
++        dpoints=online_profile_points(self.profiles,'decode',input_tokens,input_tokens+predicted_output,self.max_frequency)
+         candidates=[]
+         for p,d in itertools.product(ppoints,dpoints):
+             links=[t for t in self.transfers if (t.source_tp,t.target_tp)==(p.tp,d.tp)
+@@ -83,7 +84,7 @@
+                         measured=[]
+                         for source,target in itertools.product(groups[:np],groups[np:]):
+                             link=self.transfer_point(p.tp,d.tp,source,target,input_tokens,p.batch,
+-                                                     decode_frequency_mhz=2520)
++                                                     decode_frequency_mhz=self.max_frequency)
+                             if link is None: break
+                             measured.append(link.seconds_upper)
+                         else:
+--- /root/workspace/pdblend-next-v1/releases/five-system100-A14B-baseline-eco-drain-v1-runtime/src/ecopadg/serving/distserve.py
++++ /root/workspace/pdblend-next-v1/campaign/parallel-rate-20260908-v1/A/uniform-rate-20260909-v2/baseline-preparation/platform-domain/runtime-baseline-eco-drain-002/src/ecopadg/serving/distserve.py
+@@ -10,11 +10,11 @@
+ 
+ 
+ class DistServeScheduler:
+-    def __init__(self,profiles,transfers,*,prefill_batch,decode_batch,clock_settle_s=.3,topology=None):
++    def __init__(self,profiles,transfers,*,prefill_batch,decode_batch,clock_settle_s=.3,topology=None,max_frequency=2520):
+         if min(prefill_batch,decode_batch)<1:
+             raise ValueError('independent positive stage batch limits required')
+         self.limits={'prefill':prefill_batch,'decode':decode_batch}
+-        self.estimator=JointPlanner(profiles,transfers,dvfs=False,clock_settle_s=clock_settle_s,topology=topology)
++        self.estimator=JointPlanner(profiles,transfers,max_frequency=max_frequency,dvfs=False,clock_settle_s=clock_settle_s,topology=topology)
+ 
+     def plan(self,snapshot,pending,*,now):
+         states=tuple(replace(i,accepting=i.accepting and len(i.requests)<self.limits[i.role])
+@@ -22,7 +22,7 @@
+         candidates=self.estimator.candidates(replace(snapshot,instances=states),pending[0],now)
+         if not candidates:
+             return ControlPlan(snapshot.version,now,now+1,feasible=False,
+-                frequencies=tuple(FrequencyAction(i.instance_id,2520) for i in states),
++                frequencies=tuple(FrequencyAction(i.instance_id,self.estimator.max_frequency) for i in states),
+                 reason='DistServe: stage batch, KV or latency capacity unavailable')
+         occupancy={i.instance_id:len(i.requests) for i in states}
+         return replace(min(candidates,key=lambda p:(p.routes[0].predicted_ttft_s,
+--- /root/workspace/pdblend-next-v1/releases/five-system100-A14B-baseline-eco-drain-v1-runtime/src/ecopadg/serving/dynamo.py
++++ /root/workspace/pdblend-next-v1/campaign/parallel-rate-20260908-v1/A/uniform-rate-20260909-v2/baseline-preparation/platform-domain/runtime-baseline-eco-drain-002/src/ecopadg/serving/dynamo.py
+@@ -21,13 +21,13 @@
+ 
+ class DynamoScheduler:
+     def __init__(self,profiles,assignments,*,costs=(),input_cuts=(255,1023),
+-                 output_cuts=(99,349),clock_settle_s=.3,frequency_costs=()):
++                 output_cuts=(99,349),clock_settle_s=.3,frequency_costs=(),max_frequency=2520):
+         if not assignments or any(v not in SHAPES for v in assignments.values()):
+             raise ValueError('explicit instance-to-shape pool assignments required')
+         self.hierarchy=DynamoLLMPolicy(costs,input_cuts,output_cuts)
+         self.assignments=dict(assignments)
+         self.profiles=profiles
+-        self.estimator=JointPlanner(profiles,allow_pd=False,dvfs=True,clock_settle_s=clock_settle_s,
++        self.estimator=JointPlanner(profiles,max_frequency=max_frequency,allow_pd=False,dvfs=True,clock_settle_s=clock_settle_s,
+                                     frequency_costs=frequency_costs)
+         self.history=defaultdict(lambda:deque(maxlen=8192))
+         self.frequency_costs=tuple(FrequencyCost(**c) for c in frequency_costs)
+@@ -73,7 +73,7 @@
+             # Emergency capacity recovery is separate from the five-second
+             # optimizing clock. It never downclocks to conceal saturation.
+             return ControlPlan(snapshot.version,now,now+1,feasible=False,
+-                frequencies=tuple(FrequencyAction(i.instance_id,2520) for i in eligible),
++                frequencies=tuple(FrequencyAction(i.instance_id,self.estimator.max_frequency) for i in eligible),
+                 reason='DynamoLLM emergency: larger pools full, unsafe or unprofiled')
+         native=[p for p in candidates if self.assignments[p.routes[0].decode_id]==shape]
+         return replace((native or candidates)[0],reason='DynamoLLM shape pool, feasible minimum-energy instance')
+@@ -109,7 +109,7 @@
+                 energy=p.phase_power('prefill')*prefill+p.phase_power('decode')*remaining*p.iteration_s
+                 energy+=max((c.energy_upper_j for c in switches),default=0.)
+                 candidates.append((energy,frequency))
+-            chosen=min(candidates)[1] if candidates and instance.dvfs_allowed else 2520
++            chosen=min(candidates)[1] if candidates and instance.dvfs_allowed else self.estimator.max_frequency
+             actions.append(FrequencyAction(instance.instance_id,chosen))
+         return ControlPlan(snapshot.version,now,now+1,frequencies=tuple(actions),
+                            reason='DynamoLLM ScaleFreq five-second epoch')
+@@ -140,7 +140,7 @@
+             usable=[]
+             for instance in idle:
+                 points=[p for p in self.profiles.points if p.role=='mixed' and p.tp==instance.tp
+-                        and p.frequency_mhz==2520 and p.input_tokens>=demand['input_tokens']
++                        and p.frequency_mhz==self.estimator.max_frequency and p.input_tokens>=demand['input_tokens']
+                         and p.context_tokens>=demand['input_tokens']+demand['output_tokens']
+                         and p.phase_time_bound('prefill')<=demand['ttft_s'] and p.iteration_s*p.bound<=demand['tpot_s']]
+                 if points:
+--- /root/workspace/pdblend-next-v1/releases/five-system100-A14B-baseline-eco-drain-v1-runtime/src/ecopadg/serving/dynamo_topology.py
++++ /root/workspace/pdblend-next-v1/campaign/parallel-rate-20260908-v1/A/uniform-rate-20260909-v2/baseline-preparation/platform-domain/runtime-baseline-eco-drain-002/src/ecopadg/serving/dynamo_topology.py
+@@ -37,7 +37,8 @@
+ 
+ 
+ class DynamoTopologyPlanner:
+-    def __init__(self,profiles,costs,*,error_fraction=.3,gpu_count=8,park_grace_s=.5):
++    def __init__(self,profiles,costs,*,error_fraction=.3,gpu_count=8,park_grace_s=.5,max_frequency=2520):
++        self.max_frequency=max_frequency
+         self.profiles=profiles;self.costs=tuple(costs)
+         self.error_fraction=error_fraction;self.gpu_count=gpu_count
+         self.park_grace_s=max(0.,park_grace_s)
+@@ -71,7 +72,7 @@
+     def configurations(self,shape,demand,budget):
+         points={}
+         for tp,batch in sorted({(p.tp,p.batch) for p in self.profiles.points if p.role=='mixed'}):
+-            p=self.profiles.lookup('mixed',tp,2520,demand['input_tokens'],
++            p=self.profiles.lookup('mixed',tp,self.max_frequency,demand['input_tokens'],
+                                   demand['input_tokens']+demand['output_tokens'],batch)
+             if p is None or p.phase_time_bound('prefill')>demand['ttft_s'] or p.iteration_s*p.bound>demand['tpot_s']:
+                 continue
+@@ -99,7 +100,7 @@
+                 for p,c in variant:
+                     parked=self.profiles.parked_residency(p.tp)
+                     arrival_rate=demand['rate']*c/capacity
+-                    single=self.profiles.lookup('mixed',p.tp,2520,demand['input_tokens'],
++                    single=self.profiles.lookup('mixed',p.tp,self.max_frequency,demand['input_tokens'],
+                         demand['input_tokens']+demand['output_tokens'],1)
+                     if single is None: break
+                     # The measured batch is a capacity ceiling, not a batch
+--- /root/workspace/pdblend-next-v1/releases/five-system100-A14B-baseline-eco-drain-v1-runtime/src/ecopadg/serving/ecoserve.py
++++ /root/workspace/pdblend-next-v1/campaign/parallel-rate-20260908-v1/A/uniform-rate-20260909-v2/baseline-preparation/platform-domain/runtime-baseline-eco-drain-002/src/ecopadg/serving/ecoserve.py
+@@ -11,9 +11,10 @@
+ 
+ 
+ class EcoServeScheduler:
+-    def __init__(self,profiles,instances,*,lower=2,upper=3):
++    def __init__(self,profiles,instances,*,lower=2,upper=3,max_frequency=2520):
+         if not 1<=lower<=upper or upper<2*lower-1:
+             raise ValueError('invalid macro bounds')
++        self.max_frequency=max_frequency
+         self.profiles=profiles
+         self.lower,self.upper=lower,upper
+         self.groups=[]
+@@ -83,7 +84,7 @@
+         return None
+ 
+     def prefill(self,i,r):
+-        p=self.profiles.lookup('mixed',i.tp,2520,r.input_tokens,r.input_tokens+1,1)
++        p=self.profiles.lookup('mixed',i.tp,self.max_frequency,r.input_tokens,r.input_tokens+1,1)
+         return p.phase_time_bound('prefill') if p else None
+ 
+     def feasible(self,i,r,now,switch):
+@@ -123,7 +124,7 @@
+                 total,reserve=choice
+                 return ControlPlan(snapshot.version,now,now+1,
+                     routes=(RouteAction(r.request_id,rid,rid,reserve,total,0,0),),
+-                    frequencies=(FrequencyAction(rid,2520),),windows=windows,
++                    frequencies=(FrequencyAction(rid,self.max_frequency),),windows=windows,
+                     reason='EcoServe: current-then-cyclic window, accumulated prefill, mean saved TPOT and KV')
+         return ControlPlan(snapshot.version,now,now+1,feasible=False,
+                            reason='EcoServe: no macro instance satisfies constraints')
+--- /root/workspace/pdblend-next-v1/releases/five-system100-A14B-baseline-eco-drain-v1-runtime/src/ecopadg/serving/frequency.py
++++ /root/workspace/pdblend-next-v1/campaign/parallel-rate-20260908-v1/A/uniform-rate-20260909-v2/baseline-preparation/platform-domain/runtime-baseline-eco-drain-002/src/ecopadg/serving/frequency.py
+@@ -38,15 +38,15 @@
+         for i in snapshot.instances:
+             if not i.accepting or not i.requests: continue
+             if i.role=='prefill':
+-                if i.frequency_mhz!=2520: recoveries.append(FrequencyAction(i.instance_id,2520))
++                if i.frequency_mhz!=estimator.max_frequency: recoveries.append(FrequencyAction(i.instance_id,estimator.max_frequency))
+                 continue
+             if not i.dvfs_allowed or not 0<=now-i.timestamp_s<=estimator.telemetry_ttl_s:
+-                recoveries.append(FrequencyAction(i.instance_id,2520));continue
++                recoveries.append(FrequencyAction(i.instance_id,estimator.max_frequency));continue
+             # Admission owns the prefill/import budget. Optimize the now-pure
+             # decode phase only once every admitted request has a first token.
+             if any(not r.emitted for r in i.requests): continue
+             if any(tail is None for tail in tails.values()):
+-                recoveries.append(FrequencyAction(i.instance_id,2520));continue
++                recoveries.append(FrequencyAction(i.instance_id,estimator.max_frequency));continue
+             other_tail=max((tail for name,tail in tails.items() if name!=i.instance_id),default=0.)
+             batch=max(1,len(i.requests),i.running+i.waiting);choices=[]
+             for frequency in estimator.profiles.frequencies(i.role,i.tp):
+@@ -66,10 +66,10 @@
+                 energy=power*duration+other_residency*max(0,duration-other_tail)+switch_j
+                 slack=min(r.next_token_remaining(now)-p.iteration_s*p.bound-delay for r,p in zip(i.requests,points))
+                 choices.append((energy,frequency,slack,delay))
+-            chosen=min(choices)[1] if choices else 2520
++            chosen=min(choices)[1] if choices else estimator.max_frequency
+             if chosen!=i.frequency_mhz:
+                 action=FrequencyAction(i.instance_id,chosen)
+-                if chosen==2520:
++                if chosen==estimator.max_frequency:
+                     recoveries.append(action)
+                 else:
+                     _,_,slack,delay=next(item for item in choices if item[1]==chosen)
+--- /root/workspace/pdblend-next-v1/releases/five-system100-A14B-baseline-eco-drain-v1-runtime/src/ecopadg/serving/runtime.py
++++ /root/workspace/pdblend-next-v1/campaign/parallel-rate-20260908-v1/A/uniform-rate-20260909-v2/baseline-preparation/platform-domain/runtime-baseline-eco-drain-002/src/ecopadg/serving/runtime.py
+@@ -45,6 +45,9 @@
+ class Controller:
+     def __init__(self,config):
+         self.config=config
++        self.max_frequency=config.get("max_service_frequency_mhz",2520)
++        if type(self.max_frequency) is not int or self.max_frequency<=0:
++            raise ValueError("explicit positive integer service frequency required")
+         self.strategy=config["strategy"]
+         if self.strategy not in STRATEGIES:
+             raise ValueError("strategy has not passed its implementation gate: "+self.strategy)
+@@ -60,7 +63,7 @@
+         self.profiles=ProfileStore.load(config["profiles"]) if config.get("profiles") else ProfileStore(())
+         self.interconnect=(InterconnectTopology.parse(Path(config['interconnect']).read_text())
+                            if config.get('interconnect') else None)
+-        self.planner=JointPlanner(self.profiles,
++        self.planner=JointPlanner(self.profiles,max_frequency=self.max_frequency,
+             transfers=[TransferCost(**x) for x in config.get("transfers",[])],
+             allow_pd=self.strategy.startswith("pdblend") and config.get('allow_pd',True),
+             dvfs=self.strategy!="mixed" and config.get('dvfs',True),
+@@ -84,13 +87,13 @@
+         self.history_started_s=time.time()
+         self.eco_scheduler=(EcoServeScheduler(self.profiles,
+             [i['id'] for i in config['instances']][:config.get('eco_initial_instances',len(config['instances']))],
+-            lower=config.get('eco_macro_lower',2),upper=config.get('eco_macro_upper',3))
++            lower=config.get('eco_macro_lower',2),upper=config.get('eco_macro_upper',3),max_frequency=self.max_frequency)
+             if self.strategy=='ecoserve' else None)
+         self.distserve_scheduler=(DistServeScheduler(self.profiles,self.planner.transfers,
+             prefill_batch=config['distserve_prefill_batch'],decode_batch=config['distserve_decode_batch'],
+-            clock_settle_s=config.get('clock_settle_s',.3),topology=self.interconnect)
++            clock_settle_s=config.get('clock_settle_s',.3),topology=self.interconnect,max_frequency=self.max_frequency)
+             if self.strategy=='distserve' else None)
+-        self.dynamo_scheduler=(DynamoScheduler(self.profiles,config['dynamo_assignments'],
++        self.dynamo_scheduler=(DynamoScheduler(self.profiles,config['dynamo_assignments'],max_frequency=self.max_frequency,
+             clock_settle_s=config.get('clock_settle_s',.3),
+             frequency_costs=config.get('frequency_costs',()),
+             input_cuts=tuple(config.get('dynamo_input_cuts',(255,1023))),
+@@ -113,7 +116,7 @@
+             if not config.get('topology') or not config.get('topology_costs'):
+                 raise ValueError('DynamoLLM requires a physical topology backend and measured switch costs')
+             self.dynamo_topology=DynamoTopologyPlanner(self.profiles,
+-                [TopologyCost(**c) for c in config['topology_costs']],
++                [TopologyCost(**c) for c in config['topology_costs']],max_frequency=self.max_frequency,
+                 park_grace_s=config.get('park_grace_s',.5))
+         self.role_planner=ResidentRolePlanner([RoleCost(**c) for c in config.get("role_costs",[])])
+         self.frequency_planner=(FrequencyPlanner(self.planner,[FrequencyCost(**c) for c in config.get('frequency_costs',[])])
+@@ -182,13 +185,13 @@
+             hardware=await asyncio.to_thread(PynvmlBackend)
+             gpus=set(self.config.get("node_gpus",range(8) if self.config.get("topology") else
+                 {g for i in self.config["instances"] for g in i["gpus"]}))
+-            clocks=await asyncio.to_thread(ClockOwner,hardware,gpus)
++            clocks=await asyncio.to_thread(ClockOwner,hardware,gpus,max_frequency=self.max_frequency)
+             self.clock_owner=clocks
+-            await clocks.set(sorted(gpus),2520)
++            await clocks.set(sorted(gpus),self.max_frequency)
+             unused=gpus-{g for i in self.config['instances'] for g in i['gpus']}
+             if unused: await clocks.park(sorted(unused),dict(clocks.epochs))
+         self.backend=HttpEngineBackend(self.config["instances"],self.session,clocks,
+-                                       park_grace_s=self.config.get('park_grace_s',.5))
++                                       park_grace_s=self.config.get('park_grace_s',.5),max_frequency=self.max_frequency)
+         if self.config.get('topology'):
+             t=self.config['topology']
+             template=json.loads(await asyncio.to_thread(Path(t['engine_template']).read_text))
+@@ -264,7 +267,7 @@
+                         if self.control_stop.is_set(): break
+                         try:
+                             await self.backend.execute(ControlPlan(self.state.snapshot.version,now,now+1,
+-                                frequencies=tuple(FrequencyAction(i.instance_id,2520) for i in risk
++                                frequencies=tuple(FrequencyAction(i.instance_id,self.max_frequency) for i in risk
+                                                   if i.instance_id in self.backend.instances),
+                                 reason="stale telemetry or per-request SLO risk"))
+                         except ExpiredPlan:
+@@ -304,7 +307,7 @@
+         return ControlPlan(snapshot.version,now,now+1,
+             routes=(RouteAction(request.request_id,i.instance_id,i.instance_id,
+                 request.input_tokens+(request.output_limit or request.predicted_output),0,0,0),),
+-            frequencies=(FrequencyAction(i.instance_id,2520),),
++            frequencies=(FrequencyAction(i.instance_id,self.max_frequency),),
+             reason="full-frequency mixed control; predictions not used")
+ 
+     def stale_admission(self, active, plan, error=None):
+--- /root/workspace/pdblend-next-v1/releases/five-system100-A14B-baseline-eco-drain-v1-runtime/src/ecopadg/serving/topology.py
++++ /root/workspace/pdblend-next-v1/campaign/parallel-rate-20260908-v1/A/uniform-rate-20260909-v2/baseline-preparation/platform-domain/runtime-baseline-eco-drain-002/src/ecopadg/serving/topology.py
+@@ -205,7 +205,7 @@
+                 savings_lower_j=savings_lower_j,cost_upper_j=cost_upper_j,capacity_recovery=capacity_recovery))
+             try:
+                 if self.backend.clocks and add_specs:
+-                    await self.backend.clocks.set(sorted({g for s in add_specs for g in s.gpus}),2520)
++                    await self.backend.clocks.set(sorted({g for s in add_specs for g in s.gpus}),self.backend.max_frequency)
+                 for spec in remove:
+                     raw=await self.request(spec,'/runtime')
+                     await self.request(spec,'/drain',dict(expected_generation=raw['generation']))
+@@ -292,7 +292,7 @@
+         validate_layout(survivors+restored,self.node_gpus)
+         peers={s.instance_id:dict(host='127.0.0.1',tp=s.tp,kv_port=s.kv_port) for s in survivors+restored}
+         if self.backend.clocks:
+-            await self.backend.clocks.set(sorted({g for s in restored for g in s.gpus}),2520)
++            await self.backend.clocks.set(sorted({g for s in restored for g in s.gpus}),self.backend.max_frequency)
+         for spec in restored:
+             await self.lifecycle.start(spec,peers,retained_weights);await self.verify(spec)
+         for old in survivors:

@@ -1,0 +1,65 @@
+--- /root/workspace/pdblend-next-v1/campaign/B32B-baseline-fixed-window-preparation-v1/legacy-observation-candidate/engine.py
++++ /root/workspace/pdblend-next-v1/campaign/B32B-native-default-reference-execution-v1/engine/engine.py
+@@ -85,7 +85,7 @@
+                     max_num_seqs=c.get("max_num_seqs", 32),
+                     max_num_batched_tokens=c.get("max_num_batched_tokens", 8192),
+                     gpu_memory_utilization=c.get("gpu_memory_utilization", .85),
+-                    enforce_eager=True, enable_chunked_prefill=True,
++                    enforce_eager=True, enable_chunked_prefill=False,
+                     enable_prefix_caching=False, disable_log_stats=True,
+                     distributed_executor_backend="mp" if c["tp"] > 1 else "uni")
+         if c.get('retained_weights'):
+@@ -494,6 +494,45 @@
+             self.config.setdefault('peers',{})[peer_id]=peer
+             return web.json_response(dict(id=peer_id,registered=ranks))
+ 
++    def native_reference_work(self, payload):
++        # Runs exclusively on the existing owner executor, not its HTTP loop.
++        from native_driver import run_reference
++        from vllm import SamplingParams
++        now=time.time();end=payload['work_deadline_s']
++        if not (now<end<=1788872770.0400891 and end-now<=390.1):
++            raise RuntimeError('reference absolute work deadline')
++        mono=time.monotonic()+end-now
++        def guard():
++            if time.time()>=end or time.monotonic()>=mono:
++                raise TimeoutError('native reference wall/monotonic deadline')
++        path=self.runtime_path.parent/'native-reference.events.jsonl'
++        with path.open('x',buffering=1) as events:
++            def emit(value):
++                events.write(json.dumps(value,allow_nan=False)+'\n')
++            try:
++                return run_reference(self.engine,payload['requests'],SamplingParams,emit,guard)
++            finally:
++                self.update_snapshot()
++
++    async def native_reference(self, request):
++        body=await request.json()
++        spec_path=Path(os.environ['PDBLEND_DIAGNOSTIC_SPEC'])
++        if hashlib.sha256(spec_path.read_bytes()).hexdigest()!=os.environ['PDBLEND_DIAGNOSTIC_SPEC_SHA256']:
++            raise web.HTTPConflict(text='reference spec SHA changed')
++        spec=json.loads(spec_path.read_text())
++        if body.get('requests')!=spec['requests'] or set(body)!= {'requests','work_deadline_s'}:
++            raise web.HTTPBadRequest(text='exact four request declaration required')
++        end=body['work_deadline_s']
++        if type(end) not in (int,float) or not time.time()<end<=spec['global_deadline_s'] or end-time.time()>390.1:
++            raise web.HTTPBadRequest(text='bounded actual deadline required')
++        async with self.control_lock:
++            if getattr(self,'native_reference_claimed',False):
++                raise web.HTTPConflict(text='one reference only; no retry')
++            if self.streams or self.error or not self.accepting:
++                raise web.HTTPConflict(text='reference owner not idle')
++            self.native_reference_claimed=True
++            return web.json_response(await self.call(self.native_reference_work,body,timeout_s=end-time.time()))
++
+     async def start(self, app):
+         await self.call(self.initialize,timeout_s=900)
+         self.task = asyncio.create_task(self.loop())
+@@ -510,6 +549,7 @@
+ 
+     def application(self):
+         app = web.Application(client_max_size=16 * 1024**2)
++        app.router.add_post("/native-reference", self.native_reference)
+         app.router.add_post("/v1/completions", self.completions)
+         app.router.add_get("/health", self.status)
+         app.router.add_get("/runtime", self.status)

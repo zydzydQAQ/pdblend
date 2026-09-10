@@ -1,0 +1,107 @@
+--- /root/workspace/pdblend-next-v1/campaign/B32B-temporal-observation-execution-v2-r4/prepare.py
++++ /root/workspace/pdblend-next-v1/campaign/B32B-temporal-observation-execution-v3/prepare.py
+@@ -2,12 +2,14 @@
+ import argparse,copy,json,os,shutil,time
+ from pathlib import Path
+ import common as c
++import technical
+ 
+ def prepare(out,proof):
+     c.package_check();c.require(not os.environ.get('PDBLEND_NODE_LOCK_FD'),'inherited node lease forbidden')
+     gate=c.main_gate(proof);out=Path(out).resolve();c.require(not out.exists(),'new prepared directory required')
+     c.require(out.parent==c.ROOT.parent and out.name.startswith('B32B-temporal-observation-attempt-'),'independent sibling attempt namespace required')
+-    previous=Path(gate['groups']['distserve']['binding']);binding=c.read(previous);c.binding_scope(binding)
++    authorization=technical.verify();c.require(out.name==authorization['attempt_name'],'only authorized attempt002')
++    previous=Path(authorization['restored_binding']);binding=c.read(previous);c.binding_scope(binding)
+     deployment=c.read(c.DEPLOYMENT)
+     c.verify_files(binding['files'])
+     # Full weights are read once during offline preparation; execution checks same inode/stat.
+@@ -16,25 +18,27 @@
+         c.require(c.sha(p)==v['sha256'],'model weight/source identity changed: '+p)
+         c.require(c.module('executor').stat_identity(p)==v['stat'],'model file stat changed: '+p)
+     out.mkdir(parents=True);obs=c.read(c.CANDIDATE/'specs/original-vs-continuous.json')
+-    obs['output_dir']=str(out/'results/capture-live');c.write(out/'observation-spec.json',obs)
++    obs['output_dir']=str(out/'results/capture-live');technical.compact_spec(out/'observation-spec.json',obs)
++    c.write(out/'loader-preflight.json',technical.spec_preflight(out/'observation-spec.json'))
+     instance=copy.deepcopy(deployment['instances'][1]);cfg=c.read(instance['config'])
+-    iid='temporalobsb1';port=34501;kv=34732
++    iid='temporalobsb2';port=34502;kv=34764
+     cfg.update(id=iid,port=port,kv_port=kv,runtime_dir=str(out/'results/runtime'),initial_generation=0,
+         role='mixed',peers={iid:dict(host='127.0.0.1',tp=2,kv_port=kv)})
+     c.write(out/'engine.json',cfg)
+     instance.update(id=iid,port=port,kv_port=kv,url=f'http://127.0.0.1:{port}',role='mixed',
+-        config=str(out/'engine.json'),container_name='pdb-v2-temporalobsb1',image=None)
++        config=str(out/'engine.json'),container_name='pdb-v2-temporalobsb2',image=None)
+     instance['environment'] += ['PDBLEND_DIAGNOSTIC_SPEC='+str(out/'observation-spec.json'),
+         'PDBLEND_DIAGNOSTIC_SPEC_SHA256='+c.sha(out/'observation-spec.json')]
+     context=out/'image-context';context.mkdir()
+     for name in ('model_runner.py','pdblend_diagnostics.py'):shutil.copyfile(c.CANDIDATE/name,context/name)
+     tag='pdblend-temporal-parent-d114:'+c.sha(c.CANDIDATE/'manifest.json')[:12]
+     (context/'Dockerfile').write_text('FROM '+tag+'\nCOPY model_runner.py /usr/local/lib/python3.10/dist-packages/vllm/worker/model_runner.py\nCOPY pdblend_diagnostics.py /usr/local/lib/python3.10/dist-packages/vllm/pdblend_diagnostics.py\n')
+-    files=dict(gate['files']);files.update(binding['files'])
++    files=dict(gate['files']);files.update(binding['files']);files.update(authorization['files'])
+     files.update({str(p):c.sha(p) for p in out.rglob('*') if p.is_file()})
+     files[str(c.ROOT/'manifest.json')]=c.sha(c.ROOT/'manifest.json')
+     spec=dict(schema=1,purpose='one bounded B temporal metadata/logits observation',hardware_executed=False,
+         hostname=c.NODE,model='32b',deadline_s=c.DEADLINE,prepared_s=time.time(),results=str(out/'results'),
++        historical_main_qualification_only=True,technical_correction_authorization=str(technical.AUTH),
+         main_proof=str(Path(proof).resolve()),main_scope=['mixed','dynamollm','distserve'],
+         previous_binding=str(previous),previous_binding_sha256=c.sha(previous),original_deployment=str(c.DEPLOYMENT),
+         original_deployment_sha256=c.DEPLOYMENT_SHA,host_release=str(c.HOST),candidate_manifest_sha256=c.CANDIDATE_SHA,
+@@ -52,6 +56,10 @@
+ def main():
+     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--prepare',action='store_true');p.add_argument('--out',type=Path)
+     p.add_argument('--main-proof',type=Path,default=c.SEQUENCE/'main-proof.json');a=p.parse_args();c.package_check()
+-    if not a.prepare:print(json.dumps(dict(cpu_only=True,hardware_actions=False,prepared=False,requires_real_three_main_terminal=True)));return
++    if not a.prepare:
++        import tempfile
++        with tempfile.TemporaryDirectory() as td:
++            path=Path(td)/'actual-spec.json';value=c.read(c.CANDIDATE/'specs/original-vs-continuous.json');value['output_dir']=str(c.ROOT.parent/'B32B-temporal-observation-attempt-002/results/capture-live');technical.compact_spec(path,value);proof=technical.spec_preflight(path)
++        print(json.dumps(dict(cpu_only=True,hardware_actions=False,prepared=False,loader_preflight=proof)));return
+     c.require(a.out is not None,'new output path required');print(json.dumps(prepare(a.out,a.main_proof)))
+ if __name__=='__main__':main()
+--- /root/workspace/pdblend-next-v1/campaign/B32B-temporal-observation-execution-v2-r4/run.py
++++ /root/workspace/pdblend-next-v1/campaign/B32B-temporal-observation-execution-v3/run.py
+@@ -3,6 +3,7 @@
+ from pathlib import Path
+ import common as c
+ import archive
++import technical
+ 
+ 
+ def deadline_limits(now):
+@@ -18,8 +19,12 @@
+         'physical GPU memory/processes have not exited')
+ 
+ def preserve_container(before,after):
+-    for key in ('Id','Image','Config','HostConfig','Mounts','Path','Args'):
++    for key in ('Id','Image','Config','HostConfig','Path','Args'):
+         c.require(before.get(key)==after.get(key),'preserved container configuration differs: '+key)
++    def mounts(value):
++        rows=value['Mounts'];c.require(len({x['Destination'] for x in rows})==len(rows),'duplicate mount destination')
++        return sorted(json.dumps(x,sort_keys=True) for x in rows)
++    c.require(mounts(before)==mounts(after),'preserved full mount dictionaries differ')
+     c.require(after['State']['Running'] is True and after['State']['StartedAt']!=before['State']['StartedAt']
+         and after['State']['Pid']!=before['State']['Pid'],'restart must expose new real process provenance')
+ 
+@@ -375,7 +380,7 @@
+         return self.state
+ 
+ def no_prior_claims():
+-    c.require(not list(c.ROOT.parent.glob('B32B-temporal-observation-execution-*/execution-once.json')),'prior attempt claim exists; no automatic retry')
++    technical.verify()
+ 
+ def main():
+     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--spec',type=Path);p.add_argument('--spec-sha256');p.add_argument('--run',action='store_true');a=p.parse_args()
+@@ -383,8 +388,10 @@
+     if not a.run:print(json.dumps(dict(cpu_only=True,hardware_actions=False,one_attempt=True)));return
+     c.require(a.spec is not None and a.spec_sha256 is not None and c.sha(a.spec)==a.spec_sha256,'explicit pinned prepared spec SHA required');spec=c.read(a.spec);c.verify_files(spec['files'])
+     c.require(Path(spec['results']).parent==a.spec.resolve().parent and Path(spec['results']).name=='results' and a.spec.resolve().parent.parent==c.ROOT.parent
+-        and a.spec.resolve().parent.name.startswith('B32B-temporal-observation-attempt-') and spec['attempt_claim']==str(c.ROOT/'execution-once.json'),'isolated attempt namespace differs')
++        and a.spec.resolve().parent.name=='B32B-temporal-observation-attempt-002' and spec['attempt_claim']==str(c.ROOT/'execution-once.json'),'isolated attempt namespace differs')
+     c.require(spec['hostname']==socket.gethostname()==c.NODE and spec['deadline_s']==c.DEADLINE,'wrong node/deadline')
++    technical.spec_preflight(spec['observation_spec'])
++    c.require(spec['previous_binding']==c.read(technical.AUTH)['restored_binding'] and spec['previous_binding_sha256']==c.read(technical.AUTH)['files'][spec['previous_binding']],'authorized fresh binding differs')
+     c.require(spec['candidate_manifest_sha256']==c.CANDIDATE_SHA and spec['parent_image']==c.IMAGE,'wrong diagnostic candidate')
+     c.require(not os.environ.get('PDBLEND_NODE_LOCK_FD'),'diagnostic must acquire a fresh node lease')
+     no_prior_claims()

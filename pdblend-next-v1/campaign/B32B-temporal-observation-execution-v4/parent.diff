@@ -1,0 +1,166 @@
+--- /root/workspace/pdblend-next-v1/campaign/B32B-temporal-observation-execution-v3/common.py
++++ /root/workspace/pdblend-next-v1/campaign/B32B-temporal-observation-execution-v4/common.py
+@@ -38,6 +38,19 @@
+     if h is not None:require(sha(p)==h,'frozen helper changed: '+name)
+     spec=importlib.util.spec_from_file_location('b_temporal_'+name,p);m=importlib.util.module_from_spec(spec);sys.modules[spec.name]=m;spec.loader.exec_module(m);return m
+ 
++OBSERVATION_SCOPE=R/'campaign/B32B-temporal-solo-pair-observation-v1'
++OBSERVATION_SCOPE_SHA='a9a9d75dc79b4a8a0f95cd91f95124f8b13e9b4465f1952c48bd8768c26ae01d'
++REQUEST_SPEC=OBSERVATION_SCOPE/'spec.json'
++REQUEST_SPEC_SHA='77ce7b8d8011ae1779f9e0d4e986517b2d61dc3508e5debbf5bc4517f37417e1'
++
++def observation_declaration():
++    require(sha(OBSERVATION_SCOPE/'manifest.json')==OBSERVATION_SCOPE_SHA and sha(REQUEST_SPEC)==REQUEST_SPEC_SHA,'new observed UUID declaration changed')
++    old=read(CANDIDATE/'specs/original-vs-continuous.json');new=read(REQUEST_SPEC)
++    by={r['label']:r for r in old['requests']}
++    require(set(old)==set(new) and {k for k in old if old[k]!=new[k]}=={'request_ids'},'only observer UUID selection may change')
++    require(new['request_ids']==[by['golden-second']['request_uuid'],by['temporal-second']['request_uuid']],'must observe solo192 and temporal-second by actual labels')
++    return new
++
+ def package_check():
+     manifest=read(ROOT/'manifest.json');verify_files({str(ROOT/p):h for p,h in manifest['files'].items()})
+     verify_files(manifest['external_files'])
+@@ -45,6 +58,7 @@
+     c=read(CANDIDATE/'manifest.json');verify_files({str(CANDIDATE/p):h for p,h in c['files'].items()})
+     verify_files(read(CANDIDATE/'source-contract.json')['files'])
+     require(sha(DEPLOYMENT)==DEPLOYMENT_SHA,'original deployment changed')
++    observation_declaration()
+     return manifest
+ 
+ def pid_live(pid,proc=Path('/proc')):
+@@ -136,9 +150,17 @@
+     before={str(p):sha(p) for p in paths};dest.mkdir()
+     for p in paths:(dest/p.name).write_bytes(p.read_bytes())
+     require(before=={str(p):sha(p) for p in paths},'capture changed after process exit')
+-    loader=importlib.util.spec_from_file_location('b_frozen_capture_verifier',CANDIDATE/'verify_capture.py')
+-    v=importlib.util.module_from_spec(loader);loader.loader.exec_module(v)
+-    report=v.verify(Path(spec_path),dest,Path(outputs))
++    # Explicitly resolve the original verifier's import to the frozen original helper.
++    name='pdblend_diagnostics';previous=sys.modules.get(name)
++    helper=importlib.util.spec_from_file_location(name,CANDIDATE/'pdblend_diagnostics.py')
++    module=importlib.util.module_from_spec(helper);helper.loader.exec_module(module);sys.modules[name]=module
++    try:
++        loader=importlib.util.spec_from_file_location('b_frozen_capture_verifier',CANDIDATE/'verify_capture.py')
++        v=importlib.util.module_from_spec(loader);loader.loader.exec_module(v)
++        report=v.verify(Path(spec_path),dest,Path(outputs))
++    finally:
++        if previous is None:sys.modules.pop(name,None)
++        else:sys.modules[name]=previous
+     write(dest/'freeze.json',dict(frozen_s=time.time(),terminal=terminal,source_sha256=before,
+         files={p.name:sha(p) for p in dest.iterdir()},result=report,performance_evidence=False))
+     return report
+--- /root/workspace/pdblend-next-v1/campaign/B32B-temporal-observation-execution-v3/prepare.py
++++ /root/workspace/pdblend-next-v1/campaign/B32B-temporal-observation-execution-v4/prepare.py
+@@ -8,7 +8,7 @@
+     c.package_check();c.require(not os.environ.get('PDBLEND_NODE_LOCK_FD'),'inherited node lease forbidden')
+     gate=c.main_gate(proof);out=Path(out).resolve();c.require(not out.exists(),'new prepared directory required')
+     c.require(out.parent==c.ROOT.parent and out.name.startswith('B32B-temporal-observation-attempt-'),'independent sibling attempt namespace required')
+-    authorization=technical.verify();c.require(out.name==authorization['attempt_name'],'only authorized attempt002')
++    authorization=technical.verify();c.require(out.name==authorization['attempt_name'],'only authorized attempt003')
+     previous=Path(authorization['restored_binding']);binding=c.read(previous);c.binding_scope(binding)
+     deployment=c.read(c.DEPLOYMENT)
+     c.verify_files(binding['files'])
+@@ -17,28 +17,28 @@
+     for p,v in binding.get('large_inputs',{}).items():
+         c.require(c.sha(p)==v['sha256'],'model weight/source identity changed: '+p)
+         c.require(c.module('executor').stat_identity(p)==v['stat'],'model file stat changed: '+p)
+-    out.mkdir(parents=True);obs=c.read(c.CANDIDATE/'specs/original-vs-continuous.json')
++    out.mkdir(parents=True);obs=c.observation_declaration()
+     obs['output_dir']=str(out/'results/capture-live');technical.compact_spec(out/'observation-spec.json',obs)
+     c.write(out/'loader-preflight.json',technical.spec_preflight(out/'observation-spec.json'))
+     instance=copy.deepcopy(deployment['instances'][1]);cfg=c.read(instance['config'])
+-    iid='temporalobsb2';port=34502;kv=34764
++    iid='temporalobsb3';port=34503;kv=34796
+     cfg.update(id=iid,port=port,kv_port=kv,runtime_dir=str(out/'results/runtime'),initial_generation=0,
+         role='mixed',peers={iid:dict(host='127.0.0.1',tp=2,kv_port=kv)})
+     c.write(out/'engine.json',cfg)
+     instance.update(id=iid,port=port,kv_port=kv,url=f'http://127.0.0.1:{port}',role='mixed',
+-        config=str(out/'engine.json'),container_name='pdb-v2-temporalobsb2',image=None)
++        config=str(out/'engine.json'),container_name='pdb-v2-temporalobsb3',image=None)
+     instance['environment'] += ['PDBLEND_DIAGNOSTIC_SPEC='+str(out/'observation-spec.json'),
+         'PDBLEND_DIAGNOSTIC_SPEC_SHA256='+c.sha(out/'observation-spec.json')]
+     context=out/'image-context';context.mkdir()
+     for name in ('model_runner.py','pdblend_diagnostics.py'):shutil.copyfile(c.CANDIDATE/name,context/name)
+     tag='pdblend-temporal-parent-d114:'+c.sha(c.CANDIDATE/'manifest.json')[:12]
+     (context/'Dockerfile').write_text('FROM '+tag+'\nCOPY model_runner.py /usr/local/lib/python3.10/dist-packages/vllm/worker/model_runner.py\nCOPY pdblend_diagnostics.py /usr/local/lib/python3.10/dist-packages/vllm/pdblend_diagnostics.py\n')
+-    files=dict(gate['files']);files.update(binding['files']);files.update(authorization['files'])
++    files={str(c.REQUEST_SPEC):c.REQUEST_SPEC_SHA,str(c.OBSERVATION_SCOPE/'manifest.json'):c.OBSERVATION_SCOPE_SHA};files.update(gate['files']);files.update(binding['files']);files.update(authorization['files'])
+     files.update({str(p):c.sha(p) for p in out.rglob('*') if p.is_file()})
+     files[str(c.ROOT/'manifest.json')]=c.sha(c.ROOT/'manifest.json')
+     spec=dict(schema=1,purpose='one bounded B temporal metadata/logits observation',hardware_executed=False,
+         hostname=c.NODE,model='32b',deadline_s=c.DEADLINE,prepared_s=time.time(),results=str(out/'results'),
+-        historical_main_qualification_only=True,technical_correction_authorization=str(technical.AUTH),
++        historical_main_qualification_only=True,observation_scope_manifest=str(c.OBSERVATION_SCOPE/'manifest.json'),observation_scope_manifest_sha256=c.OBSERVATION_SCOPE_SHA,technical_correction_authorization=str(technical.AUTH),
+         main_proof=str(Path(proof).resolve()),main_scope=['mixed','dynamollm','distserve'],
+         previous_binding=str(previous),previous_binding_sha256=c.sha(previous),original_deployment=str(c.DEPLOYMENT),
+         original_deployment_sha256=c.DEPLOYMENT_SHA,host_release=str(c.HOST),candidate_manifest_sha256=c.CANDIDATE_SHA,
+@@ -59,7 +59,7 @@
+     if not a.prepare:
+         import tempfile
+         with tempfile.TemporaryDirectory() as td:
+-            path=Path(td)/'actual-spec.json';value=c.read(c.CANDIDATE/'specs/original-vs-continuous.json');value['output_dir']=str(c.ROOT.parent/'B32B-temporal-observation-attempt-002/results/capture-live');technical.compact_spec(path,value);proof=technical.spec_preflight(path)
++            path=Path(td)/'actual-spec.json';value=c.observation_declaration();value['output_dir']=str(c.ROOT.parent/'B32B-temporal-observation-attempt-003/results/capture-live');technical.compact_spec(path,value);proof=technical.spec_preflight(path)
+         print(json.dumps(dict(cpu_only=True,hardware_actions=False,prepared=False,loader_preflight=proof)));return
+     c.require(a.out is not None,'new output path required');print(json.dumps(prepare(a.out,a.main_proof)))
+ if __name__=='__main__':main()
+--- /root/workspace/pdblend-next-v1/campaign/B32B-temporal-observation-execution-v3/run.py
++++ /root/workspace/pdblend-next-v1/campaign/B32B-temporal-observation-execution-v4/run.py
+@@ -388,7 +388,7 @@
+     if not a.run:print(json.dumps(dict(cpu_only=True,hardware_actions=False,one_attempt=True)));return
+     c.require(a.spec is not None and a.spec_sha256 is not None and c.sha(a.spec)==a.spec_sha256,'explicit pinned prepared spec SHA required');spec=c.read(a.spec);c.verify_files(spec['files'])
+     c.require(Path(spec['results']).parent==a.spec.resolve().parent and Path(spec['results']).name=='results' and a.spec.resolve().parent.parent==c.ROOT.parent
+-        and a.spec.resolve().parent.name=='B32B-temporal-observation-attempt-002' and spec['attempt_claim']==str(c.ROOT/'execution-once.json'),'isolated attempt namespace differs')
++        and a.spec.resolve().parent.name=='B32B-temporal-observation-attempt-003' and spec['attempt_claim']==str(c.ROOT/'execution-once.json'),'isolated attempt namespace differs')
+     c.require(spec['hostname']==socket.gethostname()==c.NODE and spec['deadline_s']==c.DEADLINE,'wrong node/deadline')
+     technical.spec_preflight(spec['observation_spec'])
+     c.require(spec['previous_binding']==c.read(technical.AUTH)['restored_binding'] and spec['previous_binding_sha256']==c.read(technical.AUTH)['files'][spec['previous_binding']],'authorized fresh binding differs')
+--- /root/workspace/pdblend-next-v1/campaign/B32B-temporal-observation-execution-v3/technical.py
++++ /root/workspace/pdblend-next-v1/campaign/B32B-temporal-observation-execution-v4/technical.py
+@@ -5,15 +5,15 @@
+ AUTH=c.ROOT/'technical-authorization.json'
+ 
+ def verify_evidence(a,claims,live):
+-    c.require(a['schema']==1 and a['attempt_name']=='B32B-temporal-observation-attempt-002','only specifically authorized second namespace')
+-    c.verify_files(a['files']);c.require(set(map(str,claims))=={a['prior_claim']},'unexpected/missing execution claim; no further retry')
+-    first=c.read(a['failed_status']);rest=c.read(a['restoration_status']);claim=c.read(a['prior_claim']);binding=c.read(a['restored_binding'])
+-    c.require(claim['sha256']==a['files'][a['failed_spec']] and first['complete'] and first['capture_complete'] is False and first['measurement_valid'] is False,'not the explicitly retained first technical failure')
+-    c.require(Path(a['failed_log']).read_text().count("PDB diagnostic disabled: ValueError('spec byte cap')")==2,'actual both-rank loader failure missing')
+-    c.require(rest['complete'] and rest['measurement_valid'] and rest['all_original_restored'] and not rest['errors'] and rest['original_failure_unchanged'],'successful native restoration required')
+-    c.require(rest['original_failed_status_sha256']==a['files'][a['failed_status']] and rest['restored_binding_sha256']==a['files'][a['restored_binding']],'recovery linkage differs')
++    c.require(a['schema']==2 and a['attempt_name']=='B32B-temporal-observation-attempt-003','only predeclared third namespace')
++    c.verify_files(a['files']);c.require(set(map(str,claims))==set(a['prior_claims']) and len(a['prior_claims'])==2,'unexpected/missing execution claim; no further retry')
++    previous=c.read(a['previous_status']);verified=c.read(a['capture_verification']);binding=c.read(a['restored_binding']);claim=c.read(a['prior_claims'][1])
++    c.require(claim['sha256']==a['files'][a['previous_spec']] and previous['complete'] and previous['all_original_restored'] and previous['measurement_valid'] and not previous['errors'],'previous observation/restoration not genuinely terminal')
++    c.require(verified['capture_verified'] is True and verified['operation_measurement_valid'] is True and verified['original_exact_gate_passed'] is False and verified['hardware_correctness_proven'] is False,'previous capture/correctness boundary changed')
++    c.require(verified['input_files'][a['previous_status']]==a['files'][a['previous_status']] and previous['restored_binding_sha256']==a['files'][a['restored_binding']],'capture/current fresh binding linkage differs')
+     c.require(binding['configs']=={} and binding['output_correctness_verified'] is False and binding['correctness_gate_required_before_performance'] is True,'fresh bootstrap cannot claim correctness')
+-    for pid in (claim['pid'],first['pid'],first['child_pid'],rest['pid']):c.require(not live(pid),'previous diagnostic/recovery process remains')
++    c.require(a['files'][a['scope_manifest']]==c.OBSERVATION_SCOPE_SHA,'wrong new observer declaration')
++    for pid in (c.read(a['prior_claims'][0])['pid'],claim['pid'],previous['pid'],previous['child_pid']):c.require(not live(pid),'previous diagnostic process remains')
+     return a
+ 
+ def verify():
+--- /root/workspace/pdblend-next-v1/campaign/B32B-temporal-observation-execution-v3/child.py
++++ /root/workspace/pdblend-next-v1/campaign/B32B-temporal-observation-execution-v4/child.py
+@@ -18,8 +18,8 @@
+ ROOT=Path(__file__).resolve().parent
+ CHECKS=ROOT.parent/'B32B-legacy-baseline-correctness-v1/checks.py'
+ CHECKS_SHA='e0965f922ae42245b275d9c17342c31689290c61bcac5dfaf33a2a352fd29931'
+-SPEC=ROOT.parent/'B32B-temporal-observation-candidate-v1/specs/original-vs-continuous.json'
+-SPEC_SHA='3e769c7428ab44069e808dc06f11bf2f4e5b03bb3609036a07ed574b4b0ec724'
++SPEC=ROOT.parent/'B32B-temporal-solo-pair-observation-v1/spec.json'
++SPEC_SHA='77ce7b8d8011ae1779f9e0d4e986517b2d61dc3508e5debbf5bc4517f37417e1'
+ LABELS=('golden-first','golden-second','temporal-first','temporal-second','continuous-first','continuous-second')
+ 
+ def require(ok,why):
+@@ -50,8 +50,8 @@
+         'independent absolute campaign capture path required')
+     require([x['label'] for x in spec['requests']]==list(LABELS),'six request order differs')
+     require(len({x['request_uuid'] for x in spec['requests']})==6,'six disjoint UUIDs required')
+-    require(spec['request_ids']==[spec['requests'][3]['request_uuid'],spec['requests'][5]['request_uuid']],
+-        'only the two pair second UUIDs may be observed')
++    require(spec['request_ids']==[spec['requests'][1]['request_uuid'],spec['requests'][3]['request_uuid']],
++        'only golden-second and temporal-second UUIDs may be observed')
+     for k in ('work_deadline_s','cleanup_deadline_s'):
+         require(type(job[k]) in (int,float) and math.isfinite(job[k]),'finite actual epoch deadline required')
+     require(time.time()<job['work_deadline_s']<job['cleanup_deadline_s']<=spec['global_deadline_s']

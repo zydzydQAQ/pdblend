@@ -1,0 +1,197 @@
+--- campaign/B32B-native-default-reference-execution-v1/run.py
++++ campaign/B32B-native-default-reference-execution-v2/run.py
+@@ -15,26 +15,28 @@
+     loader.compact_spec(out/'observation-spec.json',obs)
+     c.write(out/'loader-preflight.json',loader.spec_preflight(out/'observation-spec.json'))
+     instance=copy.deepcopy(c.read(c.DEPLOYMENT)['instances'][1]);cfg=c.read(instance['config'])
+-    iid,port,kv='nativeref100b1',34504,34828
++    iid,port,kv='nativeref100b2',34505,34860
+     cfg.update(id=iid,port=port,kv_port=kv,runtime_dir=str(out/'results/runtime'),initial_generation=0,
+         role='mixed',peers={iid:dict(host='127.0.0.1',tp=2,kv_port=kv)})
+     c.write(out/'engine.json',cfg)
+     instance.update(id=iid,port=port,kv_port=kv,url=f'http://127.0.0.1:{port}',role='mixed',
+         config=str(out/'engine.json'),engine_entry=str(a.ROOT/'engine/engine.py'),
+-        container_name='pdb-v2-nativeref100b1',image=None)
+-    instance['environment'] += ['PDBLEND_DIAGNOSTIC_SPEC='+str(out/'observation-spec.json'),
++        container_name='pdb-v2-nativeref100b2',image=None)
++    instance['environment'] += ['PDBLEND_PREFILL_REFERENCE=1','PDBLEND_DIAGNOSTIC_SPEC='+str(out/'observation-spec.json'),
+         'PDBLEND_DIAGNOSTIC_SPEC_SHA256='+a.sha(out/'observation-spec.json')]
+     context=out/'image-context';context.mkdir()
+-    for f in ('model_runner.py','pdblend_diagnostics.py','scheduler.py'):shutil.copyfile(a.ROOT/'image-context'/f,context/f)
++    for f in ('model_runner.py','pdblend_diagnostics.py','scheduler.py','pdblend_prefill_reference.py'):shutil.copyfile(a.ROOT/'image-context'/f,context/f)
+     tag='pdblend-native-reference-parent-d114:'+a.sha(a.ROOT/'manifest.json')[:12]
+-    (context/'Dockerfile').write_text('FROM '+tag+'\nCOPY model_runner.py /usr/local/lib/python3.10/dist-packages/vllm/worker/model_runner.py\nCOPY pdblend_diagnostics.py /usr/local/lib/python3.10/dist-packages/vllm/pdblend_diagnostics.py\nCOPY scheduler.py /usr/local/lib/python3.10/dist-packages/vllm/core/scheduler.py\n')
++    (context/'Dockerfile').write_text('FROM '+tag+'\nCOPY model_runner.py /usr/local/lib/python3.10/dist-packages/vllm/worker/model_runner.py\nCOPY pdblend_diagnostics.py /usr/local/lib/python3.10/dist-packages/vllm/pdblend_diagnostics.py\nCOPY scheduler.py /usr/local/lib/python3.10/dist-packages/vllm/core/scheduler.py\nCOPY pdblend_prefill_reference.py /usr/local/lib/python3.10/dist-packages/vllm/pdblend_prefill_reference.py\n')
+     installed=c.actual_source_mapping(True);installed['/usr/local/lib/python3.10/dist-packages/vllm/core/scheduler.py']=a.SCHEDULER_SHA
++    installed['/usr/local/lib/python3.10/dist-packages/vllm/worker/model_runner.py']=a.sha(a.ROOT/'image-context/model_runner.py')
++    installed['/usr/local/lib/python3.10/dist-packages/vllm/pdblend_prefill_reference.py']=a.sha(a.ROOT/'image-context/pdblend_prefill_reference.py')
+     files=dict(previous['files']);files.update(before['files'])
+     files.update({str(a.ROOT/p):h for p,h in a.read(a.ROOT/'manifest.json')['files'].items()})
+     files.update(a.read(a.ROOT/'manifest.json')['external_files']);files[str(a.ROOT/'manifest.json')]=a.sha(a.ROOT/'manifest.json')
+     files.update({str(p):a.sha(p) for p in out.rglob('*') if p.is_file()})
+     after=a.eligibility(c);a.require(before==after,'producer/eligibility changed during preparation')
+-    spec=dict(schema=1,purpose='one native default same-trajectory counterfactual; not a replacement baseline oracle',
++    spec=dict(schema=1,purpose='one all-True config default-entry same-trajectory diagnostic; no baseline gate changed',
+         hostname=c.NODE,model='32b',deadline_s=c.DEADLINE,prepared_s=time.time(),results=str(out/'results'),
+         main_proof=str(c.SEQUENCE/'main-proof.json'),previous_binding=str(a.BOOTSTRAP),previous_binding_sha256=a.BOOTSTRAP_SHA,
+         original_deployment=str(c.DEPLOYMENT),original_deployment_sha256=c.DEPLOYMENT_SHA,host_release=str(c.HOST),
+--- campaign/B32B-native-default-reference-execution-v1/adapter.py
++++ campaign/B32B-native-default-reference-execution-v2/adapter.py
+@@ -11,9 +11,9 @@
+ C=ROOT.parent
+ PARENT=C/'B32B-temporal-observation-execution-v4'
+ PARENT_SHA='e55ff19a91c523f60b107ecb93ff48a101ec78f0c84d3d067c9c12f698342ed7'
+-ATTEMPT='B32B-native-default-reference-attempt-001'
+-BOOTSTRAP=C/'B32B-temporal-observation-attempt-003/results/restored-bootstrap.binding.json'
+-BOOTSTRAP_SHA='4b33bf20218a38892952ba92c0902a2310f80464b7bc267d06e68ed3a679fb29'
++ATTEMPT='B32B-native-default-reference-attempt-002'
++BOOTSTRAP=C/'B32B-native-default-reference-attempt-001/results/restored-bootstrap.binding.json'
++BOOTSTRAP_SHA='1d1623b46a2855011c2cff0cc1efae9848462968af969903342e828efaa141a4'
+ SCHEDULER_SHA='572cdcb93e1af27439cf31534a7d1777eaf70f4b73432abd14f08ddfcfe9a691'
+ 
+ def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+@@ -68,7 +68,13 @@
+     require(all(r['finished_s']>=r['started_s'] and not r['preempted'] and not r['blocks_to_swap_in']
+         and not r['blocks_to_swap_out'] and not r['blocks_to_copy'] for r in rows),'actual cache movement/step failure')
+     require(len([r for r in events if r['kind']=='output'])==256,'four64 actual driver outputs')
+-    return dict(complete=True,file=str(target),sha256=sha(target),native_default=True,steps=197,pair_steps=69,
++    from prefill_evidence import verify
++    prefills=verify(spec,out)
++    selection=[x for x in events if x['kind']=='default_selection']
++    restored=[x for x in events if x['kind']=='default_selection_restored']
++    require(len(selection)==len(restored)==1 and selection[0]['engine_chunked'] is True and
++        selection[0]['scheduler_chunked'] is True and restored[0]['config_objects_unchanged'] is True, 'actual narrow default entry/config restoration')
++    return dict(prefill_evidence=prefills,complete=True,file=str(target),sha256=sha(target),native_default=True,steps=197,pair_steps=69,
+                 original_temporal_gate_changed=False,performance_evidence=False)
+ 
+ def load_operation():
+@@ -106,14 +112,15 @@
+ 
+ def eligibility(c):
+     auth=read(ROOT/'eligibility.json');c.verify_files(auth['files'])
+-    require(auth['restored_binding']==str(BOOTSTRAP) and sha(BOOTSTRAP)==BOOTSTRAP_SHA,'fresh attempt003 bootstrap required')
+-    status=read(C/'B32B-temporal-observation-attempt-003/results/status.json')
++    require(auth['restored_binding']==str(BOOTSTRAP) and sha(BOOTSTRAP)==BOOTSTRAP_SHA,'fresh native001 bootstrap required')
++    status=read(C/'B32B-native-default-reference-attempt-001/results/status.json')
+     require(status['complete'] and status['all_original_restored'] and status['measurement_valid'] and status['capture_complete'],
+             'previous real observation/restoration incomplete')
+     require(status['exact_passed'] is False,'original numerical failure must remain explicit')
+     for pid in auth['terminal_pids']:require(not c.pid_live(pid),'previous actual diagnostic producer still live')
+     actual={str(p):sha(p) for p in C.glob('B32B-temporal-observation-execution-*/execution-once.json')}
+-    require(len(actual)==3 and actual==auth['previous_claims'],'exact three retained prior attempts required')
++    actual.update({str(p):sha(p) for p in C.glob('B32B-native-default-reference-execution-*/execution-once.json')})
++    require(len(actual)==4 and actual==auth['previous_claims'],'exact four retained prior attempts required')
+     require(not (ROOT/'execution-once.json').exists(),'new native reference claim already exists')
+     helper=load('native_reference_producers',C/'B32B-temporal-launch-producer-review-v1/readiness_producer.py')
+     gate=c.main_gate(c.SEQUENCE/'main-proof.json');producer=helper.verify_main_producers(c.SEQUENCE/'main-proof.json')
+--- campaign/B32B-native-default-reference-execution-v1/engine/engine.py
++++ campaign/B32B-native-default-reference-execution-v2/engine/engine.py
+@@ -22,6 +22,11 @@
+ 
+ SOURCE_FILES_AT_IMPORT={str(path):hashlib.sha256(path.read_bytes()).hexdigest()
+                         for path in Path(__file__).parent.glob('*.py')}
++
++
++def reference_worker_snapshot(worker):
++    from vllm.pdblend_prefill_reference import snapshot
++    return snapshot(worker)
+ 
+ 
+ class EngineService:
+@@ -85,7 +90,7 @@
+                     max_num_seqs=c.get("max_num_seqs", 32),
+                     max_num_batched_tokens=c.get("max_num_batched_tokens", 8192),
+                     gpu_memory_utilization=c.get("gpu_memory_utilization", .85),
+-                    enforce_eager=True, enable_chunked_prefill=False,
++                    enforce_eager=True, enable_chunked_prefill=True,
+                     enable_prefix_caching=False, disable_log_stats=True,
+                     distributed_executor_backend="mp" if c["tp"] > 1 else "uni")
+         if c.get('retained_weights'):
+@@ -506,13 +511,22 @@
+             if time.time()>=end or time.monotonic()>=mono:
+                 raise TimeoutError('native reference wall/monotonic deadline')
+         path=self.runtime_path.parent/'native-reference.events.jsonl'
++        config_path=self.runtime_path.parent/'worker-config.json'
++        snapshots=dict(before=self.control_rpc(reference_worker_snapshot))
++        def save_configs():
++            config_path.write_text(json.dumps(snapshots,allow_nan=False)+'\n')
++        save_configs()
+         with path.open('x',buffering=1) as events:
+             def emit(value):
+                 events.write(json.dumps(value,allow_nan=False)+'\n')
+             try:
+                 return run_reference(self.engine,payload['requests'],SamplingParams,emit,guard)
+             finally:
+-                self.update_snapshot()
++                try:
++                    snapshots['after']=self.control_rpc(reference_worker_snapshot)
++                    save_configs()
++                finally:
++                    self.update_snapshot()
+ 
+     async def native_reference(self, request):
+         body=await request.json()
+--- campaign/B32B-native-default-reference-execution-v1/engine/native_driver.py
++++ campaign/B32B-native-default-reference-execution-v2/engine/native_driver.py
+@@ -4,6 +4,7 @@
+ stored token oracle is loaded here: every output comes from engine.step().
+ """
+ import time
++from schedule_selection import select_default
+ 
+ 
+ def require(ok, message):
+@@ -27,11 +28,15 @@
+             'original full64 input/sampling unchanged')
+     require(len(engine.scheduler) == 1, 'one actual scheduler owner, TP workers are separate')
+     scheduler = engine.scheduler[0]
+-    require(scheduler.scheduler_config.chunked_prefill_enabled is False, 'native default only')
++    require(scheduler.scheduler_config.chunked_prefill_enabled is True, 'original chunked configuration required')
+     require(scheduler.scheduler_config.max_num_batched_tokens == 8192 and
+             scheduler.scheduler_config.max_num_seqs == 32, 'original budget')
+     require(not scheduler.running and not scheduler.waiting and not scheduler.swapped,
+             'fresh independent owner idle')
++    selection = select_default(engine, emit)
++    selection.__enter__()
++    original_had_schedule = "schedule" in scheduler.__dict__
++    original_instance_schedule = scheduler.__dict__.get("schedule")
+     original = scheduler.schedule
+     scheduled = []
+     outputs = {r['request_uuid']: [] for r in requests}
+@@ -108,4 +113,8 @@
+         return dict(complete=True, token_ids_by_request_uuid=outputs,
+                     original_baseline_gate_changed=False, performance_evidence=False)
+     finally:
+-        scheduler.schedule = original
++        if original_had_schedule:
++            scheduler.schedule = original_instance_schedule
++        else:
++            del scheduler.schedule
++        selection.__exit__(None, None, None)
+--- campaign/B32B-native-default-reference-execution-v1/image-context/model_runner.py
++++ campaign/B32B-native-default-reference-execution-v2/image-context/model_runner.py
+@@ -68,6 +68,7 @@
+ logger = init_logger(__name__)
+ 
+ from vllm import pdblend_diagnostics as _pdb_diag
++from vllm import pdblend_prefill_reference as _pdb_prefill
+ 
+ LORA_WARMUP_RANK = 8
+ 
+@@ -1834,6 +1835,8 @@
+                     kv_caches=kv_caches
+                 )
+ 
++        prefill_reference_context = _pdb_prefill.begin(
++            model_input, self, get_tensor_model_parallel_rank(), kv_caches)
+         diagnostic_context = None
+         if model_input.diagnostic_bindings is not None:
+             diagnostic_context = _pdb_diag.begin(
+@@ -1970,6 +1973,7 @@
+                         sequence_group_output.samples[
+                             0].output_embed = token_embed
+ 
++        _pdb_prefill.finish(prefill_reference_context)
+         if diagnostic_context:
+             _pdb_diag.finish(diagnostic_context,
+                              output if self.is_driver_worker else None)

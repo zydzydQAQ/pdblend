@@ -145,7 +145,8 @@ class Controller:
             self.tokenizer = await asyncio.to_thread(AutoTokenizer.from_pretrained,
                                                        self.config["tokenizer"])
         self.tokenizer_slots = asyncio.Semaphore(2)
-        self.session=aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=120),
+        self.session=aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(
+            total=self.config.get('engine_request_timeout_s',120)),
                                          connector=aiohttp.TCPConnector(limit=256),trust_env=False)
         clocks=None
         if self.config.get("manage_clocks",True):

@@ -1,0 +1,53 @@
+--- v1/handoff.py
++++ v2/handoff.py
+@@ -74,6 +74,9 @@
+     time.sleep(.25)
+    step.update(complete=True,exitcode=self.child.returncode,finished_s=time.time());self.persist()
+    require(not sent and self.child.returncode==0,'CPU phase failed/interrupted; preserve partial outputs and stop')
++ def observe_exit(self):
++  if self.observer is not None and self.observer.poll() is not None and 'observer_exitcode' not in self.state:
++   self.state.update(observer_exitcode=self.observer.returncode,observer_error='metadata observer exited; performance remains governed by the frozen executor',observer_exit_observed_s=time.time());self.persist()
+  def run(self):
+   frozen();require(socket.gethostname()==NODE,'actual B host only');require(not self.out.exists(),'new single handoff attempt required')
+   self.out.mkdir();self.state=dict(schema=1,model='32b',pid=os.getpid(),started_s=time.time(),phase='waiting_actual_eco_main',complete=False,steps=[],parent_owns_node_lease=False,automatic_retries=False,deadline_s=DEADLINE)
+@@ -113,9 +116,7 @@
+        with (self.out/'observer.log').open('xb') as observer_log:
+         self.observer=subprocess.Popen(op,stdout=observer_log,stderr=subprocess.STDOUT,stdin=subprocess.DEVNULL,env=env,close_fds=True,start_new_session=True)
+        self.state.update(observer_pid=self.observer.pid,observer_argv=op);self.persist()
+-      if self.observer is not None and self.observer.poll() is not None and not sent:
+-       self.child.send_signal(signal.SIGTERM);sent=True
+-       self.state.update(observer_early_exitcode=self.observer.returncode,scale_boundary_stop_sent_s=time.time());self.persist()
++      self.observe_exit()
+       if time.time()>=DEADLINE+5:
+        self.state['scale_exit_unconfirmed']=True;self.persist();raise RuntimeError('original scale cleanup exit unconfirmed; no automatic recovery')
+       time.sleep(1)
+--- v1/README.md
++++ v2/README.md
+@@ -8,6 +8,8 @@
+ 
+ The unchanged frozen scale supervisor retains its100s arrivals,120s request/drain,520s start reserve,400s child interrupt boundary,120s cleanup and absolute deadline1788872770.0400891. A handoff STOP or deadline warning sends SIGTERM only to that supervisor; its handler prevents another cell and lets the current cell finish through its original cleanup. The parent never sends a signal to the measurement child or an engine. Failure or unconfirmed exit stops the chain with all artifacts retained, without automatic retry. CPU handoff subprocesses have600s plus120s exit confirmation; these are not a new GPU measurement window. No work after a failed CPU phase is authorized.
+ 
+-The separately frozen B metadata observer starts only after actual scale status exists. It reads real child argv and writes the B index/history, never another host's index. An unexpected observer exit requests a scale boundary stop. The observer reads actual terminal scale status and exits itself. It does not manufacture telemetry freshness or completion.
++The separately frozen B metadata observer starts only after actual scale status exists. It reads real child argv and writes the B index/history, never another host's index. An unexpected observer exit records an observer error and exit code only. It never signals, pauses or blocks the performance queue. The observer reads actual terminal scale status and exits itself. It does not manufacture telemetry freshness or completion.
+ 
+ Fourteen focused CPU tests read the actual main launch/invocation schema and use only in-memory synthetic terminal fields. They check exact30 IDs, no required skipped key, live/foreign PID, live monitor, absent/failed terminal, incomplete/duplicate/foreign-ID completion, binding/time mismatches and STOP/deadline before any subprocess. These tests are not performance results or main completion evidence. The actual frozen150-point producer/raw proof remains mandatory after the wait.
++
++Revision2 changes only this metadata/performance separation from the retained, CPU-only v1. One focused mock check asserts an exited observer never signals the performance process.
+--- v1/test_handoff.py
++++ v2/test_handoff.py
+@@ -50,3 +50,15 @@
+  s=h.Handoff(tmp_path);monkeypatch.setattr(h.time,'time',lambda:h.DEADLINE-599)
+  monkeypatch.setattr(h.subprocess,'Popen',lambda *a,**k:pytest.fail('no process past reserve'))
+  with pytest.raises(RuntimeError,match='original deadline'):s.command('proof',['unused'],{})
++
++
++def test_observer_exit_does_not_signal_performance(tmp_path):
++ class Observer:
++  returncode=1
++  def poll(self):return self.returncode
++ class Performance:
++  def send_signal(self,*_):pytest.fail('metadata failure must not signal performance')
++ s=h.Handoff(tmp_path);s.state={};s.observer=Observer();s.child=Performance()
++ s.observe_exit()
++ assert s.state['observer_exitcode']==1 and s.state['observer_error']
++ assert 'scale_boundary_stop_sent_s' not in s.state

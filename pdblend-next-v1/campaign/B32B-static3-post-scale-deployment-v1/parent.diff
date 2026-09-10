@@ -1,0 +1,140 @@
+--- /root/workspace/pdblend-next-v1/campaign/A14B-pdb-post-scale-restore-v2/restore.py
++++ /root/workspace/pdblend-next-v1/campaign/B32B-static3-post-scale-deployment-v1/restore.py
+@@ -1,4 +1,4 @@
+-"""A-only retained PDB restart after actual model main150 and scale90.
++"""B static-three deployment after actual model main150 and scale90.
+ 
+ Default check/prepare are CPU-only. No serving requests or scale runner exist here.
+ """
+@@ -22,11 +22,12 @@
+ CAMPAIGN=ROOT.parent
+ DEPLOY=CAMPAIGN/'AC-baseline-deployment-v2/deploy.py'
+ COMMON=CAMPAIGN/'five-system-execution-v3/run.py'
+-BARRIER=CAMPAIGN/'A14B-resident-restore-v3/release_gate.py'
++BARRIER=ROOT/'release_gate.py'
+ DEADLINE=1788872770.0400891
+-HOST='iZwz92bdfqihqp38tekqjyZ'
++HOST='iZwz9i5bte3xkpmcoes3t2Z'
+ PROTOCOL='per-dataset-slo-five-system-fixed-window-v1'
+ import contracts
++import third
+ 
+ def require(ok,why):
+     if not ok: raise RuntimeError(why)
+@@ -55,10 +56,11 @@
+     return True
+ 
+ def validate_previous(previous):
+-    require(previous==contracts.read(contracts.PREVIOUS),'exact current resident baseline binding required')
+-    require([(i['tp'],i['gpus']) for i in previous['instances']]==[(1,[j]) for j in range(8)],'eight current resident TP1s required')
++    require(previous==contracts.read(contracts.PREVIOUS),'exact actual B scale baseline binding required')
++    require([(i['tp'],i['gpus']) for i in previous['instances']]==[(2,[0,1]),(2,[2,3]),(2,[4,5]),(2,[6,7])],'four current resident TP2s required')
+     require(all(i['native_kind']=='legacy_sync_put' for i in previous['instances']),'actual legacy baseline native scope')
+     return True
++
+ 
+ def plan(out):
+     return contracts.build(out)
+@@ -225,6 +227,21 @@
+     return dict(energy_j=common.integrate(rows,start,end),power_evidence=evidence,
+         max_power_gap_s=max(b[0]-a[0] for a,b in zip(rows,rows[1:])),clock_rows=len(clocks),gpu_count=8)
+ 
++async def failure_cleanup(spec,cleanup,result,m):
++    """Capture cancellation for outer archival; no further controls after it."""
++    async def stop_owned(x):
++        try:await m.command(['docker','stop','--time','10',x['container_id']],cleanup,result['commands'],cap=20)
++        except asyncio.CancelledError:raise
++        except Exception as e:result['errors'].append('stop retained target: '+repr(e))
++    try:
++        await asyncio.gather(*(stop_owned(x) for x in result['start_intents']))
++        await third.stop_intents(spec,cleanup,result,m)
++    except BaseException as e:
++        result['errors'].append('failure cleanup interrupted: '+repr(e))
++        result['cleanup_interrupted']=True
++        return e
++    return None
++
+ async def launch(spec_path):
+     """Explicit future deployment; caller main holds the real fresh node lease."""
+     import aiohttp
+@@ -232,7 +249,7 @@
+     from ecopadg.measure.power import PowerSampler
+     from ecopadg.serving.measurement import save_raw,power_evidence
+     package_check();spec=read(spec_path);validate_spec(spec);verify_files(spec['files'])
+-    require(spec['hostname']==socket.gethostname()==HOST and spec['operation']=='restart-retained-pdb-after-model-scale','wrong restore host/operation')
++    require(spec['hostname']==socket.gethostname()==HOST and spec['operation']=='restore-two-create-third-after-model-scale','wrong restore host/operation')
+     common=load(COMMON,'resident_restore_common');deploy=load(DEPLOY,'resident_restore_deploy');barrier=load(BARRIER,'resident_restore_release')
+     release=barrier.verify_release(spec['model_main_release'],spec['model_main_release_sha256'])
+     require(barrier.process_scan()['no_live_serving_child'],'serving child alive before recovery')
+@@ -241,9 +258,9 @@
+     proof=contracts.completed_scale()
+     require(time.time()+840<DEADLINE,'original deadline cannot accommodate recovery and cleanup')
+     out=Path(spec['out']);require(not (out/'deployment-receipt.json').exists(),'restore attempt already exists')
+-    result=dict(started_s=time.time(),complete=False,measurement_valid=False,created=[],restarted=[],start_intents=[],stopped=[],
++    result=dict(started_s=time.time(),complete=False,measurement_valid=False,created=[],restarted=[],start_intents=[],creation_intents=[],stopped=[],
+         commands=[],http_records=[],errors=[],model_main_release=release,predecessor_proof=[proof],
+-        new_containers_created=False,created_field_semantics='legacy binder identity alias for restarted existing IDs',
++        new_containers_created=False,created_field_semantics='two restarted IDs and one newly created ID, separately recorded',
+         output_correctness_verified=False,scale_executed=False,clock_controls_issued=False)
+     pre=Limit(min(time.time()+120,DEADLINE-840));sampler=None;failure=None
+     async with aiohttp.ClientSession(trust_env=False) as session:
+@@ -251,7 +268,7 @@
+         try:
+             names=(await command(['docker','ps','-aq'],pre,result['commands'])).split()
+             inventory=json.loads(await command(['docker','inspect',*names],pre,result['commands']))
+-            stopped=verify_stopped(spec,inventory);write(out/'containers.before.json',inventory)
++            stopped=verify_stopped(spec,inventory);third.preflight(spec,inventory);write(out/'containers.before.json',inventory)
+             for i in previous['instances']:
+                 c=next(c for c in inventory if c['Id']==i['container']['id'])
+                 require(c['State']['StartedAt']==i['container']['StartedAt'] and c['State']['Running'],'previous live identity changed')
+@@ -294,21 +311,21 @@
+                 result['new_provenance'][i['id']]=p;result['startup'][i['id']]=r
+                 rr=result['new_native_restore'].setdefault(i['id'],{})
+                 await native(session,i,limit,result['http_records'],common,rr)
++            await third.create_and_prepare(spec,session,limit,result,common,sys.modules[__name__])
+             verify_prefixes(result['runtime_archive']);verify_files(spec['files'])
+-            final=json.loads(await command(['docker','inspect',*spec['expected_containers']],limit,result['commands']))
+-            final_by={c['Name'].lstrip('/'):c for c in final};verify_restarted(spec,stopped,final_by)
++            final=json.loads(await command(['docker','inspect',*spec['expected_containers'],spec['third_instance']['container_name']],limit,result['commands']))
++            final_by={c['Name'].lstrip('/'):c for c in final}
++            retained_final={n:final_by[n] for n in spec['expected_containers']}
++            verify_restarted(spec,stopped,retained_final);third.verify_final(spec,result,final_by)
+             require(all(final_by[n]['State']['StartedAt']==after[n]['State']['StartedAt'] and final_by[n]['State']['Pid']==after[n]['State']['Pid'] for n in after),'resident changed during recovery')
+-            require(set((await command(['docker','ps','--format','{{.Names}}'],limit,result['commands'])).split())==set(after),'unexpected running engine after recovery')
+-            write(out/'containers.after.json',final);result['created']=copy.deepcopy(result['restarted']);result['complete']=True
++            require(set((await command(['docker','ps','--format','{{.Names}}'],limit,result['commands'])).split())==set(final_by),'unexpected running engine after recovery')
++            write(out/'containers.after.json',final);result['created']=copy.deepcopy(result['restarted'])+[result['third_created']];result['complete']=True
+         except BaseException as e:failure=e;result['errors'].append(repr(e))
+         finally:
+             if not result['complete']:
+                 cleanup=Limit(min(time.time()+120,DEADLINE));result['cleanup_deadline_s']=cleanup.end
+-                async def stop_owned(x):
+-                    try:await command(['docker','stop','--time','10',x['container_id']],cleanup,result['commands'],cap=20)
+-                    except asyncio.CancelledError:raise
+-                    except Exception as e:result['errors'].append('stop retained target: '+repr(e))
+-                await asyncio.gather(*(stop_owned(x) for x in result['start_intents']))
++                interrupted=await failure_cleanup(spec,cleanup,result,sys.modules[__name__])
++                if interrupted is not None:failure=interrupted
+             result['operation_end_s']=time.time()
+             try:await asyncio.sleep(.12);await asyncio.to_thread(sampler.stop)
+             except BaseException as e:result['errors'].append('sampler stop: '+repr(e))
+@@ -324,7 +341,7 @@
+                 result['measurement_valid']=result['complete'] and not result['errors']
+             except Exception as e:result['errors'].append('measurement: '+repr(e));result['all8_operation_energy_j']=None
+             result.update(finished_s=time.time(),sampling_error=sampler.error,
+-                scope='measured retained PDB restart only; fresh continuous output correctness required; PD remains disabled')
++                scope='measured two retained PDB restart plus third TP2 creation/peers/native only; no output correctness or performance qualification')
+             result['artifacts']={str(p):sha(p) for p in out.rglob('*') if p.is_file() and p.name!='deployment-receipt.json'}
+             write(out/'deployment-receipt.json',result)
+         if failure is not None:raise failure
+@@ -353,7 +370,9 @@
+                 if not sent:sent=True;task.cancel()
+             for sig in (signal.SIGINT,signal.SIGTERM):loop.add_signal_handler(sig,cancel)
+             return await launch(a.spec)
+-        with node_lease():result=asyncio.run(supervised())
++        with node_lease():
++            result=asyncio.run(supervised())
++            result['bootstrap']=third.bootstrap(read(a.spec),a.spec)
+     print(json.dumps(result,indent=2,allow_nan=False))
+ 
+ if __name__=='__main__':main()

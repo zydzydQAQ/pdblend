@@ -1,0 +1,35 @@
+--- parent/topology.py
++++ baseline/topology.py
+@@ -5,6 +5,7 @@
+ request KV is migrated. GPU overlap requires old workers to stop first.
+ """
+ import asyncio
++import hashlib
+ from dataclasses import dataclass,asdict,replace
+ import json
+ import math
+@@ -91,6 +92,15 @@
+         config=dict(self.template,id=spec.instance_id,tp=spec.tp,port=spec.port,kv_port=spec.kv_port,
+                     role=spec.role,initial_generation=spec.generation,peers=peers,
+                     retained_weights=retained_weights)
++        entry=self.template.get('observation_engine_entry')
++        entry_sha=self.template.get('observation_engine_sha256')
++        launch=['python3','-m','ecopadg.serving.engine']
++        if entry is not None:
++            if (not isinstance(entry,str) or not Path(entry).is_absolute()
++                    or not isinstance(entry_sha,str) or len(entry_sha)!=64
++                    or hashlib.sha256(Path(entry).read_bytes()).hexdigest()!=entry_sha):
++                raise ValueError('observation engine entry is not absolute and hash-bound')
++            launch=['python3',entry]
+         path=self.root/(spec.instance_id+'.json')
+         await asyncio.to_thread(path.write_text,json.dumps(config,indent=2))
+         return await self.command('run','-d','--name',self.prefix+spec.instance_id,
+@@ -100,7 +110,7 @@
+             '-e','NCCL_CUMEM_ENABLE=0','-e','NCCL_DEBUG=WARN',
+             '-e','PYTHONPATH=/root/workspace/pdblend/src','-e','VLLM_HOST_IP=127.0.0.1',
+             '-v','/root/workspace:/root/workspace','-v','/root/workspace/models:/models:ro',
+-            self.image,'python3','-m','ecopadg.serving.engine','--config',str(path))
++            self.image,*launch,'--config',str(path))
+ 
+     async def stop(self,spec):
+         name=self.prefix+spec.instance_id
