@@ -59,14 +59,14 @@ async def _point(fleet: Fleet, gpus: Gpus, model: PerfModel, policy: Policy, slo
     cfg = policy.planner_config(PlannerConfig(slots=len(urls), slo=slo, freqs=model.freqs))
     planner = PoolPlanner(model, cfg)
     freeze = policy.freeze or fixed_plan is not None
-    initial = fixed_plan or (planner.plan(offline_forecast(trace)) if policy.freeze else None)
+    initial = fixed_plan or (planner.plan(offline_forecast(trace)) if (policy.freeze or policy.warm_start) else None)
     if policy.ported and fixed_plan is None:
         planner, initial, freeze, ported_period = build_control(policy.name, planner, router, offline_forecast(trace),
                                                                 [r.arrival_s for r in trace])
         period_s = ported_period or period_s
     ctl = Controller(fleet, router, gpus, planner, Shield(slo) if policy.shield else None, Forecaster(),
                      period_s=period_s, log_path=out_dir / "controller.jsonl", initial_plan=initial, freeze=freeze,
-                     min_warm_s=min_warm_s)
+                     hold_initial=policy.warm_start, min_warm_s=min_warm_s)
     stop = asyncio.Event()
     ctl_task = asyncio.create_task(ctl.run(stop))
     await asyncio.sleep(2.0)

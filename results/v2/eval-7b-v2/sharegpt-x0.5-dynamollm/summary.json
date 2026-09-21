@@ -1,0 +1,248 @@
+{
+ "slo": {
+  "offered": 2450,
+  "succeeded": 2450,
+  "joint_slo": 2450,
+  "joint_slo_rate": 1.0,
+  "success_rate": 1.0,
+  "ttft_p50": 0.16970348358154297,
+  "ttft_p90": 0.250443696975708,
+  "ttft_p99": 0.3832132816314697,
+  "tpot_p50": 0.033347913197108676,
+  "tpot_p90": 0.03787978015728851,
+  "tpot_p99": 0.051859947138054426,
+  "output_tokens": 783564,
+  "paths": {
+   "M": 2450
+  }
+ },
+ "energy_j": 404854.60333792435,
+ "mean_power_w": 1296.5933854501732,
+ "duration_s": 312.3059811592102,
+ "window_energy_j": 390772.91458406084,
+ "window_mean_power_w": 1302.902620358766,
+ "window_s": 299.95639085769653,
+ "tail_s": 12.349590301513672,
+ "per_gpu_mean_w": {
+  "0": 264.00559002238583,
+  "1": 274.3514998401022,
+  "2": 270.1743831148062,
+  "3": 268.15452382475263,
+  "4": 56.1315078349858,
+  "5": 53.256578189958375,
+  "6": 51.86503773584925,
+  "7": 56.23232171410371
+ },
+ "j_per_request": 165.24677687262218,
+ "j_per_token": 0.5166835170297823,
+ "controller": {
+  "events": {
+   "plan": 7,
+   "forecast": 60,
+   "park": 4,
+   "stop": 1
+  },
+  "shield_events": [],
+  "final_roles": {
+   "i0": "M",
+   "i1": "M",
+   "i2": "M",
+   "i3": "M",
+   "i4": "off",
+   "i5": "off",
+   "i6": "off",
+   "i7": "off"
+  }
+ },
+ "final_roles": {
+  "i0": "M",
+  "i1": "M",
+  "i2": "M",
+  "i3": "M",
+  "i4": "off",
+  "i5": "off",
+  "i6": "off",
+  "i7": "off"
+ },
+ "power_samples": 3127,
+ "fleet_events": [
+  {
+   "t_s": 1789968204.100091,
+   "instance": "i0",
+   "kind": "start",
+   "pid": 14757
+  },
+  {
+   "t_s": 1789968204.1006238,
+   "instance": "i1",
+   "kind": "start",
+   "pid": 14758
+  },
+  {
+   "t_s": 1789968204.101048,
+   "instance": "i2",
+   "kind": "start",
+   "pid": 14759
+  },
+  {
+   "t_s": 1789968204.1014924,
+   "instance": "i3",
+   "kind": "start",
+   "pid": 14760
+  },
+  {
+   "t_s": 1789968204.1018858,
+   "instance": "i4",
+   "kind": "start",
+   "pid": 14761
+  },
+  {
+   "t_s": 1789968204.1022682,
+   "instance": "i5",
+   "kind": "start",
+   "pid": 14762
+  },
+  {
+   "t_s": 1789968204.1026797,
+   "instance": "i6",
+   "kind": "start",
+   "pid": 14763
+  },
+  {
+   "t_s": 1789968204.1030815,
+   "instance": "i7",
+   "kind": "start",
+   "pid": 14764
+  },
+  {
+   "t_s": 1789968244.1995976,
+   "instance": "i0",
+   "kind": "ready",
+   "elapsed_s": 40.096506118774414
+  },
+  {
+   "t_s": 1789968244.2233844,
+   "instance": "i1",
+   "kind": "ready",
+   "elapsed_s": 0.023781776428222656
+  },
+  {
+   "t_s": 1789968244.246848,
+   "instance": "i2",
+   "kind": "ready",
+   "elapsed_s": 0.023461341857910156
+  },
+  {
+   "t_s": 1789968244.269831,
+   "instance": "i3",
+   "kind": "ready",
+   "elapsed_s": 0.022980928421020508
+  },
+  {
+   "t_s": 1789968244.2929835,
+   "instance": "i4",
+   "kind": "ready",
+   "elapsed_s": 0.02315068244934082
+  },
+  {
+   "t_s": 1789968244.3160007,
+   "instance": "i5",
+   "kind": "ready",
+   "elapsed_s": 0.02301478385925293
+  },
+  {
+   "t_s": 1789968244.3395803,
+   "instance": "i6",
+   "kind": "ready",
+   "elapsed_s": 0.023576021194458008
+  },
+  {
+   "t_s": 1789968244.3630269,
+   "instance": "i7",
+   "kind": "ready",
+   "elapsed_s": 0.023442506790161133
+  },
+  {
+   "t_s": 1789968275.2228076,
+   "instance": "i6",
+   "kind": "stop",
+   "returncode": 0
+  },
+  {
+   "t_s": 1789968280.9345446,
+   "instance": "i5",
+   "kind": "stop",
+   "returncode": 0
+  },
+  {
+   "t_s": 1789968284.7461524,
+   "instance": "i4",
+   "kind": "stop",
+   "returncode": 0
+  },
+  {
+   "t_s": 1789968285.9515324,
+   "instance": "i7",
+   "kind": "stop",
+   "returncode": 0
+  }
+ ],
+ "startup_s": {
+  "i0": 40.096506118774414,
+  "i1": 0.023781776428222656,
+  "i2": 0.023461341857910156,
+  "i3": 0.022980928421020508,
+  "i4": 0.02315068244934082,
+  "i5": 0.02301478385925293,
+  "i6": 0.023576021194458008,
+  "i7": 0.023442506790161133
+ },
+ "model": "Qwen2.5-7B-Instruct",
+ "gpus": [
+  0,
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7
+ ],
+ "tp": 1,
+ "policy": {
+  "name": "dynamollm",
+  "fixed_mixed": false,
+  "allow_dvfs": true,
+  "allow_pd": false,
+  "allow_park": [
+   "off"
+  ],
+  "shield": false,
+  "freeze": false,
+  "ported": true,
+  "description": "DynamoLLM: ScaleInst 1800 s (oracle epoch peak) + ScaleFreq 5 s, spare GPUs off"
+ },
+ "profile": "results/v2/profile-7b/profile.json",
+ "fixed_plan": null,
+ "slo_ttft_s": 5.0,
+ "slo_tpot_s": 0.15,
+ "trace": {
+  "requests": 2450,
+  "duration_s": 299.9563908718402,
+  "mean_rps": 8.167853976636192,
+  "input_mean": 780.5097959183673,
+  "input_p50": 1024,
+  "input_p95": 1024,
+  "output_mean": 319.82204081632653,
+  "output_p50": 323,
+  "output_p95": 512
+ },
+ "trace_meta": {
+  "dataset": "sharegpt",
+  "seed": 701,
+  "scale": 0.5,
+  "source": "poisson"
+ },
+ "wall_s": 383.4568135738373,
+ "requests": 2450
+}

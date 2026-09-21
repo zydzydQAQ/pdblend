@@ -1,0 +1,223 @@
+{
+ "slo": {
+  "offered": 2450,
+  "succeeded": 2450,
+  "joint_slo": 2450,
+  "joint_slo_rate": 1.0,
+  "success_rate": 1.0,
+  "ttft_p50": 0.17568635940551758,
+  "ttft_p90": 0.27654099464416504,
+  "ttft_p99": 0.4187965393066406,
+  "tpot_p50": 0.03772277799482639,
+  "tpot_p90": 0.0429650483308015,
+  "tpot_p99": 0.052138796219458945,
+  "output_tokens": 783564,
+  "paths": {
+   "M": 2450
+  }
+ },
+ "energy_j": 397893.48375081294,
+ "mean_power_w": 1271.3398973199028,
+ "duration_s": 313.0418198108673,
+ "window_energy_j": 382724.9531992168,
+ "window_mean_power_w": 1276.403855671532,
+ "window_s": 299.95639085769653,
+ "tail_s": 13.085428953170776,
+ "per_gpu_mean_w": {
+  "0": 291.56831780472305,
+  "1": 78.63689917038981,
+  "2": 295.0617689853219,
+  "3": 76.77831684747919,
+  "4": 297.2969904275685,
+  "5": 76.807099553286,
+  "6": 76.8686630504145,
+  "7": 76.47394575622234
+ },
+ "j_per_request": 162.4055035717604,
+ "j_per_token": 0.5077995974174578,
+ "controller": {
+  "events": {
+   "plan": 1,
+   "forecast": 64,
+   "stop": 1
+  },
+  "shield_events": [],
+  "final_roles": {
+   "i0": "M",
+   "i1": "M",
+   "i2": "M",
+   "i3": "M",
+   "i4": "M",
+   "i5": "M",
+   "i6": "M",
+   "i7": "M"
+  }
+ },
+ "final_roles": {
+  "i0": "M",
+  "i1": "M",
+  "i2": "M",
+  "i3": "M",
+  "i4": "M",
+  "i5": "M",
+  "i6": "M",
+  "i7": "M"
+ },
+ "power_samples": 3134,
+ "fleet_events": [
+  {
+   "t_s": 1789968587.7717109,
+   "instance": "i0",
+   "kind": "start",
+   "pid": 20926
+  },
+  {
+   "t_s": 1789968587.772193,
+   "instance": "i1",
+   "kind": "start",
+   "pid": 20927
+  },
+  {
+   "t_s": 1789968587.772588,
+   "instance": "i2",
+   "kind": "start",
+   "pid": 20928
+  },
+  {
+   "t_s": 1789968587.7729905,
+   "instance": "i3",
+   "kind": "start",
+   "pid": 20929
+  },
+  {
+   "t_s": 1789968587.7733462,
+   "instance": "i4",
+   "kind": "start",
+   "pid": 20930
+  },
+  {
+   "t_s": 1789968587.7737489,
+   "instance": "i5",
+   "kind": "start",
+   "pid": 20931
+  },
+  {
+   "t_s": 1789968587.7741249,
+   "instance": "i6",
+   "kind": "start",
+   "pid": 20932
+  },
+  {
+   "t_s": 1789968587.7744904,
+   "instance": "i7",
+   "kind": "start",
+   "pid": 20933
+  },
+  {
+   "t_s": 1789968624.8440824,
+   "instance": "i0",
+   "kind": "ready",
+   "elapsed_s": 37.06958365440369
+  },
+  {
+   "t_s": 1789968625.8697217,
+   "instance": "i1",
+   "kind": "ready",
+   "elapsed_s": 1.0256333351135254
+  },
+  {
+   "t_s": 1789968625.8927412,
+   "instance": "i2",
+   "kind": "ready",
+   "elapsed_s": 0.023015737533569336
+  },
+  {
+   "t_s": 1789968625.9190328,
+   "instance": "i3",
+   "kind": "ready",
+   "elapsed_s": 0.026286840438842773
+  },
+  {
+   "t_s": 1789968626.9467285,
+   "instance": "i4",
+   "kind": "ready",
+   "elapsed_s": 1.0276868343353271
+  },
+  {
+   "t_s": 1789968626.9698734,
+   "instance": "i5",
+   "kind": "ready",
+   "elapsed_s": 0.02313828468322754
+  },
+  {
+   "t_s": 1789968626.993033,
+   "instance": "i6",
+   "kind": "ready",
+   "elapsed_s": 0.02315664291381836
+  },
+  {
+   "t_s": 1789968627.015921,
+   "instance": "i7",
+   "kind": "ready",
+   "elapsed_s": 0.022885799407958984
+  }
+ ],
+ "startup_s": {
+  "i0": 37.06958365440369,
+  "i1": 1.0256333351135254,
+  "i2": 0.023015737533569336,
+  "i3": 0.026286840438842773,
+  "i4": 1.0276868343353271,
+  "i5": 0.02313828468322754,
+  "i6": 0.02315664291381836,
+  "i7": 0.022885799407958984
+ },
+ "model": "Qwen2.5-7B-Instruct",
+ "gpus": [
+  0,
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7
+ ],
+ "tp": 1,
+ "policy": {
+  "name": "ecoserve",
+  "fixed_mixed": false,
+  "allow_dvfs": false,
+  "allow_pd": false,
+  "allow_park": [
+   "idle"
+  ],
+  "shield": false,
+  "freeze": false,
+  "ported": true,
+  "description": "EcoServe: rotating-prefill macros, TTFT-driven instance scaling, reset-clock parking"
+ },
+ "profile": "results/v2/profile-7b/profile.json",
+ "fixed_plan": null,
+ "slo_ttft_s": 5.0,
+ "slo_tpot_s": 0.15,
+ "trace": {
+  "requests": 2450,
+  "duration_s": 299.9563908718402,
+  "mean_rps": 8.167853976636192,
+  "input_mean": 780.5097959183673,
+  "input_p50": 1024,
+  "input_p95": 1024,
+  "output_mean": 319.82204081632653,
+  "output_p50": 323,
+  "output_p95": 512
+ },
+ "trace_meta": {
+  "dataset": "sharegpt",
+  "seed": 701,
+  "scale": 0.5,
+  "source": "poisson"
+ },
+ "wall_s": 379.6141314506531,
+ "requests": 2450
+}

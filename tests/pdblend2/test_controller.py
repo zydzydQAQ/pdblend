@@ -139,6 +139,39 @@ def test_run_loop_stays_fail_open_during_warmup_window():
     assert all(r["counts"] == {"M": 4} for r in plans)
 
 
+def test_run_loop_holds_initial_plan_when_uninformed():
+    ctl, fleet, router = make_controller(shield=False)
+    ctl.initial_plan = Plan({"M": 2, "L1": 2}, 1800, 1800, 1800, 0, 0.0, 0.0, 0.0, dict(warm=True))
+    ctl.hold_initial = True
+
+    async def go():
+        stop = asyncio.Event()
+        task = asyncio.create_task(ctl.run(stop))
+        await asyncio.sleep(0.12)               # several replan periods, still zero arrivals
+        stop.set()
+        await task
+    asyncio.run(go())
+    plans = [r for r in ctl._log if r["kind"] == "plan"]
+    assert plans and not any(r.get("cold_start") for r in plans)
+    assert sorted(ctl.roles.values()) == ["L1", "L1", "M", "M"]
+
+
+def test_run_loop_without_hold_initial_falls_back_to_fail_open():
+    ctl, fleet, router = make_controller(shield=False)
+    ctl.initial_plan = Plan({"M": 2, "L1": 2}, 1800, 1800, 1800, 0, 0.0, 0.0, 0.0, dict(warm=True))
+
+    async def go():
+        stop = asyncio.Event()
+        task = asyncio.create_task(ctl.run(stop))
+        await asyncio.sleep(0.12)
+        stop.set()
+        await task
+    asyncio.run(go())
+    plans = [r for r in ctl._log if r["kind"] == "plan"]
+    assert any(r.get("cold_start") for r in plans)
+    assert sorted(ctl.roles.values()) == ["M"] * 4
+
+
 def test_shield_escalates_on_slow_ttft_and_decays():
     slo = SLO(1.0, 0.1)
     shield = Shield(slo, cooldown_s=5.0)

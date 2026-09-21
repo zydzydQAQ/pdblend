@@ -15,13 +15,18 @@ class Policy:
     allow_pd: bool = True
     allow_park: tuple = ("L1", "off")
     shield: bool = True
-    freeze: bool = False              # plan once from the offline trace statistics, never adapt
+    freeze: bool = False              # plan once from the offline trace statistics, never replan
+    warm_start: bool = False          # start from the offline plan and hold it until the forecaster is informed
+    margin: Optional[float] = None    # hysteresis override: min fractional saving to switch plans
     ported: bool = False              # decision logic lives in policies/baselines.py
     description: str = ""
 
     def planner_config(self, base: PlannerConfig) -> PlannerConfig:
-        return replace(base, fixed_mixed=self.fixed_mixed, allow_dvfs=self.allow_dvfs,
-                       allow_pd=self.allow_pd, allow_park=self.allow_park)
+        cfg = replace(base, fixed_mixed=self.fixed_mixed, allow_dvfs=self.allow_dvfs,
+                      allow_pd=self.allow_pd, allow_park=self.allow_park)
+        if self.margin is not None:
+            cfg = replace(cfg, margin=self.margin)
+        return cfg
 
 
 POLICIES = {
@@ -33,7 +38,7 @@ POLICIES = {
                               description="mixed pools with DVFS and multi-level parking (no PD)"),
     "static_best": Policy("static_best", freeze=True, shield=False,
                           description="best static configuration in the planner space from offline trace statistics"),
-    "pdblend": Policy("pdblend", description="full: PD/M pools, DVFS, parking, shield"),
+    "pdblend": Policy("pdblend", warm_start=True, margin=0.08, description="full: PD/M pools, DVFS, parking, shield"),
     "pdblend_no_park": Policy("pdblend_no_park", allow_park=(), description="ablation: no parking"),
     "pdblend_no_pd": Policy("pdblend_no_pd", allow_pd=False, description="ablation: no PD pools"),
     "pdblend_no_shield": Policy("pdblend_no_shield", shield=False, description="ablation: planner only"),

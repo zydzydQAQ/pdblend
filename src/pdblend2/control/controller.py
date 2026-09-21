@@ -35,6 +35,7 @@ class Controller:
     drain_timeout_s: float = 30.0
     log_path: Optional[Path] = None
     initial_plan: Optional[Plan] = None
+    hold_initial: bool = False                 # hold initial_plan until informed instead of fail-open
     freeze: bool = False                     # static policies: execute initial_plan once, never replan
     min_warm_s: float = 20.0                 # fail-open until this long after first traffic ...
     min_warm_samples: int = 30               # ... and at least this many arrivals were seen
@@ -193,6 +194,8 @@ class Controller:
                 fc = self.forecaster.forecast(now)
                 if self._informed(fc, now):
                     plan = await asyncio.to_thread(self.planner.plan, fc, self.plan_now)
+                elif self.hold_initial and self.plan_now is not None:
+                    plan = self.plan_now
                 else:
                     plan = self._fail_open_plan()
                 if self.shield is not None and (level or self.shield.floor_active):
