@@ -211,3 +211,4 @@ A copy of this license is made available in this container at /NGC-DL-CONTAINER-
 [load] t= 273.0s sent=832 done=810
 {"name": "sharegpt-x0.2-mixed", "status": "ok", "policy": "mixed", "joint_slo_rate": 1.0, "success_rate": 1.0, "ttft_p90": 0.16950488090515137, "tpot_p90": 0.02311353067595898, "energy_j": 619483.3784240058, "window_energy_j": 598571.6216885768, "mean_power_w": 1990.2753200208153, "j_per_request": 664.681736506444, "final_roles": {"i0": "M", "i1": "M", "i2": "M", "i3": "M", "i4": "M", "i5": "M", "i6": "M", "i7": "M"}}
 [06:57:34] sharegpt-x0.3-mixed: {"policy": "mixed", "dataset": "sharegpt", "rate": 4.866}
+[load] t=  30.1s sent=118 done=90

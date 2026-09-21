@@ -1,0 +1,222 @@
+{
+ "slo": {
+  "offered": 932,
+  "succeeded": 932,
+  "joint_slo": 932,
+  "joint_slo_rate": 1.0,
+  "success_rate": 1.0,
+  "ttft_p50": 0.1545579433441162,
+  "ttft_p90": 0.16950488090515137,
+  "ttft_p99": 0.17538118362426758,
+  "tpot_p50": 0.022509775812618812,
+  "tpot_p90": 0.02311353067595898,
+  "tpot_p99": 0.024365250454392542,
+  "output_tokens": 301994,
+  "paths": {
+   "M": 932
+  }
+ },
+ "energy_j": 619483.3784240058,
+ "mean_power_w": 1990.2753200208153,
+ "duration_s": 311.35438680648804,
+ "window_energy_j": 598571.6216885768,
+ "window_mean_power_w": 1996.3342300741465,
+ "window_s": 299.9080994129181,
+ "tail_s": 11.446287393569946,
+ "per_gpu_mean_w": {
+  "0": 240.26060872354114,
+  "1": 255.5707206542658,
+  "2": 246.36348749198214,
+  "3": 243.25672771007214,
+  "4": 250.72414143681885,
+  "5": 250.60743906350254,
+  "6": 250.48237395766492,
+  "7": 249.0113758819753
+ },
+ "j_per_request": 664.681736506444,
+ "j_per_token": 2.0513102194878234,
+ "controller": {
+  "events": {
+   "plan": 1,
+   "stop": 1
+  },
+  "shield_events": [],
+  "final_roles": {
+   "i0": "M",
+   "i1": "M",
+   "i2": "M",
+   "i3": "M",
+   "i4": "M",
+   "i5": "M",
+   "i6": "M",
+   "i7": "M"
+  }
+ },
+ "final_roles": {
+  "i0": "M",
+  "i1": "M",
+  "i2": "M",
+  "i3": "M",
+  "i4": "M",
+  "i5": "M",
+  "i6": "M",
+  "i7": "M"
+ },
+ "power_samples": 3118,
+ "fleet_events": [
+  {
+   "t_s": 1789973451.4511333,
+   "instance": "i0",
+   "kind": "start",
+   "pid": 13488
+  },
+  {
+   "t_s": 1789973451.4517066,
+   "instance": "i1",
+   "kind": "start",
+   "pid": 13489
+  },
+  {
+   "t_s": 1789973451.4521463,
+   "instance": "i2",
+   "kind": "start",
+   "pid": 13490
+  },
+  {
+   "t_s": 1789973451.4525619,
+   "instance": "i3",
+   "kind": "start",
+   "pid": 13491
+  },
+  {
+   "t_s": 1789973451.4529393,
+   "instance": "i4",
+   "kind": "start",
+   "pid": 13492
+  },
+  {
+   "t_s": 1789973451.453379,
+   "instance": "i5",
+   "kind": "start",
+   "pid": 13493
+  },
+  {
+   "t_s": 1789973451.4537685,
+   "instance": "i6",
+   "kind": "start",
+   "pid": 13494
+  },
+  {
+   "t_s": 1789973451.4541373,
+   "instance": "i7",
+   "kind": "start",
+   "pid": 13495
+  },
+  {
+   "t_s": 1789973489.5294547,
+   "instance": "i0",
+   "kind": "ready",
+   "elapsed_s": 38.075308322906494
+  },
+  {
+   "t_s": 1789973490.5536249,
+   "instance": "i1",
+   "kind": "ready",
+   "elapsed_s": 1.024165153503418
+  },
+  {
+   "t_s": 1789973490.5860288,
+   "instance": "i2",
+   "kind": "ready",
+   "elapsed_s": 0.03240060806274414
+  },
+  {
+   "t_s": 1789973490.6088908,
+   "instance": "i3",
+   "kind": "ready",
+   "elapsed_s": 0.022860050201416016
+  },
+  {
+   "t_s": 1789973490.6335874,
+   "instance": "i4",
+   "kind": "ready",
+   "elapsed_s": 0.024693965911865234
+  },
+  {
+   "t_s": 1789973490.6605005,
+   "instance": "i5",
+   "kind": "ready",
+   "elapsed_s": 0.026908397674560547
+  },
+  {
+   "t_s": 1789973490.6859624,
+   "instance": "i6",
+   "kind": "ready",
+   "elapsed_s": 0.025453805923461914
+  },
+  {
+   "t_s": 1789973490.7116237,
+   "instance": "i7",
+   "kind": "ready",
+   "elapsed_s": 0.025656938552856445
+  }
+ ],
+ "startup_s": {
+  "i0": 38.075308322906494,
+  "i1": 1.024165153503418,
+  "i2": 0.03240060806274414,
+  "i3": 0.022860050201416016,
+  "i4": 0.024693965911865234,
+  "i5": 0.026908397674560547,
+  "i6": 0.025453805923461914,
+  "i7": 0.025656938552856445
+ },
+ "model": "Qwen2.5-7B-Instruct",
+ "gpus": [
+  0,
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7
+ ],
+ "tp": 1,
+ "policy": {
+  "name": "mixed",
+  "fixed_mixed": true,
+  "allow_dvfs": false,
+  "allow_pd": false,
+  "allow_park": [],
+  "shield": false,
+  "freeze": true,
+  "warm_start": false,
+  "margin": null,
+  "ported": false,
+  "description": "all slots mixed at max clock"
+ },
+ "profile": "results/v2/profile-7b/profile.json",
+ "fixed_plan": null,
+ "slo_ttft_s": 5.0,
+ "slo_tpot_s": 0.15,
+ "trace": {
+  "requests": 932,
+  "duration_s": 299.9080993216164,
+  "mean_rps": 3.107618640870845,
+  "input_mean": 770.269313304721,
+  "input_p50": 1024,
+  "input_p95": 1024,
+  "output_mean": 324.02789699570815,
+  "output_p50": 332,
+  "output_p95": 512
+ },
+ "trace_meta": {
+  "dataset": "sharegpt",
+  "seed": 701,
+  "scale": 0.2,
+  "source": "poisson"
+ },
+ "wall_s": 403.4506072998047,
+ "requests": 932
+}
