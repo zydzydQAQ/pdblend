@@ -185,3 +185,29 @@ A copy of this license is made available in this container at /NGC-DL-CONTAINER-
 [load] t= 150.0s sent=24286 done=23354
 [load] t= 180.0s sent=29220 done=28230
 [load] t= 210.2s sent=34123 done=33107
+[load] t= 240.2s sent=38967 done=38007
+[load] t= 270.2s sent=43929 done=42906
+{"name": "alpaca-x0.9-mixed", "status": "ok", "policy": "mixed", "joint_slo_rate": 0.9993237150586114, "success_rate": 1.0, "ttft_p90": 0.39995288848876953, "tpot_p90": 0.04274528026580811, "energy_j": 832593.5164687727, "window_energy_j": 803565.8536982425, "mean_power_w": 2658.6273696210324, "j_per_request": 17.062741135928615, "final_roles": {"i0": "M", "i1": "M", "i2": "M", "i3": "M", "i4": "M", "i5": "M", "i6": "M", "i7": "M"}}
+[06:44:15] sharegpt-x0.1-mixed: {"policy": "mixed", "dataset": "sharegpt", "rate": 1.622}
+[load] t=  30.3s sent=46 done=36
+[load] t=  60.8s sent=80 done=67
+[load] t=  91.3s sent=119 done=111
+[load] t= 121.9s sent=163 done=152
+[load] t= 152.2s sent=214 done=200
+[load] t= 183.7s sent=258 done=249
+[load] t= 213.7s sent=317 done=303
+[load] t= 244.0s sent=360 done=351
+[load] t= 274.9s sent=406 done=401
+{"name": "sharegpt-x0.1-mixed", "status": "ok", "policy": "mixed", "joint_slo_rate": 1.0, "success_rate": 1.0, "ttft_p90": 0.16495513916015625, "tpot_p90": 0.022078478498156792, "energy_j": 590681.8264748272, "window_energy_j": 574008.5741639334, "mean_power_w": 1913.6539007253837, "j_per_request": 1330.3644740424038, "final_roles": {"i0": "M", "i1": "M", "i2": "M", "i3": "M", "i4": "M", "i5": "M", "i6": "M", "i7": "M"}}
+[06:50:51] sharegpt-x0.2-mixed: {"policy": "mixed", "dataset": "sharegpt", "rate": 3.244}
+[load] t=  30.4s sent=80 done=60
+[load] t=  60.9s sent=163 done=142
+[load] t=  91.0s sent=257 done=235
+[load] t= 121.6s sent=359 done=336
+[load] t= 151.8s sent=453 done=423
+[load] t= 182.2s sent=537 done=520
+[load] t= 212.6s sent=638 done=612
+[load] t= 242.9s sent=738 done=720
+[load] t= 273.0s sent=832 done=810
+{"name": "sharegpt-x0.2-mixed", "status": "ok", "policy": "mixed", "joint_slo_rate": 1.0, "success_rate": 1.0, "ttft_p90": 0.16950488090515137, "tpot_p90": 0.02311353067595898, "energy_j": 619483.3784240058, "window_energy_j": 598571.6216885768, "mean_power_w": 1990.2753200208153, "j_per_request": 664.681736506444, "final_roles": {"i0": "M", "i1": "M", "i2": "M", "i3": "M", "i4": "M", "i5": "M", "i6": "M", "i7": "M"}}
+[06:57:34] sharegpt-x0.3-mixed: {"policy": "mixed", "dataset": "sharegpt", "rate": 4.866}
