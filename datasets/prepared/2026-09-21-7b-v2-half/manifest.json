@@ -1,0 +1,32 @@
+{
+ "schema": 1,
+ "derived_from": "/home/pdblend/datasets/prepared/2026-09-13-7b-v1",
+ "input_caps": {
+  "sharegpt": 1024,
+  "longbench": 3072
+ },
+ "note": "middle-truncated token ids; records/splits/order preserved; output_tokens untouched",
+ "datasets": {
+  "alpaca": {
+   "n_eval": 1500,
+   "truncated": 0,
+   "mean": 46.8,
+   "p95": 66,
+   "max": 221
+  },
+  "longbench": {
+   "n_eval": 1500,
+   "truncated": 1680,
+   "mean": 2918.8,
+   "p95": 3072,
+   "max": 3072
+  },
+  "sharegpt": {
+   "n_eval": 1500,
+   "truncated": 1200,
+   "mean": 783.7,
+   "p95": 1024,
+   "max": 1024
+  }
+ }
+}

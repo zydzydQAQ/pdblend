@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel", "pybind11>=2.13,<4"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pdblend"
+version = "0.1.0"
+description = "SLO-constrained energy control for LLM serving"
+requires-python = ">=3.10"
+dependencies = [
+  "aiohttp",
+  "numpy",
+  "nvidia-ml-py",
+  "PyYAML",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<9", "pytest-asyncio", "pybind11>=2.13,<4", "psutil", "matplotlib", "packaging>=24", "msgpack==1.2.2", "pyzmq==27.2.0"]
+diagnostics = ["msgpack==1.2.2", "pyzmq==27.2.0"]
+models = ["huggingface-hub>=0.30,<1", "safetensors>=0.4"]
+
+[project.scripts]
+pdblend = "pdblend.cli:main"
+pdblend2 = "pdblend2.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+addopts = "--import-mode=importlib"
+markers = [
+  "gpu: requires NVIDIA GPU and the locked serving environment",
+  "historical: requires a declared historical artifact absent from the source snapshot",
+]
