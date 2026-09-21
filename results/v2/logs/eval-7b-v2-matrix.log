@@ -1,0 +1,110 @@
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 12.8.1
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+[05:09:11] sharegpt-x0.5-mixed: {"policy": "mixed", "dataset": "sharegpt", "rate": 8.109}
+[load] t=  30.2s sent=212 done=152
+[load] t=  60.3s sent=447 done=389
+[load] t=  90.4s sent=685 done=606
+[load] t= 120.4s sent=935 done=853
+[load] t= 150.6s sent=1218 done=1131
+[load] t= 180.7s sent=1473 done=1409
+[load] t= 210.8s sent=1719 done=1656
+[load] t= 241.1s sent=1943 done=1882
+[load] t= 271.1s sent=2187 done=2121
+{"name": "sharegpt-x0.5-mixed", "status": "ok", "policy": "mixed", "joint_slo_rate": 1.0, "success_rate": 1.0, "ttft_p90": 0.17333006858825684, "tpot_p90": 0.026192192385450907, "energy_j": 660199.467503422, "window_energy_j": 638282.0106958705, "mean_power_w": 2121.785338636014, "j_per_request": 269.46917040956004, "final_roles": {"i0": "M", "i1": "M", "i2": "M", "i3": "M", "i4": "M", "i5": "M", "i6": "M", "i7": "M"}}
+[05:16:17] sharegpt-x0.5-distserve_static: {"policy": "distserve_static", "dataset": "sharegpt", "rate": 8.109}
+[load] t=  30.2s sent=212 done=157
+[load] t=  60.3s sent=447 done=392
+[load] t=  90.4s sent=685 done=611
+[load] t= 120.4s sent=935 done=860
+[load] t= 150.6s sent=1218 done=1137
+[load] t= 180.7s sent=1473 done=1414
+[load] t= 210.8s sent=1719 done=1657
+[load] t= 241.1s sent=1943 done=1886
+[load] t= 271.1s sent=2187 done=2125
+{"name": "sharegpt-x0.5-distserve_static", "status": "ok", "policy": "distserve_static", "joint_slo_rate": 1.0, "success_rate": 1.0, "ttft_p90": 0.29012227058410645, "tpot_p90": 0.023384558294237273, "energy_j": 604752.9559201585, "window_energy_j": 586364.4628747936, "mean_power_w": 1942.4177074516908, "j_per_request": 246.83794119190145, "final_roles": {"i0": "P", "i1": "P", "i2": "D", "i3": "D", "i4": "D", "i5": "D", "i6": "D", "i7": "D"}}
+[05:23:23] sharegpt-x0.5-dynamollm: {"policy": "dynamollm", "dataset": "sharegpt", "rate": 8.109}
+[load] t=  30.2s sent=212 done=131
+[load] t=  60.3s sent=447 done=359
+[load] t=  90.4s sent=685 done=585
+[load] t= 120.4s sent=935 done=832
+[load] t= 150.6s sent=1218 done=1110
+[load] t= 180.7s sent=1473 done=1392
+[load] t= 210.8s sent=1719 done=1644
+[load] t= 241.1s sent=1943 done=1866
+[load] t= 271.1s sent=2187 done=2103
+{"name": "sharegpt-x0.5-dynamollm", "status": "ok", "policy": "dynamollm", "joint_slo_rate": 1.0, "success_rate": 1.0, "ttft_p90": 0.250443696975708, "tpot_p90": 0.03787978015728851, "energy_j": 404854.60333792435, "window_energy_j": 390772.91458406084, "mean_power_w": 1296.5933854501732, "j_per_request": 165.24677687262218, "final_roles": {"i0": "M", "i1": "M", "i2": "M", "i3": "M", "i4": "off", "i5": "off", "i6": "off", "i7": "off"}}
+[05:29:47] sharegpt-x0.5-ecoserve: {"policy": "ecoserve", "dataset": "sharegpt", "rate": 8.109}
+[load] t=  30.2s sent=212 done=133
+[load] t=  60.3s sent=447 done=361
+[load] t=  90.4s sent=685 done=574
+[load] t= 120.4s sent=935 done=816
+[load] t= 150.6s sent=1218 done=1082
+[load] t= 180.7s sent=1473 done=1374
+[load] t= 210.8s sent=1719 done=1628
+[load] t= 241.1s sent=1943 done=1860
+[load] t= 271.1s sent=2187 done=2092
+{"name": "sharegpt-x0.5-ecoserve", "status": "ok", "policy": "ecoserve", "joint_slo_rate": 1.0, "success_rate": 1.0, "ttft_p90": 0.27654099464416504, "tpot_p90": 0.0429650483308015, "energy_j": 397893.48375081294, "window_energy_j": 382724.9531992168, "mean_power_w": 1271.3398973199028, "j_per_request": 162.4055035717604, "final_roles": {"i0": "M", "i1": "M", "i2": "M", "i3": "M", "i4": "M", "i5": "M", "i6": "M", "i7": "M"}}
+[05:36:07] sharegpt-x0.5-pdblend: {"policy": "pdblend", "dataset": "sharegpt", "rate": 8.109}
+[load] t=  30.2s sent=212 done=147
+[load] t=  60.3s sent=447 done=370
+[load] t=  90.4s sent=685 done=591
+[load] t= 120.4s sent=935 done=831
+[load] t= 150.6s sent=1218 done=1107
+[load] t= 180.7s sent=1473 done=1409
+[load] t= 210.8s sent=1719 done=1648
+[load] t= 241.1s sent=1943 done=1881
+[load] t= 271.1s sent=2187 done=2116
+{"name": "sharegpt-x0.5-pdblend", "status": "ok", "policy": "pdblend", "joint_slo_rate": 1.0, "success_rate": 1.0, "ttft_p90": 0.9905767440795898, "tpot_p90": 0.033177267548622685, "energy_j": 416858.6873647, "window_energy_j": 403906.4693797978, "mean_power_w": 1336.9515657538157, "j_per_request": 170.146403006, "final_roles": {"i0": "L1", "i1": "M", "i2": "L1", "i3": "M", "i4": "M", "i5": "M", "i6": "L1", "i7": "L1"}}
+[05:42:36] alpaca-x0.1-mixed: {"policy": "mixed", "dataset": "alpaca", "rate": 18.109}
+[load] t=  30.0s sent=500 done=450
+[load] t=  60.0s sent=1061 done=1015
+[load] t=  90.2s sent=1646 done=1579
+[load] t= 120.2s sent=2170 done=2102
+[load] t= 150.3s sent=2737 done=2672
+[load] t= 180.3s sent=3269 done=3214
+[load] t= 210.3s sent=3840 done=3780
+[load] t= 240.3s sent=4419 done=4348
+[load] t= 270.3s sent=4939 done=4869
+{"name": "alpaca-x0.1-mixed", "status": "ok", "policy": "mixed", "joint_slo_rate": 1.0, "success_rate": 1.0, "ttft_p90": 0.05026555061340332, "tpot_p90": 0.022370052475460693, "energy_j": 627695.5784910172, "window_energy_j": 611200.7125697043, "mean_power_w": 2030.3718004855186, "j_per_request": 115.38521663437817, "final_roles": {"i0": "M", "i1": "M", "i2": "M", "i3": "M", "i4": "M", "i5": "M", "i6": "M", "i7": "M"}}
+[05:49:18] alpaca-x0.2-mixed: {"policy": "mixed", "dataset": "alpaca", "rate": 36.219}
+[load] t=  30.0s sent=1061 done=946
+[load] t=  60.0s sent=2168 done=2029
+[load] t=  90.1s sent=3266 done=3158
+[load] t= 120.1s sent=4416 done=4264
+[load] t= 150.1s sent=5446 done=5341
+[load] t= 180.1s sent=6542 done=6414
+[load] t= 210.2s sent=7614 done=7492
+[load] t= 240.2s sent=8662 done=8557
+[load] t= 270.2s sent=9692 done=9583
+{"name": "alpaca-x0.2-mixed", "status": "ok", "policy": "mixed", "joint_slo_rate": 1.0, "success_rate": 1.0, "ttft_p90": 0.052069664001464844, "tpot_p90": 0.023765600045993703, "energy_j": 657614.0742649108, "window_energy_j": 639529.4873025519, "mean_power_w": 2121.6853190802203, "j_per_request": 61.40187434779746, "final_roles": {"i0": "M", "i1": "M", "i2": "M", "i3": "M", "i4": "M", "i5": "M", "i6": "M", "i7": "M"}}
+[05:55:51] alpaca-x0.3-mixed: {"policy": "mixed", "dataset": "alpaca", "rate": 54.328}
+[load] t=  30.0s sent=1644 done=1448
+[load] t=  60.0s sent=3265 done=3079
+[load] t=  90.0s sent=4932 done=4740
+[load] t= 120.0s sent=6541 done=6341
+[load] t= 150.0s sent=8145 done=7973
+[load] t= 180.1s sent=9688 done=9503
+[load] t= 210.1s sent=11254 done=11056
+[load] t= 240.1s sent=12922 done=12735
+[load] t= 270.2s sent=14590 done=14387
+{"name": "alpaca-x0.3-mixed", "status": "ok", "policy": "mixed", "joint_slo_rate": 1.0, "success_rate": 1.0, "ttft_p90": 0.0561373233795166, "tpot_p90": 0.025954416819981167, "energy_j": 681723.4339059535, "window_energy_j": 661611.0615850633, "mean_power_w": 2190.9841917641274, "j_per_request": 42.123296706991695, "final_roles": {"i0": "M", "i1": "M", "i2": "M", "i3": "M", "i4": "M", "i5": "M", "i6": "M", "i7": "M"}}
+[06:02:21] alpaca-x0.4-mixed: {"policy": "mixed", "dataset": "alpaca", "rate": 72.438}
+[load] t=  30.0s sent=2168 done=1886
+[load] t=  60.0s sent=4415 done=4103
+[load] t=  90.1s sent=6542 done=6255
+[load] t= 120.1s sent=8661 done=8399
+[load] t= 150.1s sent=10714 done=10468
+[load] t= 180.1s sent=12922 done=12661
