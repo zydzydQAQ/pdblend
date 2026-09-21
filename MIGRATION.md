@@ -1,4 +1,4 @@
-# pdblend4 迁移与环境复现指南
+# PDblend 迁移与环境复现指南
 
 本文档固化在另一台机器上复现本项目（8×GPU LLM serving 能耗控制评测）所需的全部环境信息。
 目标读者是人类或自动化 agent（如 Codex）：按顺序执行 §1–§5 即可完成迁移，§6 说明何时/如何重新 profiling。
@@ -45,10 +45,17 @@ python -m pytest tests -q        # gpu/historical 标记的用例会自动 skip
 ### 路线 A：直接导出/导入（推荐，快）
 
 ```bash
-# 源机
+# 源机：导出并压缩（28 GB → ~9 GB）
 docker save pdblend:l20-cu128-vllm-v1 | zstd -3 -T0 > pdblend-l20-v1.tar.zst
-# 目标机
+
+# 校验文件完整性
+zstd -t pdblend-l20-v1.tar.zst
+
+# 目标机：恢复成镜像（不用先解压，边解边载）
 zstd -d pdblend-l20-v1.tar.zst | docker load
+
+# 如需解压回 tar（会得到一个 28 GB 的 .tar）
+zstd -d pdblend-l20-v1.tar.zst
 ```
 
 ### 路线 B：重建（需要迁移构建上下文）
@@ -81,7 +88,7 @@ docker build -f docker/Dockerfile.v1-p2p -t pdblend:l20-cu128-vllm-v1 .
 #           merges.txt、model-0000{1..4}-of-00004.safetensors、model.safetensors.index.json
 ```
 
-引擎按 `MODELS_DIR/<--model 参数>` 解析路径（`src/pdblend2/engine/launcher.py:15`），
+引擎按 `MODELS_DIR/<--model 参数>` 解析路径（`src/pdblend/engine/launcher.py:15`），
 默认 `PDBLEND_MODELS_DIR=/models`。`/home/models` 下的 14B/32B/bert/dynamollm-predictor
 本工作区均不使用，可不迁移（dynamollm baseline 用的是 oracle epoch 峰值，不是学习预测器）。
 
@@ -99,7 +106,7 @@ docker run --rm --name pdb2-matrix-v2 \
   -e PDBLEND_MODELS_DIR=/models \
   -e PYTHONPATH=/home/pdblend4/src \
   pdblend:l20-cu128-vllm-v1 \
-  python -m pdblend2.cli matrix results/v2/eval-7b-v2/spec.json
+  python -m pdblend.cli matrix results/v2/eval-7b-v2/spec.json
 ```
 
 要点：host 网络（实例间 NCCL/ZMQ 直连）、host IPC + 16G shm（vLLM 需要）、
@@ -121,12 +128,12 @@ docker run --rm --name pdb2-matrix-v2 \
 ```bash
 # 1. 进容器（同 §5 的 docker run，命令换成 bash）
 # 2. 重新 profile：约 150 点网格，2 张卡（第 2 张做 KV 传输对端），可加 --resume 断点续跑
-python -m pdblend2.cli profile --model Qwen2.5-7B-Instruct --gpus 0,1 \
+python -m pdblend.cli profile --model Qwen2.5-7B-Instruct --gpus 0,1 \
   --out results/v2/profile-7b
 # 3. 重新生成评测 spec（capacity_rps、速率点全部由新 profile 推导；卡数不同改脚本里的 gpus）
 python scripts/gen_spec_v2.py
 # 4. （可选）先跑 quick-five 冒烟：sharegpt-x0.5 的 mixed/distserve_static/dynamollm/ecoserve/pdblend
-# 5. 全量 156 点：python -m pdblend2.cli matrix results/v2/eval-7b-v2/spec.json
+# 5. 全量 156 点：python -m pdblend.cli matrix results/v2/eval-7b-v2/spec.json
 ```
 
 频率档查询：`nvidia-smi -q -d SUPPORTED_CLOCKS`；目标档不同可用 `--freqs` 覆盖。
@@ -134,17 +141,17 @@ python scripts/gen_spec_v2.py
 ## 7. 迁移后验证清单（按序冒烟）
 
 1. `python -m pytest tests -q`（CPU，宿主机或容器均可）
-2. `python -m pdblend2.cli gate-kv --gpus 0,1`（G0：跨实例 KV 传输，验证补丁生效）
-3. `python -m pdblend2.cli gate-park --gpu 0`（G1：sleep/wake，验证锁频与 dev-mode 接口）
-4. `python -m pdblend2.cli bench --gpus 0,1,2,3 ...` 单点试跑（sharegpt-x0.5-mixed）
+2. `python -m pdblend.cli gate-kv --gpus 0,1`（G0：跨实例 KV 传输，验证补丁生效）
+3. `python -m pdblend.cli gate-park --gpu 0`（G1：sleep/wake，验证锁频与 dev-mode 接口）
+4. `python -m pdblend.cli bench --gpus 0,1,2,3 ...` 单点试跑（sharegpt-x0.5-mixed）
 5. 全量 matrix
 
 ## 8. 已知坑
 
-- `scripts/matrix-watch-v2.sh:3-4` 硬编码 `/home/pdblend4`，checkout 路径不同需改
+- `scripts/matrix-watch-v2.sh` 根据脚本位置计算工程根目录，可在不同 checkout 路径直接使用
 - 锁频需要特权：容器内 `nvidia-smi -lgc` / NVML locked clocks 依赖 `--cap-add SYS_ADMIN`；
   跑完评测镜像内脚本会 reset，但异常退出后建议在宿主机执行 `nvidia-smi -rgc`
 - 引擎启动要求 `VLLM_SERVER_DEV_MODE=1`（/sleep、/wake_up）和 `--enable-sleep-mode`，
-  launcher 已自动注入（`src/pdblend2/engine/launcher.py:76-94`），不要手动去掉
+  launcher 已自动注入（`src/pdblend/engine/launcher.py:76-94`），不要手动去掉
 - host 网络模式下 8000/8101–8108 被占用会直接失败，跑前检查
 - profile/spec 绑定硬件与引擎版本：混用他机 profile 跑出的能耗/SLO 结论无效
