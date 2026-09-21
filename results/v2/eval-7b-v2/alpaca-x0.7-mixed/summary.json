@@ -1,0 +1,220 @@
+{
+ "slo": {
+  "offered": 37881,
+  "succeeded": 37881,
+  "joint_slo": 37877,
+  "joint_slo_rate": 0.9998944061666799,
+  "success_rate": 1.0,
+  "ttft_p50": 0.0648801326751709,
+  "ttft_p90": 0.08650016784667969,
+  "ttft_p99": 0.16742610931396484,
+  "tpot_p50": 0.03048867601336855,
+  "tpot_p90": 0.031357689907676296,
+  "tpot_p99": 0.034057581424713136,
+  "output_tokens": 5284494,
+  "paths": {
+   "M": 37881
+  }
+ },
+ "energy_j": 830686.7859452608,
+ "mean_power_w": 2664.1586541557785,
+ "duration_s": 311.8019988536835,
+ "window_energy_j": 805449.9078897618,
+ "window_mean_power_w": 2685.5343754843,
+ "window_s": 299.99814891815186,
+ "tail_s": 11.803849935531616,
+ "per_gpu_mean_w": {
+  "0": 320.3190703125005,
+  "1": 336.94715364583345,
+  "2": 329.65216861979144,
+  "3": 328.34125651041626,
+  "4": 334.49066992187403,
+  "5": 335.64033854166695,
+  "6": 336.55624055989483,
+  "7": 335.50644824218654
+ },
+ "j_per_request": 21.928850504085446,
+ "j_per_token": 0.15719324990155364,
+ "controller": {
+  "events": {
+   "plan": 1,
+   "stop": 1
+  },
+  "shield_events": [],
+  "final_roles": {
+   "i0": "M",
+   "i1": "M",
+   "i2": "M",
+   "i3": "M",
+   "i4": "M",
+   "i5": "M",
+   "i6": "M",
+   "i7": "M"
+  }
+ },
+ "final_roles": {
+  "i0": "M",
+  "i1": "M",
+  "i2": "M",
+  "i3": "M",
+  "i4": "M",
+  "i5": "M",
+  "i6": "M",
+  "i7": "M"
+ },
+ "power_samples": 3072,
+ "fleet_events": [
+  {
+   "t_s": 1789971689.3091881,
+   "instance": "i0",
+   "kind": "start",
+   "pid": 70351
+  },
+  {
+   "t_s": 1789971689.309651,
+   "instance": "i1",
+   "kind": "start",
+   "pid": 70352
+  },
+  {
+   "t_s": 1789971689.3100822,
+   "instance": "i2",
+   "kind": "start",
+   "pid": 70353
+  },
+  {
+   "t_s": 1789971689.3104572,
+   "instance": "i3",
+   "kind": "start",
+   "pid": 70354
+  },
+  {
+   "t_s": 1789971689.3108168,
+   "instance": "i4",
+   "kind": "start",
+   "pid": 70355
+  },
+  {
+   "t_s": 1789971689.3112044,
+   "instance": "i5",
+   "kind": "start",
+   "pid": 70356
+  },
+  {
+   "t_s": 1789971689.311572,
+   "instance": "i6",
+   "kind": "start",
+   "pid": 70357
+  },
+  {
+   "t_s": 1789971689.3119876,
+   "instance": "i7",
+   "kind": "start",
+   "pid": 70358
+  },
+  {
+   "t_s": 1789971728.3813736,
+   "instance": "i0",
+   "kind": "ready",
+   "elapsed_s": 39.06937766075134
+  },
+  {
+   "t_s": 1789971728.4045823,
+   "instance": "i1",
+   "kind": "ready",
+   "elapsed_s": 0.02320384979248047
+  },
+  {
+   "t_s": 1789971728.4277396,
+   "instance": "i2",
+   "kind": "ready",
+   "elapsed_s": 0.023154735565185547
+  },
+  {
+   "t_s": 1789971728.4512787,
+   "instance": "i3",
+   "kind": "ready",
+   "elapsed_s": 0.02353692054748535
+  },
+  {
+   "t_s": 1789971728.4743161,
+   "instance": "i4",
+   "kind": "ready",
+   "elapsed_s": 0.02303481101989746
+  },
+  {
+   "t_s": 1789971728.4983468,
+   "instance": "i5",
+   "kind": "ready",
+   "elapsed_s": 0.024028539657592773
+  },
+  {
+   "t_s": 1789971728.5215373,
+   "instance": "i6",
+   "kind": "ready",
+   "elapsed_s": 0.023187875747680664
+  },
+  {
+   "t_s": 1789971728.5456238,
+   "instance": "i7",
+   "kind": "ready",
+   "elapsed_s": 0.024082183837890625
+  }
+ ],
+ "startup_s": {
+  "i0": 39.06937766075134,
+  "i1": 0.02320384979248047,
+  "i2": 0.023154735565185547,
+  "i3": 0.02353692054748535,
+  "i4": 0.02303481101989746,
+  "i5": 0.024028539657592773,
+  "i6": 0.023187875747680664,
+  "i7": 0.024082183837890625
+ },
+ "model": "Qwen2.5-7B-Instruct",
+ "gpus": [
+  0,
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7
+ ],
+ "tp": 1,
+ "policy": {
+  "name": "mixed",
+  "fixed_mixed": true,
+  "allow_dvfs": false,
+  "allow_pd": false,
+  "allow_park": [],
+  "shield": false,
+  "freeze": true,
+  "ported": false,
+  "description": "all slots mixed at max clock"
+ },
+ "profile": "results/v2/profile-7b/profile.json",
+ "fixed_plan": null,
+ "slo_ttft_s": 1.0,
+ "slo_tpot_s": 0.1,
+ "trace": {
+  "requests": 37881,
+  "duration_s": 299.99814895904245,
+  "mean_rps": 126.27077910794624,
+  "input_mean": 46.96164304004646,
+  "input_p50": 43,
+  "input_p95": 66,
+  "output_mean": 139.5024946543122,
+  "output_p50": 102,
+  "output_p95": 383
+ },
+ "trace_meta": {
+  "dataset": "alpaca",
+  "seed": 701,
+  "scale": 0.7,
+  "source": "poisson"
+ },
+ "wall_s": 369.3289668560028,
+ "requests": 37881
+}

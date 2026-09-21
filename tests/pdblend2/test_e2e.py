@@ -95,12 +95,16 @@ class FakeFleet:
 
 
 class FakeSampler:
-    def __init__(self, gpus): self.gpus, self.samples, self._task = gpus, [], None
+    def __init__(self, gpus):
+        self.gpus, self.samples, self._task = gpus, [], None
+        self.utilization_samples, self.frequency_samples = [], []
     def start(self):
         self._task = asyncio.get_event_loop().create_task(self._loop())
     async def _loop(self):
         while True:
             self.samples.append((time.time(), [100.0] * len(self.gpus)))
+            self.utilization_samples.append((time.time(), [50.0] * len(self.gpus)))
+            self.frequency_samples.append((time.time(), [2520.0] * len(self.gpus)))
             await asyncio.sleep(0.02)
     def stop(self):
         if self._task: self._task.cancel()

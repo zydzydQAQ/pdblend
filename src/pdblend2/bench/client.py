@@ -150,10 +150,19 @@ def trace_summary(reqs: list[Request]) -> dict:
         return dict(requests=0)
     ins = sorted(r.input_tokens for r in reqs)
     outs = sorted(r.max_tokens for r in reqs)
-    q = lambda v, p: v[min(len(v) - 1, int(p * len(v)))]
+    q = nearest_rank
     return dict(requests=len(reqs), duration_s=reqs[-1].arrival_s, mean_rps=len(reqs) / max(reqs[-1].arrival_s, 1e-9),
                 input_mean=sum(ins) / len(ins), input_p50=q(ins, 0.5), input_p95=q(ins, 0.95),
                 output_mean=sum(outs) / len(outs), output_p50=q(outs, 0.5), output_p95=q(outs, 0.95))
+
+
+def nearest_rank(values: Sequence[float], percentile: float):
+    """Nearest-rank percentile (1-indexed), shared by all reports."""
+    if not values:
+        return None
+    ordered = sorted(values)
+    rank = max(1, math.ceil(float(percentile) * len(ordered)))
+    return ordered[min(len(ordered), rank) - 1]
 
 
 # ---- replay -------------------------------------------------------------------------------------
@@ -244,15 +253,25 @@ def _replay_worker(args: tuple, reqs: list[Request], progress_every_s: float, co
 
 def slo_attainment(outcomes: list[Outcome], ttft_slo: float, tpot_slo: float) -> dict:
     n = len(outcomes)
-    ok = [o for o in outcomes if o.error is None and o.first_token_s is not None]
-    joint = [o for o in ok if o.ttft_s <= ttft_slo and (o.tpot_s is None or o.tpot_s <= tpot_slo)]
+    ok = [o for o in outcomes if o.error is None and o.first_token_s is not None and o.finished_s is not None]
+    joint = [o for o in ok if o.ttft_s is not None and o.tpot_s is not None and
+             o.ttft_s <= ttft_slo and o.tpot_s <= tpot_slo]
     ttfts = sorted(o.ttft_s for o in ok)
     tpots = sorted(o.tpot_s for o in ok if o.tpot_s is not None)
-    q = lambda v, p: (v[min(len(v) - 1, int(p * len(v)))] if v else None)
-    return dict(offered=n, succeeded=len(ok), joint_slo=len(joint), joint_slo_rate=len(joint) / n if n else 0.0,
+    def stats(values):
+        return {f"p{p}": nearest_rank(values, p / 100) for p in (50, 90, 95, 99)} | {
+            "max": max(values) if values else None, "samples": len(values), "missing": n - len(values)}
+    errors = sum(1 for o in outcomes if o.error is not None)
+    missing_first = sum(1 for o in outcomes if o.error is None and o.first_token_s is None)
+    missing_tpot = sum(1 for o in ok if o.tpot_s is None)
+    incomplete = sum(1 for o in outcomes if o.error is None and (o.finished_s is None or o.completion_tokens < 2))
+    return dict(offered=n, succeeded=len(ok), error=errors, errors=errors, rejected=0,
+                missing_first_token=missing_first, missing_tpot=missing_tpot, incomplete=incomplete,
+                joint_slo=len(joint), joint_slo_requests=len(joint), joint_slo_rate=len(joint) / n if n else 0.0,
                 success_rate=len(ok) / n if n else 0.0,
-                ttft_p50=q(ttfts, 0.5), ttft_p90=q(ttfts, 0.9), ttft_p99=q(ttfts, 0.99),
-                tpot_p50=q(tpots, 0.5), tpot_p90=q(tpots, 0.9), tpot_p99=q(tpots, 0.99),
+                joint_output_tokens=sum(o.completion_tokens for o in joint),
+                **{f"ttft_{k}": v for k, v in stats(ttfts).items()},
+                **{f"tpot_{k}": v for k, v in stats(tpots).items()},
                 output_tokens=sum(o.completion_tokens for o in ok),
                 paths={p: sum(1 for o in outcomes if o.path == p) for p in {o.path for o in outcomes}})
 

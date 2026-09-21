@@ -108,3 +108,80 @@ A copy of this license is made available in this container at /NGC-DL-CONTAINER-
 [load] t= 120.1s sent=8661 done=8399
 [load] t= 150.1s sent=10714 done=10468
 [load] t= 180.1s sent=12922 done=12661
+[load] t= 210.1s sent=15120 done=14861
+[load] t= 240.2s sent=17272 done=17010
+[load] t= 270.2s sent=19407 done=19147
+{"name": "alpaca-x0.4-mixed", "status": "ok", "policy": "mixed", "joint_slo_rate": 1.0, "success_rate": 1.0, "ttft_p90": 0.05894207954406738, "tpot_p90": 0.02669222135070368, "energy_j": 712944.6618678243, "window_energy_j": 692274.4667304377, "mean_power_w": 2298.556300736066, "j_per_request": 33.01586838324647, "final_roles": {"i0": "M", "i1": "M", "i2": "M", "i3": "M", "i4": "M", "i5": "M", "i6": "M", "i7": "M"}}
+[06:08:50] alpaca-x0.5-mixed: {"policy": "mixed", "dataset": "alpaca", "rate": 90.547}
+[load] t=  30.0s sent=2734 done=2370
+[load] t=  60.0s sent=5444 done=5123
+[load] t=  90.0s sent=8145 done=7804
+[load] t= 120.1s sent=10713 done=10396
+[load] t= 150.1s sent=13463 done=13111
+[load] t= 180.1s sent=16192 done=15848
+[load] t= 210.1s sent=18878 done=18530
+[load] t= 240.1s sent=21601 done=21237
+[load] t= 270.1s sent=24295 done=23950
+{"name": "alpaca-x0.5-mixed", "status": "ok", "policy": "mixed", "joint_slo_rate": 1.0, "success_rate": 1.0, "ttft_p90": 0.06194901466369629, "tpot_p90": 0.027558194266425237, "energy_j": 735370.2263642896, "window_energy_j": 715067.603070217, "mean_power_w": 2370.439717732236, "j_per_request": 27.255113834338594, "final_roles": {"i0": "M", "i1": "M", "i2": "M", "i3": "M", "i4": "M", "i5": "M", "i6": "M", "i7": "M"}}
+[06:15:14] alpaca-x0.6-mixed: {"policy": "mixed", "dataset": "alpaca", "rate": 108.656}
+[load] t=  30.0s sent=3265 done=2833
+[load] t=  60.0s sent=6538 done=6100
+[load] t=  90.0s sent=9687 done=9277
+[load] t= 120.0s sent=12917 done=12468
+[load] t= 150.0s sent=16188 done=15765
+[load] t= 180.1s sent=19403 done=18984
+[load] t= 210.1s sent=22658 done=22215
+[load] t= 240.1s sent=25959 done=25512
+[load] t= 270.1s sent=29223 done=28791
+{"name": "alpaca-x0.6-mixed", "status": "ok", "policy": "mixed", "joint_slo_rate": 0.9999691481812852, "success_rate": 1.0, "ttft_p90": 0.07026386260986328, "tpot_p90": 0.02888519474954316, "energy_j": 758826.6200393942, "window_energy_j": 735727.594505571, "mean_power_w": 2435.0638962259072, "j_per_request": 23.41118131735397, "final_roles": {"i0": "M", "i1": "M", "i2": "M", "i3": "M", "i4": "M", "i5": "M", "i6": "M", "i7": "M"}}
+[06:21:29] alpaca-x0.7-mixed: {"policy": "mixed", "dataset": "alpaca", "rate": 126.766}
+[load] t=  30.0s sent=3838 done=3279
+[load] t=  60.0s sent=7611 done=7070
+[load] t=  90.0s sent=11248 done=10750
+[load] t= 120.0s sent=15118 done=14562
+[load] t= 150.0s sent=18875 done=18356
+[load] t= 180.1s sent=22658 done=22093
+[load] t= 210.1s sent=26485 done=25939
+[load] t= 240.1s sent=30255 done=29738
+[load] t= 270.1s sent=34132 done=33553
+{"name": "alpaca-x0.7-mixed", "status": "ok", "policy": "mixed", "joint_slo_rate": 0.9998944061666799, "success_rate": 1.0, "ttft_p90": 0.08650016784667969, "tpot_p90": 0.031357689907676296, "energy_j": 830686.7859452608, "window_energy_j": 805449.9078897618, "mean_power_w": 2664.1586541557785, "j_per_request": 21.928850504085446, "final_roles": {"i0": "M", "i1": "M", "i2": "M", "i3": "M", "i4": "M", "i5": "M", "i6": "M", "i7": "M"}}
+[06:27:38] alpaca-x0.8-mixed: {"policy": "mixed", "dataset": "alpaca", "rate": 144.875}
+[load] t=  30.0s sent=4411 done=3633
+[load] t=  60.0s sent=8658 done=7927
+[load] t=  90.0s sent=12916 done=12146
+[load] t= 120.0s sent=17268 done=16567
+[load] t= 150.1s sent=21601 done=20874
+[load] t= 180.1s sent=25962 done=25195
+[load] t= 210.1s sent=30260 done=29552
+[load] t= 240.1s sent=34643 done=33952
+[load] t= 270.2s sent=38953 done=38198
+{"name": "alpaca-x0.8-mixed", "status": "ok", "policy": "mixed", "joint_slo_rate": 0.9996771217712177, "success_rate": 1.0, "ttft_p90": 0.287306547164917, "tpot_p90": 0.038038164377212524, "energy_j": 830753.8707304745, "window_energy_j": 803263.0123961873, "mean_power_w": 2659.2265614449307, "j_per_request": 19.15945273824895, "final_roles": {"i0": "M", "i1": "M", "i2": "M", "i3": "M", "i4": "M", "i5": "M", "i6": "M", "i7": "M"}}
+[06:34:00] alpaca-x0.9-mixed: {"policy": "mixed", "dataset": "alpaca", "rate": 162.984}
+[load] t=  30.0s sent=4920 done=3973
+[load] t=  60.0s sent=9688 done=8759
+[load] t=  90.1s sent=14578 done=13634
+[load] t= 120.2s sent=19411 done=18496
+[load] t= 150.2s sent=24316 done=23400
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 12.8.1
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+[06:37:46] alpaca-x0.9-mixed: {"policy": "mixed", "dataset": "alpaca", "rate": 162.984}
+[load] t=  30.0s sent=4926 done=3952
+[load] t=  60.0s sent=9687 done=8746
+[load] t=  90.0s sent=14584 done=13598
+[load] t= 120.0s sent=19401 done=18464
+[load] t= 150.0s sent=24286 done=23354
+[load] t= 180.0s sent=29220 done=28230
+[load] t= 210.2s sent=34123 done=33107

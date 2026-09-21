@@ -1,6 +1,10 @@
 # PDblend 优化循环日志 — eval-7b-v2
 
-判定标准（每点）：joint≥0.9 且 mean_power ≤ 四个 baseline（mixed / distserve_static / dynamollm / ecoserve）中 SLO 通过者的最低功率。
+**判定标准（2026-09-21 用户拍板修订）**：每点达标 = joint_slo_rate≥0.9 且 **j_per_token（全程能耗÷输出 token）≤ 四个 baseline（mixed / distserve_static / dynamollm / ecoserve）中 SLO 通过者的最低 j_per_token**。window_j/token 与 mean_power 仅作副列。全量对比表 = `compare.csv`（`scripts/build_compare_csv.py` 从原始落盘件统一重算，幂等）。
+
+**口径切换对快速首组的复判**：pdblend 0.532 vs ecoserve 0.508 / dynamollm 0.517 / distserve 0.772 / mixed 0.843（j/tok）——与功率口径同序，**仍负于 ecoserve（+4.8%）与 dynamollm（+3.0%）**，迭代 1（暖启动）目标不变。
+
+**runner 重启（14:37）**：run.py 补落 util.jsonl/freq.jsonl（采样器本就在采，此前未写盘）；重启后第 14 点（alpaca-x0.9-mixed）起全部点带原生 SM 利用率/频率；前 13 点 compare.csv 记 N/A。暖启动代码随之加载（仅触达 pdblend 路径，baseline 行为不变）。
 
 ## 迭代 1 — 暖启动 + 初始计划保持 + 滞回加宽（2026-09-21）
 

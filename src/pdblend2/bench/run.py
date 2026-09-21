@@ -21,7 +21,7 @@ from ..engine.launcher import Fleet, make_specs
 from ..profile.model import PerfModel
 from ..proxy.router import Router
 from ..proxy.server import Proxy
-from .client import LoadClient, Request, dump_outcomes, poisson_trace, slo_attainment, trace_summary
+from .client import LoadClient, Request, dump_outcomes, nearest_rank, poisson_trace, slo_attainment, trace_summary
 from .metering import Gpus
 
 
@@ -38,6 +38,24 @@ def window_energy(samples, start: float, end: float) -> tuple[float, float]:
         return 0.0, 0.0
     e = sum((b[0] - a[0]) * (a[1] + b[1]) / 2 for a, b in zip(rows, rows[1:]))
     return e, e / (rows[-1][0] - rows[0][0])
+
+
+def series_stats(values) -> dict:
+    vals = [float(v) for v in values if v is not None]
+    return {"mean": (sum(vals) / len(vals) if vals else None),
+            "p50": nearest_rank(vals, .50), "p90": nearest_rank(vals, .90),
+            "p95": nearest_rank(vals, .95), "p99": nearest_rank(vals, .99),
+            "max": (max(vals) if vals else None), "samples": len(vals),
+            "missing": 0}
+
+
+def gpu_series_stats(samples, gpus: Sequence[int]) -> dict:
+    rows = [row for _, row in samples]
+    fleet = [v for row in rows for v in row]
+    per_gpu = {str(g): series_stats([row[i] for row in rows if len(row) > i]) for i, g in enumerate(gpus)}
+    active = [sum(1 for v in row if float(v) > 1.0) / max(len(gpus), 1) for row in rows]
+    return {"fleet": series_stats(fleet), "per_gpu": per_gpu,
+            "active_gpu_fraction": series_stats(active)}
 
 
 async def _serve_proxy(proxy: Proxy, port: int) -> web.AppRunner:
@@ -97,10 +115,36 @@ async def _point(fleet: Fleet, gpus: Gpus, model: PerfModel, policy: Policy, slo
             per_gpu[str(g)] = sum(w[i] for _, w in sampler.samples) / len(sampler.samples)
     att = slo_attainment(outcomes, slo.ttft_s, slo.tpot_s)
     (out_dir / "power.jsonl").write_text("\n".join(json.dumps([t, w]) for t, w in sampler.samples) + "\n")
-    return dict(slo=att, energy_j=total_j, mean_power_w=total_w, duration_s=t_done - t_start,
+    if sampler.utilization_samples:
+        util_text = "\n".join(json.dumps([t, u]) for t, u in sampler.utilization_samples) + "\n"
+        (out_dir / "utilization.jsonl").write_text(util_text)
+        (out_dir / "util.jsonl").write_text(util_text)
+    if sampler.frequency_samples:
+        freq_text = "\n".join(json.dumps([t, f]) for t, f in sampler.frequency_samples) + "\n"
+        (out_dir / "frequency.jsonl").write_text(freq_text)
+        (out_dir / "freq.jsonl").write_text(freq_text)
+    power_stats = series_stats([sum(w) for _, w in sampler.samples])
+    util_stats = gpu_series_stats(sampler.utilization_samples, gpus.gpus)
+    freq_stats = gpu_series_stats(sampler.frequency_samples, gpus.gpus)
+    window_s = max(t_load_end - t_start, 1e-9)
+    good_req_s = att["joint_slo_requests"] / window_s
+    good_tok_s = att["joint_output_tokens"] / window_s
+    metering = {"source": getattr(sampler, "power_source", "unknown"),
+                "metadata": getattr(sampler, "power_metadata", {}),
+                "error": getattr(sampler, "error", None), "interval_s": 0.1,
+                "power_samples": len(sampler.samples), "utilization_samples": len(sampler.utilization_samples),
+                "frequency_samples": len(sampler.frequency_samples)}
+    (out_dir / "metering.json").write_text(json.dumps(metering, indent=2, default=str))
+    return dict(slo=att, energy_j=total_j, mean_power_w=total_w, peak_power_w=power_stats["max"],
+                power=power_stats, duration_s=t_done - t_start,
                 window_energy_j=win_j, window_mean_power_w=win_w, window_s=t_load_end - t_start,
                 tail_s=t_done - t_load_end, per_gpu_mean_w=per_gpu,
                 j_per_request=total_j / max(att["succeeded"], 1), j_per_token=total_j / max(att["output_tokens"], 1),
+                j_per_goodput_request=total_j / max(att["joint_slo_requests"], 1),
+                j_per_goodput_token=total_j / max(att["joint_output_tokens"], 1),
+                goodput_request_s=good_req_s, goodput_token_s=good_tok_s,
+                success_request_s=att["succeeded"] / window_s,
+                utilization=util_stats, frequency=freq_stats, metering=metering,
                 controller=ctl.summary(), final_roles=dict(ctl.roles), power_samples=len(sampler.samples))
 
 
@@ -129,7 +173,9 @@ def run_point(model_name: str, gpus: Sequence[int], tp: int, policy_name: str, p
                                                                   f_D=fixed_plan.f_D, f_M=fixed_plan.f_M, tau=fixed_plan.tau),
                   slo_ttft_s=slo.ttft_s, slo_tpot_s=slo.tpot_s, trace=trace_summary(trace), trace_meta=trace_meta or {},
                   wall_s=time.time() - started, requests=len(trace))
-    (out_dir / "summary.json").write_text(json.dumps(result, indent=1, default=str))
+    tmp = out_dir / "summary.json.tmp"
+    tmp.write_text(json.dumps(result, indent=1, default=str))
+    tmp.replace(out_dir / "summary.json")
     return result
 
 
