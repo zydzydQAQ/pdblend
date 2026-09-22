@@ -1,10 +1,11 @@
 """CPU tests for the ported baseline decision logic."""
 import time
 
-from pdblend2.control.planner import SLO, Plan, PlannerConfig, PoolPlanner
-from pdblend2.control.policies import get_policy
-from pdblend2.control.policies.baselines import (DynamoPlanner, EcoPlanner, EcoRouter, capacity_rps, distserve_plan,
-                                                 epoch_peaks)
+from pdblend.control.forecast import Forecaster
+from pdblend.control.planner import SLO, Plan, PlannerConfig, PoolPlanner
+from pdblend.control.policies import get_policy
+from pdblend.control.policies.baselines import (DYNAMO_PERIODS, DynamoPlanner, EcoPlanner, EcoRouter, capacity_rps,
+                                                 distserve_plan)
 from synthetic import fc, synthetic_model
 
 
@@ -12,10 +13,15 @@ def planner(slots=8, ttft=5.0, tpot=0.15):
     return PoolPlanner(synthetic_model(), PlannerConfig(slots=slots, slo=SLO(ttft, tpot)))
 
 
-def test_epoch_peaks_uses_bin_maximum():
-    arrivals = [i * 0.5 for i in range(240)] + [1800 + i * 0.1 for i in range(600)]
-    peaks = epoch_peaks(arrivals, epoch_s=1800, bin_s=60)
-    assert len(peaks) == 2 and abs(peaks[0] - 2.0) < 1e-9 and abs(peaks[1] - 10.0) < 1e-9
+def test_forecaster_tracks_completed_60s_bin_peak():
+    f = Forecaster()
+    t0 = 1000.0
+    for i in range(120):                        # 2 rps over [t0, t0+60)
+        f.arrive(512, t0 + i * 0.5)
+    for i in range(300):                        # 5 rps over [t0+60, t0+120)
+        f.arrive(512, t0 + 60 + i * 0.2)
+    got = f.forecast(t0 + 130.0)                # third bin still partial: not counted
+    assert got.completed_bins == 2 and abs(got.peak_rps - 5.0) < 1e-9
 
 
 def test_distserve_picks_split_with_highest_capacity():
@@ -27,18 +33,24 @@ def test_distserve_picks_split_with_highest_capacity():
     assert abs(plan.detail["capacity_rps"] - max(caps.values())) < 1e-9
 
 
-def test_dynamollm_sizes_fleet_from_epoch_peak_and_lowers_clock():
+def test_dynamollm_fail_open_then_sizes_from_observed_peak():
     base = planner(slots=8)
     one = capacity_rps(base, fc(1.0), {"M": 1}, 2520, 2520, 2520, 0)
-    dyn = DynamoPlanner(base, peaks=[one * 2.5])
-    plan = dyn.plan(fc(0.2))
+    dyn = DynamoPlanner(base)
+    cold = dyn.plan(fc(0.2))
+    assert cold.counts["M"] == 8 and "off" not in cold.counts   # no completed bins: fail-open, all on
+    plan = dyn.plan(fc(0.2, peak_rps=one * 2.5, completed_bins=3))
     assert plan.counts["M"] == 3 and plan.counts["off"] == 5
     assert plan.f_M < 2520                     # ScaleFreq lowers the clock at light load
-    hot = dyn.plan(fc(one * 2.4), plan)
-    assert hot.counts["M"] == 3                # ScaleInst does not react inside an epoch
-    assert hot.f_M >= plan.f_M
-    over = dyn.plan(fc(one * 10), hot)
-    assert over.counts["M"] == 3 and over.f_M == 2520 and over.detail.get("emergency")
+    grew = dyn.plan(fc(one * 2.4, peak_rps=one * 5.5, completed_bins=4))
+    assert grew.counts["M"] == 6               # epoch 0 re-evaluates as the observed peak grows
+    dyn.t0 -= DYNAMO_PERIODS["inst"]           # enter epoch 1: boundary fires once ...
+    boundary = dyn.plan(fc(one * 2.4, peak_rps=one * 7.5, completed_bins=5))
+    assert boundary.counts["M"] == 8
+    same = dyn.plan(fc(one * 2.4, peak_rps=one * 3.5, completed_bins=5))
+    assert same.counts["M"] == 8               # ... but not again inside the same epoch
+    over = dyn.plan(fc(one * 10, peak_rps=one * 30, completed_bins=5))
+    assert over.counts["M"] == 8 and over.f_M == 2520 and over.detail.get("emergency")
 
 
 def test_eco_router_rotates_prefill_instance_when_budget_exhausted():

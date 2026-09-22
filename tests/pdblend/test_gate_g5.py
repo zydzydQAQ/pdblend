@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from pdblend2.bench.gate_g5 import gate_g5
+from pdblend.bench.gate_g5 import gate_g5
 from synthetic import synthetic_model
 
 pytest.importorskip("pdblend_baselines")

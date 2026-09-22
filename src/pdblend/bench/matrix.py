@@ -8,6 +8,7 @@ from pathlib import Path
 
 from ..control.forecast import Forecast
 from ..control.planner import SLO, Plan, PlannerConfig, PoolPlanner
+from ..control.policies import get_policy
 from ..control.policies.baselines import capacity_rps
 from ..profile.model import PerfModel
 from . import client as bc
@@ -176,8 +177,16 @@ def bench_point(args: dict) -> dict:
         fixed = Plan(parse_kv(a["layout"]), c.get("P", 2520), c.get("D", 2520), c.get("M", 2520), int(a["tau"]),
                      0.0, 0.0, 0.0, dict(manual=True))
     gpus = [int(g) for g in str(a["gpus"]).split(",")]
+    policy = get_policy(a["policy"])
+    warmup = make_warmup(records)
+    if policy.history_s > 0:
+        # Unmeasured pre-window history (replayed before metering starts): the observed-history
+        # load template for history-driven policies, standing in for the paper's past-week data.
+        history = bc.poisson_trace(records, float(a["rate"]), policy.history_s,
+                                   seed=int(a["seed"]) + 90001, source="history")
+        warmup = sorted(history + warmup, key=lambda r: r.arrival_s)
     return run_point(a["model"], gpus, int(a["tp"]), a["policy"], Path(a["profile"]), trace, SLO(*bc.SLOS[a["dataset"]]),
-                     Path(a["out"]), make_warmup(records), a["connector"], period_s=float(a["period"]),
+                     Path(a["out"]), warmup, a["connector"], period_s=float(a["period"]),
                      fixed_plan=fixed, trace_meta=meta)
 
 

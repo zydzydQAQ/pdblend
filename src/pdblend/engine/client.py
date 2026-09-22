@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence
 
 import aiohttp
 
@@ -122,7 +122,8 @@ class EngineClient:
         body.update(sampling)
         return body
 
-    async def _stream(self, body: dict, request_id: str, result: Completion) -> None:
+    async def _stream(self, body: dict, request_id: str, result: Completion,
+                      on_token: Optional[Callable[[Completion, float], None]] = None) -> None:
         async with self.session.post(self.base_url + "/v1/completions", json=body,
                                      headers={"X-Request-Id": request_id}) as resp:
             if resp.status != 200:
@@ -144,6 +145,8 @@ class EngineClient:
                             result.first_token_s = now
                         result.token_times_s.append(now)
                         result.text += text
+                        if on_token is not None:
+                            on_token(result, now)
                 usage = event.get("usage")
                 if usage:
                     result.prompt_tokens = usage.get("prompt_tokens", 0)
@@ -152,13 +155,18 @@ class EngineClient:
                     result.kv_transfer_params = event["kv_transfer_params"]
 
     async def complete(self, prompt: Sequence[int] | str, max_tokens: int, request_id: str,
-                       kv_transfer_params: Optional[dict] = None, **sampling) -> Completion:
+                       kv_transfer_params: Optional[dict] = None,
+                       on_token: Optional[Callable[[Completion, float], None]] = None,
+                       **sampling) -> Completion:
         """Streamed completion; records per-token arrival times."""
         result = Completion(request_id, self.instance_id, time.time())
         body = self._body(prompt, max_tokens, True, kv_transfer_params, **sampling)
         for attempt in range(2):
             try:
-                await self._stream(body, request_id, result)
+                if on_token is None:
+                    await self._stream(body, request_id, result)
+                else:
+                    await self._stream(body, request_id, result, on_token=on_token)
                 break
             except (aiohttp.ClientError, TimeoutError) as exc:
                 # a keep-alive connection closed by the idle server surfaces here before any byte is read; retry once

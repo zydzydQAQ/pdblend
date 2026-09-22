@@ -1,6 +1,6 @@
 import json
 
-from pdblend2.profile.profiler import load_raw, window_mean_power
+from pdblend.profile.profiler import load_raw, window_mean_power
 
 
 def _raw():

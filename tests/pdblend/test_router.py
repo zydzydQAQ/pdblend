@@ -1,4 +1,4 @@
-from pdblend2.proxy.router import Router
+from pdblend.proxy.router import Router
 
 
 def make(roles, tau=0):

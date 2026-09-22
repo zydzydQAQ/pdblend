@@ -77,14 +77,16 @@ async def _point(fleet: Fleet, gpus: Gpus, model: PerfModel, policy: Policy, slo
     cfg = policy.planner_config(PlannerConfig(slots=len(urls), slo=slo, freqs=model.freqs))
     planner = PoolPlanner(model, cfg)
     freeze = policy.freeze or fixed_plan is not None
-    initial = fixed_plan or (planner.plan(offline_forecast(trace)) if (policy.freeze or policy.warm_start) else None)
+    prior = offline_forecast(trace) if policy.bootstrap_forecast else None
+    initial = fixed_plan or (planner.plan(prior or offline_forecast(trace)) if (policy.freeze or policy.warm_start) else None)
     if policy.ported and fixed_plan is None:
-        planner, initial, freeze, ported_period = build_control(policy.name, planner, router, offline_forecast(trace),
-                                                                [r.arrival_s for r in trace])
+        planner, initial, freeze, ported_period = build_control(policy.name, planner, router, offline_forecast(trace))
         period_s = ported_period or period_s
-    ctl = Controller(fleet, router, gpus, planner, Shield(slo) if policy.shield else None, Forecaster(),
+    ctl = Controller(fleet, router, gpus, planner, Shield(slo) if policy.shield else None, Forecaster(initial=prior),
                      period_s=period_s, log_path=out_dir / "controller.jsonl", initial_plan=initial, freeze=freeze,
-                     hold_initial=policy.warm_start, min_warm_s=min_warm_s)
+                     hold_initial=policy.warm_start, min_warm_s=min_warm_s,
+                     min_plan_hold_s=policy.plan_hold_s, down_plan_votes=policy.down_plan_votes,
+                     home_margin=policy.home_margin)
     stop = asyncio.Event()
     ctl_task = asyncio.create_task(ctl.run(stop))
     await asyncio.sleep(2.0)
@@ -117,11 +119,9 @@ async def _point(fleet: Fleet, gpus: Gpus, model: PerfModel, policy: Policy, slo
     (out_dir / "power.jsonl").write_text("\n".join(json.dumps([t, w]) for t, w in sampler.samples) + "\n")
     if sampler.utilization_samples:
         util_text = "\n".join(json.dumps([t, u]) for t, u in sampler.utilization_samples) + "\n"
-        (out_dir / "utilization.jsonl").write_text(util_text)
         (out_dir / "util.jsonl").write_text(util_text)
     if sampler.frequency_samples:
         freq_text = "\n".join(json.dumps([t, f]) for t, f in sampler.frequency_samples) + "\n"
-        (out_dir / "frequency.jsonl").write_text(freq_text)
         (out_dir / "freq.jsonl").write_text(freq_text)
     power_stats = series_stats([sum(w) for _, w in sampler.samples])
     util_stats = gpu_series_stats(sampler.utilization_samples, gpus.gpus)
@@ -135,6 +135,7 @@ async def _point(fleet: Fleet, gpus: Gpus, model: PerfModel, policy: Policy, slo
                 "power_samples": len(sampler.samples), "utilization_samples": len(sampler.utilization_samples),
                 "frequency_samples": len(sampler.frequency_samples)}
     (out_dir / "metering.json").write_text(json.dumps(metering, indent=2, default=str))
+    metering_summary = {k: v for k, v in metering.items() if k != "metadata"}
     return dict(slo=att, energy_j=total_j, mean_power_w=total_w, peak_power_w=power_stats["max"],
                 power=power_stats, duration_s=t_done - t_start,
                 window_energy_j=win_j, window_mean_power_w=win_w, window_s=t_load_end - t_start,
@@ -144,7 +145,7 @@ async def _point(fleet: Fleet, gpus: Gpus, model: PerfModel, policy: Policy, slo
                 j_per_goodput_token=total_j / max(att["joint_output_tokens"], 1),
                 goodput_request_s=good_req_s, goodput_token_s=good_tok_s,
                 success_request_s=att["succeeded"] / window_s,
-                utilization=util_stats, frequency=freq_stats, metering=metering,
+                utilization=util_stats, frequency=freq_stats, metering=metering_summary,
                 controller=ctl.summary(), final_roles=dict(ctl.roles), power_samples=len(sampler.samples))
 
 

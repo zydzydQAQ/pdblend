@@ -1,4 +1,4 @@
-"""pdblend2 command line: gates, profiling, serving and benchmarks."""
+"""pdblend command line: gates, profiling, serving and benchmarks."""
 from __future__ import annotations
 
 import argparse
@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def main(argv=None) -> None:
-    parser = argparse.ArgumentParser(prog="pdblend2")
+    parser = argparse.ArgumentParser(prog="pdblend")
     sub = parser.add_subparsers(dest="command", required=True)
 
     g0 = sub.add_parser("gate-kv", help="G0: cross-GPU KV transfer on two instances")
@@ -33,6 +33,11 @@ def main(argv=None) -> None:
     pr.add_argument("--window", type=float, default=2.0)
     pr.add_argument("--out", type=Path, default=Path("results/v2/profile"))
     pr.add_argument("--resume", action="store_true", help="skip sections already present in <out>/raw.json")
+    pr.add_argument("--decode-repeats", type=int, default=3)
+    pr.add_argument("--decode-settle", type=float, default=2.0)
+    pr.add_argument("--decode-measure", type=float, default=5.0)
+    pr.add_argument("--mixed-freqs", default="1500,2100,2520")
+    pr.add_argument("--base-port", type=int, default=8100)
 
     be = sub.add_parser("bench", help="run one benchmark point: fleet + proxy + controller + open-loop load")
     be.add_argument("--model", default="Qwen2.5-7B-Instruct")
@@ -166,7 +171,11 @@ def main(argv=None) -> None:
     elif args.command == "profile":
         from .profile.profiler import Profiler
         prof = Profiler(args.model, [int(g) for g in args.gpus.split(",")], tp=args.tp,
-                        freqs=[int(f) for f in args.freqs.split(",")], window_s=args.window, out_dir=args.out)
+                        freqs=[int(f) for f in args.freqs.split(",")], window_s=args.window, out_dir=args.out,
+                        decode_repeats=args.decode_repeats, decode_settle_s=args.decode_settle,
+                        decode_measure_s=args.decode_measure,
+                        mixed_freqs=tuple(int(f) for f in args.mixed_freqs.split(",")),
+                        base_port=args.base_port)
         sections = tuple(args.sections.split(","))
         if args.resume:
             have = prof.resume()

@@ -1,6 +1,6 @@
 import json
 
-from pdblend2.bench.report import compare, load_points, report
+from pdblend.bench.report import compare, load_points, report
 
 
 def point(tmp, name, policy, dataset, scale, energy, slo, success=1.0):

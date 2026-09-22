@@ -2,8 +2,8 @@ import time
 
 import pytest
 
-from pdblend2.control.forecast import Forecaster
-from pdblend2.control.planner import SLO, PlannerConfig, PoolPlanner, assign_roles
+from pdblend.control.forecast import Forecaster
+from pdblend.control.planner import SLO, PlannerConfig, PoolPlanner, assign_roles
 from synthetic import fc, synthetic_model
 
 @pytest.fixture

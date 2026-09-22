@@ -8,10 +8,10 @@ from types import SimpleNamespace
 import pytest
 from aiohttp import web
 
-from pdblend2.bench.client import LoadClient, Request, slo_attainment
-from pdblend2.bench.run import _point, offline_forecast, window_energy
-from pdblend2.control.planner import SLO
-from pdblend2.control.policies import get_policy
+from pdblend.bench.client import LoadClient, Request, slo_attainment
+from pdblend.bench.run import _point, offline_forecast, window_energy
+from pdblend.control.planner import SLO
+from pdblend.control.policies import get_policy
 from synthetic import synthetic_model
 
 
@@ -150,19 +150,24 @@ def test_point_end_to_end(tmp_path, policy):
     if policy == "mixed":
         assert roles == {"M"}
     elif policy == "pdblend":
-        assert roles & {"L1", "off"}
+        # The four-slot fake fleet is below the PDblend M>=4 safety floor;
+        # all-M is therefore the expected safe layout in this unit test.
+        assert roles == {"M"} or roles & {"L1", "off"}
     elif policy == "distserve_static":
         assert roles == {"P", "D"}
     elif policy == "dynamollm":
-        assert roles <= {"M", "off"} and "off" in roles
+        # This direct _point smoke lasts <60 s and supplies no history replay.
+        # ScaleInst must fail open until a complete observed bin is available.
+        assert roles == {"M"}
+        assert result["controller"]["events"].get("park", 0) == 0
     else:
         assert roles <= {"M", "idle"}
 
 
 def test_pd_path_through_proxy(tmp_path):
     """Force a P/D split and check the fake engines saw remote_decode then remote_prefill params."""
-    from pdblend2.proxy.router import Router
-    from pdblend2.proxy.server import Proxy
+    from pdblend.proxy.router import Router
+    from pdblend.proxy.server import Proxy
     fleet = FakeFleet(2, base_port=18400)
 
     async def go():
@@ -192,9 +197,9 @@ def test_pd_path_through_proxy(tmp_path):
 
 def test_pd_path_through_proxy_p2p_nccl(tmp_path):
     """P2pNccl: both legs share a routing id naming the two ZMQ addresses and carry no kv_transfer_params."""
-    from pdblend2.engine.client import PDTransfer
-    from pdblend2.proxy.router import Router
-    from pdblend2.proxy.server import Proxy
+    from pdblend.engine.client import PDTransfer
+    from pdblend.proxy.router import Router
+    from pdblend.proxy.server import Proxy
     fleet = FakeFleet(2, base_port=18500)
 
     async def go():
@@ -221,6 +226,81 @@ def test_pd_path_through_proxy_p2p_nccl(tmp_path):
     assert not p.seen_kv_params and not d.seen_kv_params
     expected = [f"___prefill_addr_127.0.0.1:38500___decode_addr_127.0.0.1:38501_r{i}" for i in range(3)]
     assert p.seen_request_ids == d.seen_request_ids == expected
+
+
+@pytest.mark.parametrize("path", ["M", "PD", "ecoserve"])
+@pytest.mark.parametrize("chunking", ["separate", "coalesced", "fragmented"])
+def test_stream_updates_live_token_observations(monkeypatch, path, chunking):
+    from unittest.mock import AsyncMock
+
+    from pdblend.control.policies.baselines import EcoRouter
+    from pdblend.control.shield import Shield
+    from pdblend.proxy.router import Router
+    from pdblend.proxy.server import Proxy
+
+    now = [1000.0]
+    monkeypatch.setattr("pdblend.proxy.router.time.time", lambda: now[0])
+    slo = SLO(5.0, 0.1)
+    roles = {"i0": "P", "i1": "D"} if path == "PD" else {"i0": "M", "i1": "M"}
+    router = EcoRouter(list(roles), synthetic_model(), slo) if path == "ecoserve" else Router(list(roles))
+    router.set_roles(roles)
+    record = router.dispatch("r", 100, 7)
+    proxy = Proxy({i: f"http://127.0.0.1:{8100 + k}" for k, i in enumerate(roles)}, router)
+    event = b'data: {"choices":[{"text":"%s"}]}\n\n'
+    empty, a, b, c = [event % text for text in (b"", b"a", b"b", b"c")]
+    finish = b'data: {"choices":[{"text":"","finish_reason":"length"}]}\n\n'
+    usage = b'data: {"choices":[],"usage":{"completion_tokens":7}}\n\n'
+    if chunking == "separate":
+        chunks = [(empty, 0), (a, 1), (b, 2), (c, 3), (finish, 3), (usage, 3)]
+    elif chunking == "coalesced":
+        chunks = [(empty + a + b, 2), (c + finish + usage, 3)]
+    else:
+        cut = a.index(b'"text":"') + len(b'"text":"')
+        chunks = [(empty + a[:cut], 0), (a[cut:] + b + c[:cut], 2), (c[cut:] + finish + usage, 3)]
+
+    async def stream_chunks():
+        first_at = None
+        for chunk, expected in chunks:
+            now[0] += 0.1
+            yield chunk
+            assert record.tokens_so_far == expected
+            assert record.finished_s is None and record.completion_tokens == 0
+            assert record in router.active[record.decode_instance]
+            assert router.loads[record.decode_instance].inflight_seqs == 1
+            if expected:
+                if first_at is None:
+                    first_at = now[0]
+                assert record.first_token_s == first_at
+                assert router.loads[record.prefill_instance].inflight_prefill_tokens == 0
+            else:
+                assert record.first_token_s is None
+                assert router.loads[record.prefill_instance].inflight_prefill_tokens == 100
+        yield b"data: [DONE]\n\n"
+
+    class Upstream:
+        status = 200
+        content = SimpleNamespace(iter_any=stream_chunks)
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+    proxy.session = SimpleNamespace(post=lambda *args, **kwargs: Upstream())
+    response = SimpleNamespace(write=AsyncMock())
+    assert asyncio.run(proxy._stream_leg(record, {}, "r", response)) == 7
+    assert record.tokens_so_far == 3
+    assert b"".join(call.args[0] for call in response.write.await_args_list) == empty + a + b + c + finish + usage
+    probe_at = record.first_token_s + 1.0
+    pressure = Shield(slo).observe([record], probe_at)
+    assert pressure.decode and pressure.tpot_p90 == pytest.approx(0.5)
+    if path == "ecoserve":
+        assert router._slack_ms(record, probe_at) == pytest.approx(-700.0)
+    router.finish(record, 7)
+    assert record.completion_tokens == 7
+    assert router.loads[record.decode_instance].inflight_seqs == 0
+    assert router.loads[record.prefill_instance].inflight_prefill_tokens == 0
 
 
 def test_window_energy_and_offline_forecast():

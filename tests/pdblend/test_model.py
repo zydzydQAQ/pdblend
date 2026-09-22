@@ -1,6 +1,6 @@
 import math
 
-from pdblend2.profile.model import DecodePoint, PerfModel, PrefillPoint, StaticState, fit
+from pdblend.profile.model import DecodePoint, PerfModel, PrefillPoint, StaticState, fit
 
 
 def synthetic():

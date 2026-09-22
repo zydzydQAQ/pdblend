@@ -1,6 +1,6 @@
 """Control loop: observe -> forecast -> plan (every period) -> shield (every second) -> act.
 
-Actions are role-table rewrites (free), clock changes (~100 ms), HBM/SM clock parking (L1) and process
+Actions are role-table rewrites (free), clock changes (~100 ms), mem/SM clock parking (L1) and process
 stop/start (off). Everything is logged as JSONL so a run can be audited afterwards.
 """
 from __future__ import annotations
@@ -44,6 +44,12 @@ class Controller:
     plan_now: Optional[Plan] = None
     _log: list = field(default_factory=list)
     _first_traffic_s: Optional[float] = None
+    min_plan_hold_s: float = 0.0
+    down_plan_votes: int = 1
+    home_margin: float = 0.0         # >0: pull back to initial_plan when feasible and this fraction cheaper
+    _last_plan_change_s: Optional[float] = None
+    _down_candidate_key: Optional[tuple] = None
+    _down_votes: int = 0
 
     def __post_init__(self):
         for iid in self.fleet.instances:
@@ -136,6 +142,8 @@ class Controller:
         if tasks:
             await asyncio.gather(*tasks)
         self.plan_now = plan
+        self._last_plan_change_s = time.time()
+        self._down_candidate_key, self._down_votes = None, 0
         self.log("plan", counts=plan.counts, f_P=plan.f_P, f_D=plan.f_D, f_M=plan.f_M, tau=plan.tau,
                  power_w=plan.power_w, ttft_s=plan.ttft_s, tpot_s=plan.tpot_s,
                  shield_level=plan.detail.get("shield_level", 0), fallback=plan.detail.get("fallback", False),
@@ -173,6 +181,56 @@ class Controller:
             self._first_traffic_s = now
         return fc.samples >= self.min_warm_samples and now - self._first_traffic_s >= self.min_warm_s
 
+    @staticmethod
+    def _is_downshift(current: Plan, candidate: Plan) -> bool:
+        if candidate.active() != current.active():
+            return candidate.active() < current.active()
+        # Ignore placeholder clocks for roles with zero instances.
+        return any(current.counts.get(role, 0) and candidate.counts.get(role, 0)
+                   and getattr(candidate, f"f_{role}") < getattr(current, f"f_{role}")
+                   for role in ACTIVE)
+
+    def _anchor_candidate(self, fc, candidate: Plan) -> Optional[Plan]:
+        """Warm-start home anchor: a noise-driven upshift sticks because the hysteresis margin
+        blocks the small saving of returning. When the offline home plan is feasible again and
+        cheaper than the candidate by more than home_margin, offer it instead (the result still
+        goes through dwell/vote gating, and the shield can override it under real pressure)."""
+        home = self.initial_plan
+        if self.home_margin <= 0.0 or home is None or self.plan_now is None:
+            return None
+        if home.key() == candidate.key() or home.key() == self.plan_now.key():
+            return None
+        home_ev = self.planner.evaluate(home.counts, home.f_P, home.f_D, home.f_M, home.tau, fc)
+        if home_ev is None:
+            return None
+        if home_ev.power_w < candidate.power_w * (1.0 - self.home_margin):
+            return home_ev
+        return None
+
+    def _gate_plan_change(self, candidate: Plan, now: float, *, scheduled: bool = True) -> tuple[Plan, str]:
+        """PDblend-only dwell and shrink confirmation; defaults preserve baseline decisions."""
+        current = self.plan_now
+        if current is None or candidate.key() == current.key():
+            self._down_candidate_key, self._down_votes = None, 0
+            return candidate, "initial" if current is None else "unchanged"
+        if self._last_plan_change_s is not None and now - self._last_plan_change_s < self.min_plan_hold_s:
+            self._down_candidate_key, self._down_votes = None, 0
+            return current, "minimum_hold"
+        if self.down_plan_votes > 1 and self._is_downshift(current, candidate):
+            key = candidate.key()
+            if key != self._down_candidate_key:
+                self._down_candidate_key, self._down_votes = key, 0
+            # Shield ticks are not additional independent forecast windows.
+            if scheduled:
+                self._down_votes += 1
+            if self._down_votes < self.down_plan_votes:
+                return current, "downshift_confirmation"
+            reason = "confirmed_downshift"
+        else:
+            reason = "planner_change"
+        self._down_candidate_key, self._down_votes = None, 0
+        return candidate, reason
+
     # ---- loop --------------------------------------------------------------------------------
     async def run(self, stop: asyncio.Event) -> None:
         now = time.time()
@@ -198,10 +256,26 @@ class Controller:
                     plan = self.plan_now
                 else:
                     plan = self._fail_open_plan()
+                candidate = plan
+                anchor = self._anchor_candidate(fc, candidate)
+                if anchor is not None:
+                    candidate = plan = anchor
+                plan, reason = self._gate_plan_change(plan, now, scheduled=now >= next_plan_at)
                 if self.shield is not None and (level or self.shield.floor_active):
+                    # Apply safety *after* ordinary-change gating so escalation
+                    # can immediately raise clocks/wake instances during a hold.
+                    if level > last_level and (self.min_plan_hold_s or self.down_plan_votes > 1):
+                        plan = self.plan_now or plan
                     plan = self.shield.apply(plan, pressure, self.max_freq)
+                    if self.plan_now is None or plan.key() != self.plan_now.key():
+                        reason = "shield_override"
+                    if level:
+                        self._down_candidate_key, self._down_votes = None, 0
                 self.log("forecast", rate_rps=fc.rate_rps, trend_rps=fc.trend_rps, input_mean=fc.input_mean,
                          input_p95=fc.input_p95, output_mean=fc.output_mean, inflight=fc.inflight,
+                         recent_rate_rps=fc.recent_rate_rps, decision_reason=reason,
+                         down_votes=self._down_votes, candidate_counts=candidate.counts,
+                         candidate_clocks=dict(P=candidate.f_P, D=candidate.f_D, M=candidate.f_M),
                          shield_level=level, pressure=None if pressure is None else vars(pressure))
                 if self.plan_now is None or plan.key() != self.plan_now.key():
                     await self.execute(plan)

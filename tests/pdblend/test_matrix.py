@@ -1,7 +1,7 @@
 """CPU tests for the matrix runner helpers."""
 import json
 
-from pdblend2.bench.matrix import layout_capacity, parse_kv, run_matrix
+from pdblend.bench.matrix import layout_capacity, parse_kv, run_matrix
 from synthetic import synthetic_model
 
 
@@ -48,7 +48,7 @@ def test_run_matrix_shard_and_gpus(tmp_path):
 
 
 def test_auto_clocks_and_m3_spec(tmp_path):
-    from pdblend2.bench.matrix import auto_clocks, m3_spec
+    from pdblend.bench.matrix import auto_clocks, m3_spec
     prof = tmp_path / "p.json"
     synthetic_model().save(prof)
     corpus = tmp_path / "corpus"
@@ -66,8 +66,8 @@ def test_auto_clocks_and_m3_spec(tmp_path):
 
 
 def test_eval_spec(tmp_path):
-    from pdblend2.bench.matrix import ABLATIONS, CORE_POLICIES, PORTED_POLICIES, eval_spec
-    from pdblend2.control.policies import POLICIES
+    from pdblend.bench.matrix import ABLATIONS, CORE_POLICIES, PORTED_POLICIES, eval_spec
+    from pdblend.control.policies import POLICIES
     prof = tmp_path / "p.json"
     synthetic_model().save(prof)
     corpus = tmp_path / "corpus"

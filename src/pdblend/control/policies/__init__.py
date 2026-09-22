@@ -19,13 +19,21 @@ class Policy:
     warm_start: bool = False          # start from the offline plan and hold it until the forecaster is informed
     margin: Optional[float] = None    # hysteresis override: min fractional saving to switch plans
     ported: bool = False              # decision logic lives in policies/baselines.py
+    history_s: float = 0.0            # unmeasured pre-window history replay, for history-driven policies
     description: str = ""
+    bootstrap_forecast: bool = False
+    plan_hold_s: float = 0.0
+    down_plan_votes: int = 1
+    home_margin: float = 0.0          # >0: warm-start home anchor; pull back to the offline plan when feasible and this much cheaper
+    min_m_instances: int = 0          # temporary empirical floor for PDblend-only candidates
 
     def planner_config(self, base: PlannerConfig) -> PlannerConfig:
         cfg = replace(base, fixed_mixed=self.fixed_mixed, allow_dvfs=self.allow_dvfs,
                       allow_pd=self.allow_pd, allow_park=self.allow_park)
         if self.margin is not None:
             cfg = replace(cfg, margin=self.margin)
+        if self.min_m_instances:
+            cfg = replace(cfg, min_m_instances=self.min_m_instances)
         return cfg
 
 
@@ -38,7 +46,9 @@ POLICIES = {
                               description="mixed pools with DVFS and multi-level parking (no PD)"),
     "static_best": Policy("static_best", freeze=True, shield=False,
                           description="best static configuration in the planner space from offline trace statistics"),
-    "pdblend": Policy("pdblend", warm_start=True, margin=0.08, description="full: PD/M pools, DVFS, parking, shield"),
+    "pdblend": Policy("pdblend", warm_start=True, margin=0.08, bootstrap_forecast=True,
+                      plan_hold_s=30.0, down_plan_votes=2, home_margin=0.01, min_m_instances=4,
+                      description="full: PD/M pools, DVFS, parking, shield"),
     "pdblend_no_park": Policy("pdblend_no_park", allow_park=(), description="ablation: no parking"),
     "pdblend_no_pd": Policy("pdblend_no_pd", allow_pd=False, description="ablation: no PD pools"),
     "pdblend_no_shield": Policy("pdblend_no_shield", shield=False, description="ablation: planner only"),
@@ -47,8 +57,9 @@ POLICIES = {
     "pdblend_fixed_pools": Policy("pdblend_fixed_pools", freeze=True, description="ablation: pools frozen from offline stats, shield on"),
     "distserve_static": Policy("distserve_static", allow_dvfs=False, allow_park=(), shield=False, freeze=True, ported=True,
                                description="DistServe: goodput-maximising static P/D split, max clock"),
-    "dynamollm": Policy("dynamollm", allow_pd=False, allow_park=("off",), shield=False, ported=True,
-                        description="DynamoLLM: ScaleInst 1800 s (oracle epoch peak) + ScaleFreq 5 s, spare GPUs off"),
+    "dynamollm": Policy("dynamollm", allow_pd=False, allow_park=("off",), shield=False, ported=True, history_s=300.0,
+                        description="DynamoLLM: ScaleInst 1800 s (load template = peak observed 60 s bin from an "
+                                    "unmeasured history replay; fail-open until first bin) + ScaleFreq 5 s"),
     "ecoserve": Policy("ecoserve", allow_dvfs=False, allow_pd=False, allow_park=("idle",), shield=False, ported=True,
                        description="EcoServe: rotating-prefill macros, TTFT-driven instance scaling, reset-clock parking"),
 }

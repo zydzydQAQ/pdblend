@@ -10,7 +10,7 @@ from pdblend.measure.power import PowerSampler
 
 FREQUENCY_TIERS = (900, 1200, 1500, 1800, 2100, 2520)
 MAX_FREQUENCY = 2520
-PARK_MEM_MHZ = 405       # lowest HBM clock: with a live CUDA context this alone takes idle from ~75 W to ~35 W
+PARK_MEM_MHZ = 405       # lowest GDDR6 clock: with a live CUDA context this alone takes idle from ~75 W to ~35 W
 PARK_GR_MHZ = 210
 
 
@@ -31,7 +31,7 @@ class Gpus:
             self.backend.reset_clock(g)
 
     def park(self, gpu: int) -> None:
-        """Weights stay resident; HBM and SM clocks are pinned to their floor. Wake is reset_clock-fast."""
+        """Weights stay resident; memory and SM clocks are pinned to their floor. Wake is reset_clock-fast."""
         nv, h = self.backend._nvml, self.backend._handle(gpu)
         nv.nvmlDeviceSetMemoryLockedClocks(h, PARK_MEM_MHZ, PARK_MEM_MHZ)
         nv.nvmlDeviceSetGpuLockedClocks(h, PARK_GR_MHZ, PARK_GR_MHZ)

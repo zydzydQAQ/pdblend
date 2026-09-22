@@ -1,7 +1,7 @@
 """CPU tests for the motivation analysis helpers."""
 import json
 
-from pdblend2.bench import motivation as mv
+from pdblend.bench import motivation as mv
 
 FREQS = [900, 1500, 2520]
 

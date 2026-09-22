@@ -1,6 +1,6 @@
-"""Shared synthetic PerfModel for pdblend2 CPU tests."""
-from pdblend2.control.forecast import Forecast
-from pdblend2.profile.model import PerfModel, StaticState
+"""Shared synthetic PerfModel for pdblend CPU tests."""
+from pdblend.control.forecast import Forecast
+from pdblend.profile.model import PerfModel, StaticState
 
 FREQS = (900, 1200, 1500, 1800, 2100, 2520)
 
@@ -20,6 +20,7 @@ def synthetic_model() -> PerfModel:
                      kv_bytes_per_token=57344, kv_capacity_tokens=250000, model="synthetic")
 
 
-def fc(rate, in_mean=512, out_mean=128, inputs=None):
+def fc(rate, in_mean=512, out_mean=128, inputs=None, peak_rps=0.0, completed_bins=0):
     inputs = tuple(inputs) if inputs is not None else tuple([in_mean] * 50)
-    return Forecast(rate, 0.0, in_mean, in_mean * 1.5, out_mean, 0, inputs)
+    return Forecast(rate, 0.0, in_mean, in_mean * 1.5, out_mean, 0, inputs, (),
+                    peak_rps=peak_rps, completed_bins=completed_bins)

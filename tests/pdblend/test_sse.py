@@ -1,4 +1,4 @@
-from pdblend2.proxy.sse import StreamScan
+from pdblend.proxy.sse import StreamScan
 
 EV = b'data: {"id":"x","choices":[{"index":0,"text":"%s","finish_reason":null}],"usage":null}\n\n'
 USAGE = b'data: {"id":"x","choices":[],"usage":{"prompt_tokens":5,"completion_tokens":7}}\n\n'

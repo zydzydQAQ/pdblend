@@ -5,10 +5,14 @@ every request disaggregated. Placement search is the upstream rule (max feasible
 the runtime is our kv_both engines, so the KV path is host-staged like every other PD policy here.
 
 DynamoLLM: the three-level hierarchy with its published periods. ScaleInst (1800 s) sizes the fleet
-from the epoch's peak demand and turns the rest off; ScaleShard is a no-op because TP is fixed per
-run; ScaleFreq (5 s) picks the lowest clock whose predicted TTFT/TPOT meets the SLO, max clock when
-none does (the paper's emergency stage). Shape pools collapse to one mixed pool: with one model
-size per run there is no shard heterogeneity to exploit.
+from a load template built on observed history — the max completed 60 s arrival bin over the trailing
+epoch — and turns the rest off; the history comes from an unmeasured pre-window replay of the same
+stationary workload (standing in for the paper's previous-week templates), and the fleet runs
+fail-open (all on) until the first bin completes. ScaleShard is a no-op because TP is fixed per run;
+ScaleFreq (5 s) picks the lowest clock whose predicted TTFT/TPOT meets the SLO, max clock when none
+does (the paper's emergency stage). Shape pools collapse to one mixed pool: with one model size per
+run there is no shard heterogeneity to exploit, and the paper's 9-bucket request-shape routing
+(BERT output-length proxy) is not reproduced. Performance predictions use this repo's profile model.
 
 EcoServe: macro groups of 2-3 mixed instances with one rotating prefill instance (temporal P/D
 multiplexing, author admission rule), instance count scaled every 5 s from mean TTFT and saved TPOT
@@ -51,22 +55,6 @@ def forced_plan(planner: PoolPlanner, counts: dict, f_P: int, f_D: int, f_M: int
     return plan
 
 
-def epoch_peaks(arrivals_s, epoch_s: float = DYNAMO_PERIODS["inst"], bin_s: float = 60.0) -> list[float]:
-    """Per-epoch peak arrival rate over `bin_s` bins: the oracle stand-in for DynamoLLM's weekly forecast."""
-    arrivals = sorted(arrivals_s)
-    if not arrivals:
-        return []
-    n_epochs = int(arrivals[-1] // epoch_s) + 1
-    peaks = [0.0] * n_epochs
-    bins: dict[int, int] = {}
-    for t in arrivals:
-        bins[int(t // bin_s)] = bins.get(int(t // bin_s), 0) + 1
-    for b, count in bins.items():
-        e = min(int(b * bin_s // epoch_s), n_epochs - 1)
-        peaks[e] = max(peaks[e], count / bin_s)
-    return peaks
-
-
 # ---- DistServe ---------------------------------------------------------------------------------
 def distserve_plan(planner: PoolPlanner, fc: Forecast) -> Plan:
     N, f = planner.cfg.slots, max(planner.cfg.freqs)
@@ -83,11 +71,10 @@ def distserve_plan(planner: PoolPlanner, fc: Forecast) -> Plan:
 
 # ---- DynamoLLM ---------------------------------------------------------------------------------
 class DynamoPlanner(PoolPlanner):
-    def __init__(self, planner: PoolPlanner, peaks: list[float]):
+    def __init__(self, planner: PoolPlanner):
         super().__init__(planner.model, replace(planner.cfg, allow_pd=False, allow_park=("off",)))
-        self.peaks = peaks
         self.t0: Optional[float] = None
-        self._last = 0.0
+        self._latched_epoch: Optional[int] = None
         self.n_active: Optional[int] = None
         self._cap: dict = {}
 
@@ -98,23 +85,23 @@ class DynamoPlanner(PoolPlanner):
             self._cap[key] = capacity_rps(self, fc, {"M": 1}, f, f, f, 0)
         return self._cap[key]
 
-    def scale_inst(self, fc: Forecast, now: float) -> int:
-        epoch = int((now - self.t0) // DYNAMO_PERIODS["inst"])
-        peak = self.peaks[min(epoch, len(self.peaks) - 1)] if self.peaks else fc.rate_rps
+    def scale_inst(self, fc: Forecast) -> int:
+        """ceil(PL/ML) with PL = max observed 60 s bin rate over the trailing epoch (the load template)."""
         cap = self._capacity_one(fc)
-        n = math.ceil(peak / cap) if cap > 0 else self.cfg.slots
+        n = math.ceil(fc.peak_rps / cap) if cap > 0 else self.cfg.slots
         return max(1, min(self.cfg.slots, n))
 
     def plan(self, fc: Forecast, current: Optional[Plan] = None) -> Plan:
         now = time.time()
         if self.t0 is None:
             self.t0 = now
-        epoch_boundary = self.n_active is None or int((now - self.t0) // DYNAMO_PERIODS["inst"]) != \
-            int((self._last - self.t0) // DYNAMO_PERIODS["inst"])
-        if epoch_boundary:
-            self.n_active = self.scale_inst(fc, now)
-        self._last = now
-        n = self.n_active
+        epoch = int((now - self.t0) // DYNAMO_PERIODS["inst"])
+        if fc.completed_bins and (epoch != self._latched_epoch or epoch == 0):
+            # Fail-open with no template; epoch 0 re-evaluates as bins complete (peak only grows),
+            # from epoch 1 on ScaleInst fires only on epoch boundaries (the paper's 30 min period).
+            self.n_active = self.scale_inst(fc)
+            self._latched_epoch = epoch
+        n = self.n_active if self.n_active is not None else self.cfg.slots
         counts = {"M": n}
         if n < self.cfg.slots:
             counts["off"] = self.cfg.slots - n
@@ -228,12 +215,12 @@ class EcoPlanner(PoolPlanner):
         return forced_plan(self, counts, f, f, f, 0, fc)
 
 
-def build_control(policy_name: str, planner: PoolPlanner, router: Router, fc: Forecast, arrivals_s):
+def build_control(policy_name: str, planner: PoolPlanner, router: Router, fc: Forecast):
     """(planner, initial_plan, freeze, period_s) for the ported baselines; None for planner-table policies."""
     if policy_name == "distserve_static":
         return planner, distserve_plan(planner, fc), True, None
     if policy_name == "dynamollm":
-        return DynamoPlanner(planner, epoch_peaks(arrivals_s)), None, False, DYNAMO_PERIODS["freq"]
+        return DynamoPlanner(planner), None, False, DYNAMO_PERIODS["freq"]
     if policy_name == "ecoserve":
         return EcoPlanner(planner, router), None, False, ECO_PERIOD_S
     return None

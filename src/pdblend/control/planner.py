@@ -2,7 +2,7 @@
 node power subject to queueing-model TTFT/TPOT constraints. Pure enumeration, milliseconds in Python.
 
 Roles per slot: P (prefill), D (decode), M (mixed), idle (drained, reset clock), L1 (weights resident,
-HBM/SM clocks pinned to their floor), off (process stopped).
+mem/SM clocks pinned to their floor), off (process stopped).
 """
 from __future__ import annotations
 
@@ -69,6 +69,7 @@ class PlannerConfig:
     # receive-side KV handling on D, two-hop proxying) outweighs the prefill compute that PD
     # parallelises; measured PD TTFT is seconds while the queueing model predicts milliseconds.
     min_pd_input_tokens: float = 256.0
+    min_m_instances: int = 0       # empirical safety floor; enabled only for PDblend candidate policy
 
 
 def mdc_wait(rate: float, service_s: float, servers: int) -> Optional[float]:
@@ -146,8 +147,10 @@ class PoolPlanner:
     def _peak_decode_tps(self, ctx: float, f: int) -> float:
         key = (round(ctx), f)
         if key not in self._peak_cache:
-            self._peak_cache[key] = max(b / self.model.step_seconds(b, ctx, f)
-                                        for b in range(8, min(self.cfg.max_num_seqs, self.cfg.peak_batch_cap) + 1, 8))
+            self._peak_cache[key] = max(
+                (b / self.model.step_seconds(b, ctx, f)
+                 for b in range(8, min(self.cfg.max_num_seqs, self.cfg.peak_batch_cap) + 1, 8)
+                 if self.model.decode_supported(b, ctx, f)), default=0.0)
         return self._peak_cache[key]
 
     def _length_quantiles(self, fc: Forecast) -> tuple[list, list]:
@@ -174,6 +177,8 @@ class PoolPlanner:
         if rate * fc.output_mean / n > self.cfg.rho_decode * self._peak_decode_tps(ctx, f):
             return None
         b = self._decode_batch(rate, fc.output_mean, ctx, n, f)
+        if not self.model.decode_supported(b, ctx, f):
+            return None
         if b > self.cfg.peak_batch_cap or b * (in_mean + fc.output_mean) > self.model.kv_capacity_tokens * 0.9:
             return None
         step = self.model.step_seconds(b, ctx, f)
@@ -195,6 +200,8 @@ class PoolPlanner:
             return None
         ctx = in_mean + fc.output_mean / 2.0
         b = self._decode_batch(rate, fc.output_mean, ctx, n, f, dilution=u_p)
+        if not self.model.decode_supported(b, ctx, f):
+            return None
         if b > self.cfg.peak_batch_cap or b * (in_mean + fc.output_mean) > self.model.kv_capacity_tokens * 0.9:
             return None
         if rate * fc.output_mean / n > self.cfg.rho_decode * (1.0 - u_p) * self._peak_decode_tps(ctx, f):
@@ -241,6 +248,8 @@ class PoolPlanner:
         """Predicted plan for a layout; None if the queues are unstable or (strict) the SLO is missed."""
         slo = self.cfg.slo
         n_P, n_D, n_M = counts.get("P", 0), counts.get("D", 0), counts.get("M", 0)
+        if 0 < n_M < min(self.cfg.min_m_instances, self.cfg.slots):
+            return None
         has_pd, has_m = n_P > 0 and n_D > 0, n_M > 0
         if (n_P > 0) != (n_D > 0) or not (has_pd or has_m):
             return None
@@ -296,6 +305,8 @@ class PoolPlanner:
             if not parks and parked:
                 continue
             for n_M in range(active + 1):
+                if n_M < min(self.cfg.min_m_instances, N):
+                    continue
                 rest = active - n_M
                 pd_splits = [(0, 0)] if rest == 0 else ([(p, rest - p) for p in range(1, rest)] if self.cfg.allow_pd else [])
                 for n_P, n_D in pd_splits:

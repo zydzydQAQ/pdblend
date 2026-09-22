@@ -119,9 +119,11 @@ class Proxy:
                 raise RuntimeError(f"decode leg {resp.status}: {(await resp.text())[:300]}")
             async for chunk in resp.content.iter_any():
                 fwd, n = scan.feed(chunk)
-                if n and not first:
-                    self.router.first_token(record)
-                    first = True
+                if n:
+                    if not first:
+                        self.router.first_token(record)
+                        first = True
+                    record.tokens_so_far = scan.tokens
                 if fwd:
                     await response.write(fwd)
                 if scan.done:

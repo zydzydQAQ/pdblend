@@ -1,7 +1,7 @@
 import json
 
-from pdblend2.engine.client import PDTransfer, remote_decode_params, remote_prefill_params
-from pdblend2.engine.launcher import InstanceSpec, make_specs, tp_groups
+from pdblend.engine.client import PDTransfer, remote_decode_params, remote_prefill_params
+from pdblend.engine.launcher import InstanceSpec, make_specs, tp_groups
 
 
 def test_spec_command_and_env():

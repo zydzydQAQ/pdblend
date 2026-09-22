@@ -17,6 +17,9 @@ class Forecast:
     inflight: int
     inputs: tuple = ()       # recent input lengths, for split ratios by threshold
     outputs: tuple = ()      # recent output lengths, for the mixed-pool TPOT tail
+    peak_rps: float = 0.0    # max completed 60 s bin rate over the trailing epoch (observed history only)
+    completed_bins: int = 0  # completed 60 s bins in that window; 0 means no usable load template yet
+    recent_rate_rps: float = 0.0  # raw arrival rate, for auditing the smoothed estimate
 
     @property
     def samples(self) -> int:
@@ -41,23 +44,40 @@ def percentile(values, q: float) -> float:
 
 
 class Forecaster:
-    """Bins arrivals per second; EWMA rate over ~short_s and ~long_s; length stats over window_s."""
+    """Bins arrivals per second; EWMA rate over ~short_s and ~long_s; length stats over window_s.
+
+    Also folds arrivals into 60 s bins: the max completed bin rate over the trailing epoch_s is the
+    observed-history load template (DynamoLLM ScaleInst), built strictly from past arrivals."""
 
     def __init__(self, short_s: float = 30.0, long_s: float = 120.0, window_s: float = 120.0,
-                 default_input: float = 512.0, default_output: float = 128.0):
+                 default_input: float = 512.0, default_output: float = 128.0,
+                 bin_s: float = 60.0, epoch_s: float = 1800.0,
+                 initial: Forecast | None = None):
         self.alpha_short = 1.0 / short_s
         self.alpha_long = 1.0 / long_s
         self.window_s = window_s
         self.short = self.long = 0.0
         self.bin_start = None
         self.bin_count = 0
+        self.bin_s, self.epoch_s = bin_s, epoch_s
+        self.bin60_start = None
+        self.bin60_count = 0
+        self.peak_bins: deque = deque()     # (bin_end_t, arrivals_per_second) of completed 60 s bins
         self.arrivals: deque = deque()      # (t, input_tokens)
         self.completions: deque = deque()   # (t, output_tokens)
         self.default_input, self.default_output = default_input, default_output
         self.inflight = 0
+        self.initial = initial
+        self.traffic_start: float | None = None
 
     def arrive(self, input_tokens: int, now: float | None = None) -> None:
         now = time.time() if now is None else now
+        if self.traffic_start is None:
+            self.traffic_start = now
+            if self.initial is not None:
+                # Start the prior when traffic arrives, not during engine/proxy setup.
+                self.short = self.long = self.initial.rate_rps
+                self.bin_start = math.floor(now)
         self._advance(now)
         self.bin_count += 1
         self.inflight += 1
@@ -76,12 +96,22 @@ class Forecaster:
         while self.bin_start + 1 <= now:
             self.short += self.alpha_short * (self.bin_count - self.short)
             self.long += self.alpha_long * (self.bin_count - self.long)
+            if self.bin60_start is None:
+                self.bin60_start = self.bin_start
+            self.bin60_count += self.bin_count
+            if self.bin_start + 1 - self.bin60_start >= self.bin_s:
+                self.peak_bins.append((self.bin60_start + self.bin_s, self.bin60_count / self.bin_s))
+                self.bin60_start += self.bin_s
+                self.bin60_count = 0
             self.bin_count = 0
             self.bin_start += 1
         cutoff = now - self.window_s
         for dq in (self.arrivals, self.completions):
             while dq and dq[0][0] < cutoff:
                 dq.popleft()
+        cutoff_bin = now - self.epoch_s
+        while self.peak_bins and self.peak_bins[0][0] < cutoff_bin:
+            self.peak_bins.popleft()
 
     def recent_inputs(self) -> list[int]:
         return [n for _, n in self.arrivals]
@@ -94,8 +124,32 @@ class Forecaster:
         # Blend the EWMA with the raw recent count so a cold start is not stuck at zero.
         recent = len(self.arrivals) / min(self.window_s, max(now - self.arrivals[0][0], 1.0)) if self.arrivals else 0.0
         rate = max(self.short, 0.5 * (self.short + recent)) if self.short else recent
+        output_mean = sum(outputs) / len(outputs) if outputs else self.default_output
+        if self.initial is not None:
+            age = max(0.0, now - self.traffic_start) if self.traffic_start is not None else 0.0
+            prior_weight = max(0.0, 1.0 - age / self.window_s)
+            # Early completions are length-biased (warmup requests are short too).
+            # Fade out the existing warm-start prior over one observation window.
+            if prior_weight > 0:
+                observed_mean = output_mean if outputs else self.initial.output_mean
+                output_mean = prior_weight * self.initial.output_mean + (1.0 - prior_weight) * observed_mean
+                prior_outputs = self.initial.outputs or (self.initial.output_mean,)
+                if outputs:
+                    n_prior = round(64 * prior_weight)
+                    ordered_prior, ordered_actual = sorted(prior_outputs), sorted(outputs)
+                    def sample(values, n):
+                        return [values[min(len(values) - 1, int((i + .5) * len(values) / n))] for i in range(n)]
+                    outputs = sample(ordered_prior, n_prior) + sample(ordered_actual, 64 - n_prior)
+                else:
+                    outputs = list(prior_outputs)
+            if self.traffic_start is None:
+                rate = self.initial.rate_rps
+        default_input = self.initial.input_mean if self.initial is not None else self.default_input
+        default_p95 = self.initial.input_p95 if self.initial is not None else self.default_input
         return Forecast(rate_rps=rate, trend_rps=self.short - self.long,
-                        input_mean=sum(inputs) / len(inputs) if inputs else self.default_input,
-                        input_p95=percentile(inputs, 0.95) if inputs else self.default_input,
-                        output_mean=sum(outputs) / len(outputs) if outputs else self.default_output,
-                        inflight=self.inflight, inputs=tuple(inputs), outputs=tuple(outputs))
+                        input_mean=sum(inputs) / len(inputs) if inputs else default_input,
+                        input_p95=percentile(inputs, 0.95) if inputs else default_p95,
+                        output_mean=output_mean,
+                        inflight=self.inflight, inputs=tuple(inputs), outputs=tuple(outputs),
+                        peak_rps=max((r for _, r in self.peak_bins), default=0.0),
+                        completed_bins=len(self.peak_bins), recent_rate_rps=recent)

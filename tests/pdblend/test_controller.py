@@ -4,10 +4,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from pdblend2.control.controller import Controller
-from pdblend2.control.planner import SLO, Plan, PlannerConfig, PoolPlanner
-from pdblend2.control.shield import Shield
-from pdblend2.proxy.router import RequestRecord, Router
+from pdblend.control.controller import Controller
+from pdblend.control.planner import SLO, Plan, PlannerConfig, PoolPlanner
+from pdblend.control.shield import Shield
+from pdblend.proxy.router import RequestRecord, Router
 
 from synthetic import synthetic_model
 
@@ -170,6 +170,57 @@ def test_run_loop_without_hold_initial_falls_back_to_fail_open():
     plans = [r for r in ctl._log if r["kind"] == "plan"]
     assert any(r.get("cold_start") for r in plans)
     assert sorted(ctl.roles.values()) == ["M"] * 4
+
+
+def _anchored_controller():
+    ctl, fleet, router = make_controller(shield=False)
+    home = Plan({"M": 2, "L1": 2}, 1800, 1800, 1800, 0, 100.0, 0.1, 0.01, dict(warm=True))
+    upshifted = Plan({"M": 4}, 2520, 2520, 2520, 0, 99999.0, 0.1, 0.01)
+    ctl.initial_plan = home
+    ctl.hold_initial = True
+    ctl.home_margin = 0.01
+    ctl.plan_now = upshifted
+    return ctl, home, upshifted
+
+
+def test_anchor_offers_home_when_feasible_and_cheaper():
+    ctl, home, upshifted = _anchored_controller()
+    anchor = ctl._anchor_candidate(ctl.forecaster.forecast(), upshifted)
+    assert anchor is not None
+    assert anchor.counts == home.counts and (anchor.f_P, anchor.f_D, anchor.f_M) == (home.f_P, home.f_D, home.f_M)
+
+
+def test_anchor_silent_without_margin_or_when_already_home():
+    ctl, home, upshifted = _anchored_controller()
+    ctl.home_margin = 0.0
+    assert ctl._anchor_candidate(ctl.forecaster.forecast(), upshifted) is None
+    ctl.home_margin = 0.01
+    ctl.plan_now = home
+    assert ctl._anchor_candidate(ctl.forecaster.forecast(), home) is None
+
+
+def test_anchor_silent_when_home_not_cheaper_enough():
+    ctl, home, upshifted = _anchored_controller()
+    cheap = Plan({"M": 3, "L1": 1}, 1800, 1800, 1800, 0, 1.0, 0.1, 0.01)
+    assert ctl._anchor_candidate(ctl.forecaster.forecast(), cheap) is None
+
+
+def test_anchor_silent_when_home_infeasible(monkeypatch):
+    ctl, home, upshifted = _anchored_controller()
+    monkeypatch.setattr(ctl.planner, "evaluate", lambda *a, **k: None)
+    assert ctl._anchor_candidate(ctl.forecaster.forecast(), upshifted) is None
+
+
+def test_anchor_candidate_is_downshift_vote_gated():
+    ctl, home, upshifted = _anchored_controller()
+    ctl.down_plan_votes = 2
+    fc = ctl.forecaster.forecast()
+    anchor = ctl._anchor_candidate(fc, upshifted)
+    assert anchor is not None
+    plan, reason = ctl._gate_plan_change(anchor, 1000.0, scheduled=True)
+    assert plan is upshifted and reason == "downshift_confirmation"
+    plan, reason = ctl._gate_plan_change(anchor, 1010.0, scheduled=True)
+    assert plan is anchor and reason == "confirmed_downshift"
 
 
 def test_shield_escalates_on_slow_ttft_and_decays():

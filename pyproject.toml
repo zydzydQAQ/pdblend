@@ -20,7 +20,8 @@ diagnostics = ["msgpack==1.2.2", "pyzmq==27.2.0"]
 models = ["huggingface-hub>=0.30,<1", "safetensors>=0.4"]
 
 [project.scripts]
-pdblend2 = "pdblend2.cli:main"
+pdblend = "pdblend.cli:main"
+pdblend2 = "pdblend2.cli:main"  # deprecated compatibility entrypoint
 
 [tool.setuptools]
 package-dir = {"" = "src"}

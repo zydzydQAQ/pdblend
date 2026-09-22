@@ -1,6 +1,6 @@
 import random
 
-from pdblend2.bench.client import (Outcome, azure_trace, poisson_trace, slo_attainment, staged_trace,
+from pdblend.bench.client import (Outcome, azure_trace, poisson_trace, slo_attainment, staged_trace,
                                   trace_summary)
 
 
