@@ -50,7 +50,8 @@ def aggregate(root, out):
     with out.open('w', newline='') as fh:
         w = csv.DictWriter(fh, fieldnames=keys)
         w.writeheader(); w.writerows(result)
-    out.with_suffix('.json').write_text(json.dumps({'rows': result}, indent=1))
+    out.with_suffix('.json').write_text(json.dumps({'rows': result, 'single_seed': True,
+                                                    'seed_policy': SEED_POLICY}, indent=1))
     print(json.dumps({'points': len(result), 'single_seed': sum(r['complete'] for r in result),
                       'seed_policy': SEED_POLICY, 'output': str(out)}, indent=1))
 
