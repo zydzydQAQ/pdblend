@@ -41,6 +41,11 @@ class Shield:
     probe_windows: float = 1.0   # probe-window length in units of cooldown_s (backoff on failure)
     release_s: float = 0.0       # start of the current probe window (level reached 0)
     events: list = field(default_factory=list)
+    protect_s: float = 0.0       # PDblend-only protection lease after an escalation
+    protect_until: float = 0.0
+
+    def protection_active(self, now: float) -> bool:
+        return self.protect_s > 0.0 and now < self.protect_until
 
     def observe(self, records, now: float) -> Pressure:
         ttfts, tpots, stuck = [], [], 0
@@ -75,8 +80,11 @@ class Shield:
             if now - self.last_escalation_s >= 2.0:       # at most one step every 2 s
                 self.level += 1
                 self.last_escalation_s = now
+                if self.protect_s > 0.0:
+                    self.protect_until = max(self.protect_until, now + self.protect_s)
                 self.events.append(dict(t=now, level=self.level, ttft_p90=pressure.ttft_p90,
-                                        tpot_p90=pressure.tpot_p90, stuck=pressure.stuck))
+                                        tpot_p90=pressure.tpot_p90, stuck=pressure.stuck,
+                                        protect_until=self.protect_until))
             self.since_s = now
         elif self.level:
             if now - self.since_s >= self.cooldown_s:     # decay one step per quiet cooldown

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""O4 冷启动税图：sharegpt-x0.5-pdblend 功率时间序列 × 计划段着色。
+"""O4 暖启动验证图：sharegpt-x0.5-pdblend 功率时间序列 × 计划段着色。
 
 数据源：results/v2/eval-7b-v2/sharegpt-x0.5-pdblend/{power,controller}.jsonl
-输出：/home/pdblend/docs/figs/o4_cold_start_tax.png
+输出：当前工程 results/v2/figs/o4_cold_start_tax.png
 同时打印分段实测表（去头 3s），与 OPTIMIZATION-LOG §分段实测 核对。
 """
+import gzip
 import json
-import sys
 from pathlib import Path
 
 import matplotlib
@@ -14,32 +14,40 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-RUN = Path("/home/pdblend4/results/v2/eval-7b-v2/sharegpt-x0.5-pdblend")
-OUT = Path("/home/pdblend/docs/figs/o4_cold_start_tax.png")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+RUN = PROJECT_ROOT / "results/v2/eval-7b-v2/sharegpt-x0.5-pdblend"
+OUT = PROJECT_ROOT / "results/v2/figs/o4_cold_start_tax.png"
 
-power = [json.loads(l) for l in open(RUN / "power.jsonl")]
+
+def open_result(path: Path):
+    resolved = path if path.exists() else Path(str(path) + ".gz")
+    return gzip.open(resolved, "rt") if resolved.name.endswith(".gz") else resolved.open()
+
+with open_result(RUN / "power.jsonl") as fh:
+    power = [json.loads(l) for l in fh]
 t0 = power[0][0]
 ts = np.array([p[0] - t0 for p in power])
 ws = np.array([sum(p[1]) for p in power])
 
 plans = []
-for line in open(RUN / "controller.jsonl"):
-    e = json.loads(line)
-    if e.get("kind") != "plan":
-        continue
-    counts = e.get("counts", {})
-    fmap = {"P": e.get("f_P"), "D": e.get("f_D"), "M": e.get("f_M")}
-    freqs = {fmap[r] for r in ("P", "D", "M") if counts.get(r)}
-    parts = [f"{counts[r]}{r}" for r in ("P", "D", "M") if counts.get(r)]
-    if counts.get("L1"):
-        parts.append(f"{counts['L1']}L1")
-    if counts.get("off"):
-        parts.append(f"{counts['off']}off")
-    label = "+".join(parts) or "?"
-    if len(freqs) == 1:
-        label += f"@{next(iter(freqs))}"
-    plans.append({"t": e["t"] - t0, "label": label, "pred_w": e.get("power_w", 0.0),
-                  "cold": e.get("cold_start", False)})
+with open_result(RUN / "controller.jsonl") as fh:
+    for line in fh:
+        e = json.loads(line)
+        if e.get("kind") != "plan":
+            continue
+        counts = e.get("counts", {})
+        fmap = {"P": e.get("f_P"), "D": e.get("f_D"), "M": e.get("f_M")}
+        freqs = {fmap[r] for r in ("P", "D", "M") if counts.get(r)}
+        parts = [f"{counts[r]}{r}" for r in ("P", "D", "M") if counts.get(r)]
+        if counts.get("L1"):
+            parts.append(f"{counts['L1']}L1")
+        if counts.get("off"):
+            parts.append(f"{counts['off']}off")
+        label = "+".join(parts) or "?"
+        if len(freqs) == 1:
+            label += f"@{next(iter(freqs))}"
+        plans.append({"t": e["t"] - t0, "label": label, "pred_w": e.get("power_w", 0.0),
+                      "cold": e.get("cold_start", False)})
 
 # 合并连续相同布局段
 segs = []
@@ -71,8 +79,6 @@ for s in segs:
         color, alpha = palette[idx % 10], 0.10
     ax.axvspan(s["t"], s["t1"], color=color, alpha=alpha, lw=0)
     ax.axvline(s["t"], color="gray", lw=0.5, ls=":", alpha=0.7)
-    mid = (s["t"] + s["t1"]) / 2
-    ax.text(mid, ax.get_ylim()[1] if ax.get_ylim()[1] > 0 else 2500, "", fontsize=1)  # noop keep
 
 ax.plot(ts, ws, color="black", lw=1.0)
 
@@ -105,7 +111,7 @@ if cold:
 
 ax.set_xlabel("time since run start (s)")
 ax.set_ylabel("node power (W), sum of 8 GPUs")
-ax.set_title("sharegpt x0.5 pdblend (cold-start version): power trace with plan segments\n"
+ax.set_title("sharegpt x0.5 pdblend (warm-start validation): power trace with plan segments\n"
              f"{len(plans)} plan switches in {ts[-1]:.0f}s", fontsize=10)
 fig.tight_layout()
 OUT.parent.mkdir(parents=True, exist_ok=True)

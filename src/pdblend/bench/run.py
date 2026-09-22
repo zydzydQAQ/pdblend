@@ -75,18 +75,41 @@ async def _point(fleet: Fleet, gpus: Gpus, model: PerfModel, policy: Policy, slo
     proxy = Proxy(urls, router, transfer=transfer)
     runner = await _serve_proxy(proxy, proxy_port)
     cfg = policy.planner_config(PlannerConfig(slots=len(urls), slo=slo, freqs=model.freqs))
+    cfg.pressure_controls = policy.dynamic_m_floor
     planner = PoolPlanner(model, cfg)
     freeze = policy.freeze or fixed_plan is not None
     prior = offline_forecast(trace) if policy.bootstrap_forecast else None
     initial = fixed_plan or (planner.plan(prior or offline_forecast(trace)) if (policy.freeze or policy.warm_start) else None)
+    if policy.dynamic_m_floor and initial is not None and fixed_plan is None:
+        demand = prior or offline_forecast(trace)
+        pressure = planner.mixed_pressure(demand, initial.counts.get('M', 0), initial.f_M)
+        cfg = planner.cfg
+        cfg.pd_pressure_active = (demand.input_p95 >= cfg.pd_min_input_tokens
+                                  and pressure['pressure'] >= policy.pd_pressure_enter)
+        initial = planner.plan(demand)
     if policy.ported and fixed_plan is None:
         planner, initial, freeze, ported_period = build_control(policy.name, planner, router, offline_forecast(trace))
         period_s = ported_period or period_s
-    ctl = Controller(fleet, router, gpus, planner, Shield(slo) if policy.shield else None, Forecaster(initial=prior),
+    ctl = Controller(fleet, router, gpus, planner,
+                     Shield(slo, protect_s=policy.shield_protect_s) if policy.shield else None,
+                     Forecaster(initial=prior),
                      period_s=period_s, log_path=out_dir / "controller.jsonl", initial_plan=initial, freeze=freeze,
                      hold_initial=policy.warm_start, min_warm_s=min_warm_s,
                      min_plan_hold_s=policy.plan_hold_s, down_plan_votes=policy.down_plan_votes,
-                     home_margin=policy.home_margin)
+                     home_margin=policy.home_margin,
+                     dynamic_m_floor=policy.dynamic_m_floor,
+                     base_m_floor=policy.min_m_instances,
+                     low_load_m_floor=policy.low_load_min_m_instances,
+                     m_floor_pressure_enter=policy.m_floor_pressure_enter,
+                     m_floor_pressure_exit=policy.m_floor_pressure_exit,
+                     m_floor_stable_windows=policy.m_floor_stable_windows,
+                     m_floor_hold_s=policy.m_floor_hold_s,
+                     pd_pressure_enter=policy.pd_pressure_enter,
+                     pd_pressure_exit=policy.pd_pressure_exit,
+                     pd_route_hold_s=policy.pd_route_hold_s,
+                     pd_route_stable_windows=policy.pd_route_stable_windows,
+                     shield_protect_s=policy.shield_protect_s,
+                     transition_cooldown_s=policy.transition_cooldown_s)
     stop = asyncio.Event()
     ctl_task = asyncio.create_task(ctl.run(stop))
     await asyncio.sleep(2.0)
@@ -109,6 +132,11 @@ async def _point(fleet: Fleet, gpus: Gpus, model: PerfModel, policy: Policy, slo
     await ctl_task
     await runner.cleanup()
     dump_outcomes(outcomes, out_dir / "outcomes.jsonl")
+    if policy.dynamic_m_floor:
+        (out_dir / 'routes.jsonl').write_text(''.join(json.dumps(dict(
+            request_id=r.request_id, input_tokens=r.input_tokens, path=r.path,
+            submitted_s=r.submitted_s, m_pressure=r.route_pressure, reason=r.route_reason)) + '\n'
+            for r in router.records))
     total_j, total_w = window_energy(sampler.samples, t_start, t_done)
     win_j, win_w = window_energy(sampler.samples, t_start, t_load_end)
     per_gpu = {}

@@ -55,6 +55,16 @@ def test_baselines_do_not_opt_into_adaptive_changes():
         baseline.arrive(512, 1000 + i / 8)
     assert baseline.forecast(1010).rate_rps < 6
     assert get_policy("pdblend").plan_hold_s == 30
+    assert not get_policy("pdblend").dynamic_m_floor
+    assert get_policy("pdblend_dominance").dynamic_m_floor
+
+
+def test_dominance_policy_keeps_floor_until_quiet_windows():
+    p = get_policy("pdblend_dominance")
+    assert p.min_m_instances == 4
+    assert p.low_load_min_m_instances == 2
+    assert p.m_floor_stable_windows == 2
+    assert p.shield_protect_s == 60.0
 
 
 def controller():

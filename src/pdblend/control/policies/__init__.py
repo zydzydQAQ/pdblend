@@ -26,6 +26,19 @@ class Policy:
     down_plan_votes: int = 1
     home_margin: float = 0.0          # >0: warm-start home anchor; pull back to the offline plan when feasible and this much cheaper
     min_m_instances: int = 0          # temporary empirical floor for PDblend-only candidates
+    # PDblend-only adaptive controls.  All defaults keep the historical/baseline behaviour.
+    dynamic_m_floor: bool = False
+    low_load_min_m_instances: int = 2
+    m_floor_pressure_enter: float = 0.75
+    m_floor_pressure_exit: float = 0.55
+    m_floor_stable_windows: int = 2
+    m_floor_hold_s: float = 30.0
+    pd_pressure_enter: float = 0.75
+    pd_pressure_exit: float = 0.55
+    pd_route_hold_s: float = 30.0
+    pd_route_stable_windows: int = 2
+    shield_protect_s: float = 0.0
+    transition_cooldown_s: float = 0.0
 
     def planner_config(self, base: PlannerConfig) -> PlannerConfig:
         cfg = replace(base, fixed_mixed=self.fixed_mixed, allow_dvfs=self.allow_dvfs,
@@ -63,6 +76,13 @@ POLICIES = {
     "ecoserve": Policy("ecoserve", allow_dvfs=False, allow_pd=False, allow_park=("idle",), shield=False, ported=True,
                        description="EcoServe: rotating-prefill macros, TTFT-driven instance scaling, reset-clock parking"),
 }
+
+# Explicit experimental opt-in. The accepted policy retains M>=4 until the new
+# load-dependent floor and routing have their own three-seed evidence.
+POLICIES["pdblend_dominance"] = replace(
+    POLICIES["pdblend"], name="pdblend_dominance", dynamic_m_floor=True,
+    low_load_min_m_instances=2, shield_protect_s=60.0, transition_cooldown_s=45.0,
+    description="experimental pressure routing and validated-region small-M search")
 
 
 def get_policy(name: str) -> Policy:

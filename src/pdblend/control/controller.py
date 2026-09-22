@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Optional
 
@@ -50,6 +50,27 @@ class Controller:
     _last_plan_change_s: Optional[float] = None
     _down_candidate_key: Optional[tuple] = None
     _down_votes: int = 0
+    # PDblend-only controls; zero/false preserve all baseline policies.
+    dynamic_m_floor: bool = False
+    base_m_floor: int = 0
+    low_load_m_floor: int = 2
+    m_floor_pressure_enter: float = 0.75
+    m_floor_pressure_exit: float = 0.55
+    m_floor_stable_windows: int = 2
+    m_floor_hold_s: float = 30.0
+    pd_pressure_enter: float = 0.75
+    pd_pressure_exit: float = 0.55
+    pd_route_hold_s: float = 30.0
+    pd_route_stable_windows: int = 2
+    shield_protect_s: float = 0.0
+    transition_cooldown_s: float = 0.0
+    _m_floor: int = 0
+    _m_floor_votes: int = 0
+    _m_floor_last_change_s: Optional[float] = None
+    _m_floor_last_window: Optional[int] = None
+    _risk_windows: int = 0
+    _quiet_windows: int = 0
+    _last_pressure: dict = field(default_factory=dict)
 
     def __post_init__(self):
         for iid in self.fleet.instances:
@@ -57,6 +78,19 @@ class Controller:
             self.freqs.setdefault(iid, None)
         self.router.listeners.append(self.forecaster)
         self.max_freq = max(self.planner.cfg.freqs)
+        self._m_floor = max(self.base_m_floor, int(self.planner.cfg.min_m_instances))
+        if self.dynamic_m_floor:
+            self.base_m_floor = min(self.planner.cfg.slots, max(self._m_floor, 4))
+            self.planner.cfg.pressure_controls = True
+            self._m_floor = max(self._m_floor, int(self.low_load_m_floor))
+            if hasattr(self.router, "configure_pressure_gate"):
+                self.router.configure_pressure_gate(
+                    enter=self.pd_pressure_enter, exit=self.pd_pressure_exit,
+                    hold_s=self.pd_route_hold_s, stable_windows=self.pd_route_stable_windows,
+                    min_input_tokens=1024)
+                if self.planner.cfg.pd_pressure_active:
+                    self.router.set_pressure_state(m_pressure=self.pd_pressure_enter,
+                                                   reason='warm_start_pressure')
 
     # ---- logging -----------------------------------------------------------------------------
     def log(self, kind: str, **data) -> None:
@@ -196,6 +230,8 @@ class Controller:
         cheaper than the candidate by more than home_margin, offer it instead (the result still
         goes through dwell/vote gating, and the shield can override it under real pressure)."""
         home = self.initial_plan
+        if self.dynamic_m_floor and self.planner.cfg.pd_pressure_active:
+            return None
         if self.home_margin <= 0.0 or home is None or self.plan_now is None:
             return None
         if home.key() == candidate.key() or home.key() == self.plan_now.key():
@@ -207,7 +243,79 @@ class Controller:
             return home_ev
         return None
 
-    def _gate_plan_change(self, candidate: Plan, now: float, *, scheduled: bool = True) -> tuple[Plan, str]:
+    def _m_pressure(self, plan: Optional[Plan]) -> float:
+        """Normalize the current M-pool pressure for routing and floor control."""
+        if plan is None or plan.counts.get("M", 0) <= 0:
+            return 0.0
+        return float(self._last_pressure.get('pressure', 2.0))
+
+    def _update_m_floor(self, fc, pressure, level: int, now: float, stable_window: bool) -> bool:
+        """Move the PDblend M floor down one instance at a time only after quiet windows."""
+        if not self.dynamic_m_floor:
+            return False
+        top = self.base_m_floor
+        low = max(1, min(int(self.low_load_m_floor), top))
+        m_pressure = self._m_pressure(self.plan_now)
+        emergency = (level > 0 or (self.shield is not None and (self.shield.floor_active > 0
+                        or self.shield.protection_active(now)))
+                     or (pressure is not None and (pressure.prefill or pressure.decode)))
+        safe = (not emergency and m_pressure <= self.m_floor_pressure_exit
+                and fc.samples >= self.min_warm_samples and not self.router._pd_pressure_active)
+        changed = False
+        if emergency or m_pressure >= self.m_floor_pressure_enter:
+            self._m_floor_votes = 0
+            self._m_floor_last_window = None
+            if self._m_floor != top:
+                self._m_floor = top
+                self._m_floor_last_change_s = now
+                changed = True
+        elif stable_window and safe:
+            window = int(now // max(self.period_s, 1.0))
+            if window != self._m_floor_last_window:
+                self._m_floor_last_window = window
+                self._m_floor_votes += 1
+            if (self._m_floor_votes >= max(1, self.m_floor_stable_windows)
+                    and self._m_floor > low
+                    and (self._m_floor_last_change_s is None
+                         or now - self._m_floor_last_change_s >= self.m_floor_hold_s)):
+                # Validate the *smaller* pool at a 25% load reserve before
+                # releasing the floor. A quiet current M4 does not prove M2.
+                reserve = replace(fc, rate_rps=fc.rate_rps * 1.25)
+                target = self._m_floor - 1
+                if any(self.planner.mixed_pressure(reserve, target, f)['pressure'] <= self.m_floor_pressure_exit
+                       for f in self.planner.cfg.freqs):
+                    self._m_floor -= 1
+                    self._m_floor_votes = 0
+                    self._m_floor_last_change_s = now
+                    changed = True
+        elif stable_window:
+            self._m_floor_votes = 0
+        self.planner.cfg.min_m_instances = self._m_floor
+        return changed
+
+    def _update_strategy(self, fc, pressure, level: int, now: float, scheduled: bool) -> tuple[bool, bool]:
+        if not self.dynamic_m_floor or self.plan_now is None:
+            return False, False
+        plan = self.plan_now
+        self._last_pressure = self.planner.mixed_pressure(fc, plan.counts.get('M', 0), plan.f_M)
+        observed = bool(pressure and (pressure.prefill or pressure.decode))
+        if scheduled:
+            self._risk_windows = self._risk_windows + 1 if observed else 0
+            self._quiet_windows = 0 if observed or level else self._quiet_windows + 1
+        has_long = fc.input_p95 >= self.planner.cfg.pd_min_input_tokens
+        mode_changed = self.router.set_pressure_state(
+            m_pressure=self._last_pressure['pressure'] if has_long else 0.0,
+            decode_risk=has_long and self._risk_windows >= 2,
+            shield_active=bool(level), now=now, stable_window=scheduled,
+            reason='sustained_slo_pressure' if self._risk_windows >= 2 else 'predicted_m_pressure')
+        self.planner.cfg.pd_pressure_active = self.router._pd_pressure_active
+        previous = self._m_floor
+        floor_changed = self._update_m_floor(fc, pressure, level, now, scheduled)
+        urgent = self._m_floor > previous or (mode_changed and self.router._pd_pressure_active)
+        return floor_changed or mode_changed, urgent
+
+    def _gate_plan_change(self, candidate: Plan, now: float, *, scheduled: bool = True,
+                          shield_protected: bool = False) -> tuple[Plan, str]:
         """PDblend-only dwell and shrink confirmation; defaults preserve baseline decisions."""
         current = self.plan_now
         if current is None or candidate.key() == current.key():
@@ -216,6 +324,17 @@ class Controller:
         if self._last_plan_change_s is not None and now - self._last_plan_change_s < self.min_plan_hold_s:
             self._down_candidate_key, self._down_votes = None, 0
             return current, "minimum_hold"
+        if self._is_downshift(current, candidate):
+            if shield_protected:
+                self._down_candidate_key, self._down_votes = None, 0
+                return current, "shield_protection"
+            if self.dynamic_m_floor and self._quiet_windows < 2:
+                self._down_candidate_key, self._down_votes = None, 0
+                return current, "slo_quiet_confirmation"
+            if (self.transition_cooldown_s > 0.0 and self._last_plan_change_s is not None
+                    and now - self._last_plan_change_s < self.transition_cooldown_s):
+                self._down_candidate_key, self._down_votes = None, 0
+                return current, "transition_cooldown"
         if self.down_plan_votes > 1 and self._is_downshift(current, candidate):
             key = candidate.key()
             if key != self._down_candidate_key:
@@ -237,6 +356,7 @@ class Controller:
         fc = self.forecaster.forecast(now)
         plan = self.initial_plan or (self.planner.plan(fc) if self._informed(fc, now) else self._fail_open_plan())
         await self.execute(plan)
+        self._m_floor_last_change_s = time.time()
         next_plan_at = now + self.period_s
         last_level = 0
         while not stop.is_set():
@@ -247,10 +367,14 @@ class Controller:
             if self.shield is not None:
                 pressure = self.shield.observe(self.router.recent(60.0, now), now)
                 level = self.shield.update(pressure, now)
-            replan = (not self.freeze) and (now >= next_plan_at or level != last_level)
+            scheduled = now >= next_plan_at
+            fc_now = self.forecaster.forecast(now) if self.dynamic_m_floor else None
+            strategy_changed, urgent = self._update_strategy(fc_now, pressure, level, now, scheduled)
+            m_pressure = self._m_pressure(self.plan_now) if self.dynamic_m_floor else 0.0
+            replan = (not self.freeze) and (scheduled or level != last_level or strategy_changed)
             if replan:
-                fc = self.forecaster.forecast(now)
-                if self._informed(fc, now):
+                fc = fc_now if fc_now is not None else self.forecaster.forecast(now)
+                if self._informed(fc, now) or (urgent and self.dynamic_m_floor):
                     plan = await asyncio.to_thread(self.planner.plan, fc, self.plan_now)
                 elif self.hold_initial and self.plan_now is not None:
                     plan = self.plan_now
@@ -260,11 +384,16 @@ class Controller:
                 anchor = self._anchor_candidate(fc, candidate)
                 if anchor is not None:
                     candidate = plan = anchor
-                plan, reason = self._gate_plan_change(plan, now, scheduled=now >= next_plan_at)
+                protected = bool(self.shield and self.shield.protection_active(now))
+                if urgent:
+                    reason = 'pressure_safety_override'
+                else:
+                    plan, reason = self._gate_plan_change(plan, now, scheduled=scheduled,
+                                                           shield_protected=protected)
                 if self.shield is not None and (level or self.shield.floor_active):
                     # Apply safety *after* ordinary-change gating so escalation
                     # can immediately raise clocks/wake instances during a hold.
-                    if level > last_level and (self.min_plan_hold_s or self.down_plan_votes > 1):
+                    if not urgent and level > last_level and (self.min_plan_hold_s or self.down_plan_votes > 1):
                         plan = self.plan_now or plan
                     plan = self.shield.apply(plan, pressure, self.max_freq)
                     if self.plan_now is None or plan.key() != self.plan_now.key():
@@ -276,10 +405,14 @@ class Controller:
                          recent_rate_rps=fc.recent_rate_rps, decision_reason=reason,
                          down_votes=self._down_votes, candidate_counts=candidate.counts,
                          candidate_clocks=dict(P=candidate.f_P, D=candidate.f_D, M=candidate.f_M),
-                         shield_level=level, pressure=None if pressure is None else vars(pressure))
+                         shield_level=level, pressure=None if pressure is None else vars(pressure),
+                         m_floor=self._m_floor, m_pressure=m_pressure,
+                         model_pressure=self._last_pressure, risk_windows=self._risk_windows,
+                         route_pressure=self.router.pressure_state() if hasattr(self.router, "pressure_state") else None)
                 if self.plan_now is None or plan.key() != self.plan_now.key():
                     await self.execute(plan)
-                next_plan_at = time.time() + self.period_s
+                if scheduled or not self.dynamic_m_floor:
+                    next_plan_at = time.time() + self.period_s
             last_level = level
         self.log("stop", roles=dict(self.roles))
 

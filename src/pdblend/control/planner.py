@@ -70,6 +70,10 @@ class PlannerConfig:
     # parallelises; measured PD TTFT is seconds while the queueing model predicts milliseconds.
     min_pd_input_tokens: float = 256.0
     min_m_instances: int = 0       # empirical safety floor; enabled only for PDblend candidate policy
+    pressure_controls: bool = False
+    pd_pressure_active: bool = False
+    pd_min_input_tokens: int = 1024
+    pure_pd_min_input_tokens: int = 2048
 
 
 def mdc_wait(rate: float, service_s: float, servers: int) -> Optional[float]:
@@ -108,6 +112,30 @@ class PoolPlanner:
         self._peak_cache: dict = {}
         self._quantile_cache: tuple = (None, ([], []))
         self._split_cache: dict = {}
+
+    def mixed_pressure(self, fc: Forecast, n: int, f: int) -> dict:
+        """Full offered load on M, including decode, KV and short-output stall risk.
+
+        This is telemetry for the experimental policy. It does not change the
+        additive performance model or baseline feasibility decisions.
+        """
+        if n <= 0:
+            return dict(pressure=2.0, feasible=False)
+        m = self._mixed_pool(fc.rate_rps, fc, fc.input_mean, fc.input_p95, n, f)
+        if m is None:
+            return dict(pressure=2.0, feasible=False)
+        ctx = fc.input_mean + fc.output_mean / 2
+        peak = self._peak_decode_tps(ctx, f)
+        decode = fc.rate_rps * fc.output_mean / max(n * peak * (1 - m['busy']), 1e-9)
+        kv = m['batch'] * (fc.input_mean + fc.output_mean) / max(self.model.kv_capacity_tokens * .9, 1)
+        prefill = m['busy'] / self.cfg.rho_max
+        tail = m['tpot_miss'] / max(1 - self.cfg.tail_target, .01)
+        latency = max(m['ttft_s'] / (self.cfg.slo.ttft_s * self.cfg.slo.safety),
+                      m['tpot_s'] / (self.cfg.slo.tpot_s * self.cfg.slo.safety))
+        pressure = max(prefill, decode / self.cfg.rho_decode, kv, tail, latency)
+        return dict(pressure=pressure, feasible=pressure <= 1, decode_utilization=decode,
+                    prefill_utilization=prefill, kv_utilization=kv, tail_risk=tail,
+                    capacity_margin=1 - pressure, **m)
 
     # ---- pool models -------------------------------------------------------------------------
     def _decode_batch(self, rate: float, out_mean: float, ctx: float, servers: int, f: int,
@@ -253,6 +281,13 @@ class PoolPlanner:
         has_pd, has_m = n_P > 0 and n_D > 0, n_M > 0
         if (n_P > 0) != (n_D > 0) or not (has_pd or has_m):
             return None
+        if self.cfg.pressure_controls and has_pd:
+            if not self.cfg.pd_pressure_active:
+                return None
+            if not has_m and fc.input_p95 < self.cfg.pure_pd_min_input_tokens:
+                return None
+            if has_m and tau != self.cfg.pd_min_input_tokens:
+                return None
         if has_pd and fc.input_p95 < self.cfg.min_pd_input_tokens:
             return None     # even the longest branch cannot amortise PD fixed costs
         if has_pd and has_m:
@@ -280,6 +315,10 @@ class PoolPlanner:
             ttft, tpot = max(ttft, ttft_pd), max(tpot, d["tpot_s"])
             detail.update(P=p, D=d)
         if has_m:
+            if self.cfg.pressure_controls and n_M < 4:
+                reserved = replace(fc, rate_rps=rate_m * 1.25)
+                if self.mixed_pressure(reserved, n_M, f_M)['pressure'] > .55:
+                    return None
             m = self._mixed_pool(rate_m, fc, in_m, fc.input_p95, n_M, f_M)
             if m is None or (strict and (m["ttft_s"] > slo.ttft_s * slo.safety or m["tpot_s"] > slo.tpot_s * slo.safety
                                          or m["tpot_miss"] > 1.0 - self.cfg.tail_target)):
@@ -305,7 +344,11 @@ class PoolPlanner:
             if not parks and parked:
                 continue
             for n_M in range(active + 1):
-                if n_M < min(self.cfg.min_m_instances, N):
+                # The experimental pressure policy treats pure P/D as an
+                # escape hatch. Legacy PDblend keeps its original M-floor
+                # enumeration and therefore cannot silently change results.
+                if (n_M and n_M < min(self.cfg.min_m_instances, N)) or (
+                        not n_M and self.cfg.min_m_instances and not self.cfg.pressure_controls):
                     continue
                 rest = active - n_M
                 pd_splits = [(0, 0)] if rest == 0 else ([(p, rest - p) for p in range(1, rest)] if self.cfg.allow_pd else [])
@@ -319,7 +362,7 @@ class PoolPlanner:
         plans = []
         for counts in self._count_options():
             has_pd, has_m = counts.get("P", 0) > 0, counts.get("M", 0) > 0
-            taus = TAUS if (has_pd and has_m) else (0,)
+            taus = ((self.cfg.pd_min_input_tokens,) if self.cfg.pressure_controls else TAUS) if (has_pd and has_m) else (0,)
             for tau in taus:
                 for f_P in (f_ps if has_pd else [f_ps[-1]]):
                     for f_D in (freqs if has_pd else [freqs[-1]]):
@@ -328,6 +371,10 @@ class PoolPlanner:
                             if plan is not None:
                                 plans.append(plan)
         plans.sort(key=lambda p: (p.power_w, -p.active()))
+        if self.cfg.pressure_controls and self.cfg.pd_pressure_active:
+            pd = [p for p in plans if p.counts.get('P', 0) and p.counts.get('D', 0)]
+            if pd:
+                return pd
         return plans
 
     def switch_energy_j(self, current: Optional[Plan], new: Plan) -> float:
@@ -354,6 +401,9 @@ class PoolPlanner:
             return self.fallback(fc)
         best = plans[0]
         if current is None:
+            return best
+        if (self.cfg.pressure_controls and self.cfg.pd_pressure_active
+                and best.counts.get('P', 0) and not current.counts.get('P', 0)):
             return best
         cur = self.evaluate(current.counts, current.f_P, current.f_D, current.f_M, current.tau, fc)
         if cur is None:

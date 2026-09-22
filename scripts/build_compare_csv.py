@@ -8,12 +8,11 @@ Idempotent: rebuilds the whole CSV on every run. Run inside the container:
     python scripts/build_compare_csv.py results/v2/eval-7b-v2
 """
 import csv
+import gzip
 import json
 import sys
 from collections import Counter
 from pathlib import Path
-
-from pdblend2.bench.matrix import layout_capacity
 
 BASELINES = ("mixed", "distserve_static", "dynamollm", "ecoserve")
 POLICY_ORDER = {"mixed": 0, "distserve_static": 1, "dynamollm": 2, "ecoserve": 3, "pdblend": 4}
@@ -23,6 +22,21 @@ ROLE_ORDER = ("P", "D", "M", "L1", "off")
 ACTIVE = ("P", "D", "M")
 
 _cap_cache: dict = {}
+
+
+def result_path(path: Path) -> Path | None:
+    """Resolve a result stream in plain or gzip-compressed form."""
+    if path.exists():
+        return path
+    gz = Path(str(path) + ".gz")
+    return gz if gz.exists() else None
+
+
+def open_result(path: Path):
+    resolved = result_path(path)
+    if resolved is None:
+        raise FileNotFoundError(path)
+    return gzip.open(resolved, "rt") if resolved.name.endswith(".gz") else resolved.open()
 
 
 def q(vals, p):
@@ -47,6 +61,10 @@ def capacity_util(spec_defaults, ds, final_roles, last_plan, mean_rps):
     key = (ds, layout, clocks, last_plan.get("tau", 0))
     if key not in _cap_cache:
         try:
+            # Keep CSV rebuilding usable on a small analysis host without the
+            # optional numerical stack; the capacity column can remain empty.
+            from pdblend.bench.matrix import layout_capacity
+
             _cap_cache[key] = layout_capacity(Path(spec_defaults["profile"]), Path(spec_defaults["corpus"]),
                                               ds, layout, clocks, key[3])
         except Exception:
@@ -61,13 +79,14 @@ def window_bounds(outcomes, window_s):
 
 
 def series_stats(path, t0, t1):
-    if not path.exists():
+    if result_path(path) is None:
         return None, None
     vals = []
-    for line in path.open():
-        t, v = json.loads(line)
-        if (t0 is None or t >= t0) and (t1 is None or t < t1):
-            vals.append(sum(v) / len(v))
+    with open_result(path) as fh:
+        for line in fh:
+            t, v = json.loads(line)
+            if (t0 is None or t >= t0) and (t1 is None or t < t1):
+                vals.append(sum(v) / len(v))
     if not vals:
         return None, None
     vals.sort()
@@ -75,9 +94,10 @@ def series_stats(path, t0, t1):
 
 
 def active_slot_share(ctl_path, t0, t1):
-    if not ctl_path.exists() or t0 is None:
+    if result_path(ctl_path) is None or t0 is None:
         return None
-    plans = [json.loads(l) for l in ctl_path.open() if '"kind": "plan"' in l]
+    with open_result(ctl_path) as fh:
+        plans = [json.loads(l) for l in fh if '"kind": "plan"' in l]
     plans = [p for p in plans if p.get("kind") == "plan" and p.get("roles")]
     if not plans:
         return None
@@ -95,7 +115,8 @@ def active_slot_share(ctl_path, t0, t1):
 def point_row(d: Path, root, spec_defaults) -> dict | None:
     try:
         s = json.loads((d / "summary.json").read_text())
-        outcomes = [json.loads(l) for l in (d / "outcomes.jsonl").open()]
+        with open_result(d / "outcomes.jsonl") as fh:
+            outcomes = [json.loads(l) for l in fh]
     except (FileNotFoundError, json.JSONDecodeError):
         return None
     att = s["slo"]
@@ -116,9 +137,10 @@ def point_row(d: Path, root, spec_defaults) -> dict | None:
 
     ctl = d / "controller.jsonl"
     plans = []
-    if ctl.exists():
-        plans = [p for p in (json.loads(l) for l in ctl.open() if '"kind": "plan"' in l)
-                 if p.get("kind") == "plan"]
+    if result_path(ctl) is not None:
+        with open_result(ctl) as fh:
+            plans = [p for p in (json.loads(l) for l in fh if '"kind": "plan"' in l)
+                     if p.get("kind") == "plan"]
     last_plan = plans[-1] if plans else None
     ev = s.get("controller", {}).get("events", {})
     per_gpu = [float(v) for v in s.get("per_gpu_mean_w", {}).values()]
@@ -196,7 +218,7 @@ def main():
     out = root / "compare.csv"
     tmp = root / ".compare.csv.tmp"
     with tmp.open("w", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=list(rows[0]) if rows else ["name"])
+        w = csv.DictWriter(fh, fieldnames=list(rows[0]) if rows else ["name"], lineterminator="\n")
         w.writeheader()
         w.writerows(rows)
     tmp.replace(out)

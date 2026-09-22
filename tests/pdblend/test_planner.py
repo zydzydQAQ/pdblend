@@ -80,3 +80,27 @@ def test_forecaster_rate_and_lengths():
     assert est.output_mean == 100
     share, hi, lo = est.split(1000)
     assert abs(share - 0.2) < 1e-9 and hi >= 1000 > lo
+
+
+def test_pressure_controls_only_enable_pd_in_pressure_mode():
+    model = synthetic_model()
+    p = PoolPlanner(model, PlannerConfig(8, SLO(15.0, .2), min_m_instances=4,
+                                        pressure_controls=True))
+    demand = fc(5.0, in_mean=2048, out_mean=32, inputs=[512, 1024, 2048, 4096] * 12)
+    m = p.plan(demand)
+    assert m.counts.get("P", 0) == 0 and m.counts.get("M", 0) >= 4
+    p.cfg.pd_pressure_active = True
+    pd = p.plan(demand)
+    assert pd.counts.get("P", 0) > 0 and pd.counts.get("D", 0) > 0
+    assert pd.tau in (0, 1024)
+
+
+def test_m_floor_does_not_forbid_pure_pd_escape_hatch():
+    model = synthetic_model()
+    p = PoolPlanner(model, PlannerConfig(8, SLO(15.0, .2), min_m_instances=4,
+                                        pressure_controls=True))
+    demand = fc(8.0, in_mean=7000, out_mean=32, inputs=[7000] * 50)
+    p.cfg.pd_pressure_active = True
+    plans = p.candidates(demand)
+    assert any(x.counts.get('P', 0) and x.counts.get('D', 0) and not x.counts.get('M', 0)
+               for x in plans)

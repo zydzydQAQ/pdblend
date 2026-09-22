@@ -8,16 +8,17 @@ import json
 import sys
 from pathlib import Path
 
-from pdblend2.bench import client as bc
-from pdblend2.bench.matrix import DEFAULTS, build_trace
-from pdblend2.bench.run import offline_forecast
-from pdblend2.control.planner import PlannerConfig, PoolPlanner, SLO
-from pdblend2.control.policies import get_policy
-from pdblend2.profile.model import PerfModel
+from pdblend.bench import client as bc
+from pdblend.bench.matrix import DEFAULTS, build_trace
+from pdblend.bench.run import offline_forecast
+from pdblend.control.planner import PlannerConfig, PoolPlanner, SLO
+from pdblend.control.policies import get_policy
+from pdblend.profile.model import PerfModel
 
 root = Path(sys.argv[1] if len(sys.argv) > 1 else "results/v2/eval-7b-v2")
 spec = json.loads((root / "spec.json").read_text())
-model = PerfModel.load(Path(spec["defaults"]["profile"]))
+profile_arg = next((x for x in sys.argv[2:] if not x.startswith('--')), None)
+model = PerfModel.load(Path(profile_arg) if profile_arg else Path(spec["defaults"]["profile"]))
 corpus = Path(spec["defaults"]["corpus"])
 
 for p in spec["points"]:
@@ -25,7 +26,9 @@ for p in spec["points"]:
         continue
     ds, sc = p["dataset"], p["scale"]
     records = bc.load_split(corpus, ds, "evaluation")
-    a = dict(DEFAULTS, **spec["defaults"], **p)
+    a = dict(DEFAULTS)
+    a.update(spec["defaults"])
+    a.update(p)
     trace, _ = build_trace(a, records)
     fc = offline_forecast(trace)
     slo = SLO(*bc.SLOS[ds])

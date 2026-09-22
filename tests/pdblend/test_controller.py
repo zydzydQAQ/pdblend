@@ -304,3 +304,13 @@ def test_shield_in_flight_tpot_pressure():
     shield.update(p, now + 2)
     boosted = shield.apply(plan, p, 2520)
     assert boosted.counts["D"] == 2 and boosted.counts["P"] == 1 and boosted.f_D == 2520
+
+
+def test_shield_protection_lease_blocks_immediate_downshift():
+    slo = SLO(1.0, 0.1)
+    shield = Shield(slo, cooldown_s=5.0, protect_s=60.0)
+    now = 1000.0
+    hot = shield.observe(_hot(now), now)
+    assert shield.update(hot, now) == 1
+    assert shield.protection_active(now + 30.0)
+    assert not shield.protection_active(now + 61.0)

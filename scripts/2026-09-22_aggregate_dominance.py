@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""Aggregate strict dominance rows across seeds; incomplete seeds stay unproven."""
+import argparse
+import csv
+import json
+import math
+import statistics
+from pathlib import Path
+
+METRICS = ('j_per_token', 'mean_power_w', 'window_mean_power_w', 'joint_slo_rate',
+           'ttft_p99', 'tpot_p99', 'plans', 'wakes', 'parks')
+
+
+def load_rows(root):
+    rows = []
+    for p in sorted(Path(root).glob('*-pdblend_dominance/summary.json')):
+        d = json.loads(p.read_text())
+        events = d.get('controller', {}).get('events', {})
+        rows.append(dict(name=p.parent.name.removesuffix('-pdblend_dominance'),
+                         seed=d.get('trace_meta', {}).get('seed'),
+                         j_per_token=d.get('j_per_token'), mean_power_w=d.get('mean_power_w'),
+                         window_mean_power_w=d.get('window_mean_power_w'),
+                         joint_slo_rate=d.get('slo', {}).get('joint_slo_rate'),
+                         ttft_p99=d.get('slo', {}).get('ttft_p99'), tpot_p99=d.get('slo', {}).get('tpot_p99'),
+                         plans=events.get('plan', 0), wakes=events.get('wake', 0), parks=events.get('park', 0)))
+    return rows
+
+
+def aggregate(root, out):
+    groups = {}
+    for row in load_rows(root):
+        groups.setdefault(row['name'], []).append(row)
+    result = []
+    for name, rows in groups.items():
+        seeds = sorted(r['seed'] for r in rows)
+        row = dict(name=name, seeds=json.dumps(seeds), complete=seeds == [701, 1701, 2701])
+        for metric in METRICS:
+            values = [r[metric] for r in rows if isinstance(r[metric], (int, float)) and math.isfinite(r[metric])]
+            row[metric + '_mean'] = statistics.mean(values) if values else None
+            row[metric + '_std'] = statistics.stdev(values) if len(values) > 1 else None
+            row[metric + '_worst'] = min(values) if metric == 'joint_slo_rate' and values else (max(values) if values else None)
+        row['status'] = 'three_seed_ready' if row['complete'] else 'screening_only'
+        result.append(row)
+    out = Path(out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    keys = sorted({k for r in result for k in r})
+    with out.open('w', newline='') as fh:
+        w = csv.DictWriter(fh, fieldnames=keys)
+        w.writeheader(); w.writerows(result)
+    out.with_suffix('.json').write_text(json.dumps({'rows': result}, indent=1))
+    print(json.dumps({'points': len(result), 'three_seed': sum(r['complete'] for r in result), 'output': str(out)}, indent=1))
+
+
+if __name__ == '__main__':
+    p = argparse.ArgumentParser(); p.add_argument('root'); p.add_argument('out'); a = p.parse_args(); aggregate(a.root, a.out)

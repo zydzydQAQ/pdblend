@@ -1,7 +1,8 @@
 #!/bin/bash
 # One-shot matrix progress snapshot; meant to be invoked after a sleep by the monitoring loop.
-L=/home/pdblend4/results/v2/logs/eval-7b-v2-matrix.log
-D=/home/pdblend4/results/v2/eval-7b-v2
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+L="$ROOT/results/v2/logs/eval-7b-v2-matrix.log"
+D="$ROOT/results/v2/eval-7b-v2"
 echo "=== $(date '+%H:%M:%S') matrix v2 watch ==="
 if docker ps --format '{{.Names}}' | grep -q '^pdb2-matrix-v2$'; then
   echo "container: up"

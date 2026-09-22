@@ -7,7 +7,7 @@ so baselines are frozen before any pdblend measurement starts.
 import json
 from pathlib import Path
 
-from pdblend2.bench.matrix import eval_spec
+from pdblend.bench.matrix import eval_spec
 
 SCALES = (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
 QUICK_FIVE = [f"sharegpt-x0.5-{p}" for p in ("mixed", "distserve_static", "dynamollm", "ecoserve", "pdblend")]
@@ -23,6 +23,9 @@ spec = eval_spec(
     stages="", azure=(), seed=701)
 
 by_name = {p["name"]: p for p in spec["points"]}
+for p in spec["points"]:
+    if p["policy"].startswith("pdblend"):
+        p["profile"] = "results/v2/profile-7b-pdblend/profile.json"
 first = [by_name[n] for n in QUICK_FIVE]
 rest = [p for p in spec["points"] if p["name"] not in QUICK_FIVE]
 baselines = [p for p in rest if p["policy"] != "pdblend"]
