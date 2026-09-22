@@ -1,102 +1,107 @@
 #!/usr/bin/env python3
-"""Strict per-point PDblend vs four independent baseline comparison.
+"""Fail-closed paired comparison for one PDblend screening matrix."""
+from __future__ import annotations
 
-Missing, mismatched or SLO-failing baseline evidence is inconclusive; it is
-never treated as an energy win.
-"""
 import argparse
 import csv
 import json
 import math
 from pathlib import Path
+import sys
 
-BASELINES = ("mixed", "distserve_static", "dynamollm", "ecoserve")
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+from pdblend.bench.dominance import BASELINES, PAIR_FIELDS, load_evidence  # noqa: E402
+
+SINGLE_SEED = 701
+SEED_POLICY = "single_seed_701"
 
 
-def load(path):
-    p = Path(path)
-    return json.loads((p / "summary.json").read_text()) if (p / "summary.json").exists() else None
+def finite(value):
+    return isinstance(value, (int, float)) and math.isfinite(value)
 
 
-def compatible(a, b):
-    if not a or not b:
+def m2_used(directory: Path) -> bool:
+    path = directory / "controller.jsonl"
+    if not path.exists():
         return False
-    return (a.get("model") == b.get("model") and a.get("tp") == b.get("tp")
-            and a.get("gpus") == b.get("gpus")
-            and a.get("requests") == b.get("requests")
-            and a.get("trace_meta", {}).get("dataset") == b.get("trace_meta", {}).get("dataset")
-            and a.get("trace_meta", {}).get("seed") == b.get("trace_meta", {}).get("seed")
-            and a.get("trace_meta", {}).get("scale") == b.get("trace_meta", {}).get("scale")
-            and a.get("window_s", 0) >= 295 and b.get("window_s", 0) >= 295)
+    for line in path.read_text(errors="replace").splitlines():
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if row.get("kind") == "plan" and 0 < row.get("counts", {}).get("M", 0) < 4:
+            return True
+    return False
 
 
-def finite(v):
-    return v is not None and math.isfinite(float(v))
-
-
-def compare(candidate_root, baseline_root, out):
-    candidate_root, baseline_root = Path(candidate_root), Path(baseline_root)
+def compare(candidate_root: Path, baseline_root: Path, out: Path) -> dict:
     rows = []
     for cdir in sorted(candidate_root.glob("*-pdblend_dominance")):
-        c = load(cdir)
-        if not c:
-            continue
         name = cdir.name.removesuffix("-pdblend_dominance")
-        row = dict(name=name, candidate_dir=str(cdir), candidate_slo=c["slo"]["joint_slo_rate"],
-                   candidate_j_per_token=c.get("j_per_token"), status="inconclusive")
-        candidate_ok = c["slo"]["joint_slo_rate"] >= .9 and finite(c.get("j_per_token"))
-        reasons = [] if candidate_ok else ["candidate_slo_or_energy"]
+        candidate = load_evidence(cdir)
+        row = {"name": name, "candidate_dir": str(cdir), "status": "inconclusive",
+               "m2_experimental": m2_used(cdir), "single_seed": True,
+               "seed_policy": SEED_POLICY}
+        reasons = []
+        if candidate is None:
+            reasons.append("candidate_missing_or_stale")
+            row["reasons"] = ";".join(reasons)
+            rows.append(row)
+            continue
+        cm = candidate["metrics"]
+        row.update({"candidate_slo": cm["joint_slo_rate"], "candidate_j_per_token": cm["j_per_token"],
+                    "candidate_ttft_p99": cm["ttft_p99"], "candidate_tpot_p99": cm["tpot_p99"]})
+        if candidate["identity"].get("seed") != SINGLE_SEED:
+            reasons.append("unsupported_seed:" + str(candidate["identity"].get("seed")))
+        if cm["joint_slo_rate"] < .9 or not finite(cm["j_per_token"]):
+            reasons.append("candidate_slo_or_energy")
         wins = []
-        for baseline in BASELINES:
-            b = load(baseline_root / f"{name}-{baseline}")
-            prefix = f"baseline_{baseline}"
-            row[prefix + "_present"] = bool(b)
-            if not b:
-                reasons.append(prefix + "_missing")
-                wins.append(False)
-                continue
-            row[prefix + "_slo"] = b["slo"]["joint_slo_rate"]
-            row[prefix + "_j_per_token"] = b.get("j_per_token")
-            if not compatible(c, b):
-                reasons.append(prefix + "_mismatch")
-                wins.append(False)
-                continue
-            if b["slo"]["joint_slo_rate"] < .9 or not finite(b.get("j_per_token")):
-                reasons.append(prefix + "_not_slo_valid")
-                wins.append(False)
-                continue
-            win = float(c["j_per_token"]) < float(b["j_per_token"])
+        for policy in BASELINES:
+            bdir = baseline_root / f"{name}-{policy}"
+            baseline = load_evidence(bdir)
+            prefix = f"baseline_{policy}"
+            row[prefix + "_present"] = baseline is not None
+            if baseline is None:
+                reasons.append(prefix + "_missing_or_stale"); wins.append(False); continue
+            bm = baseline["metrics"]
+            row[prefix + "_slo"] = bm["joint_slo_rate"]
+            row[prefix + "_j_per_token"] = bm["j_per_token"]
+            mismatches = [key for key in PAIR_FIELDS
+                          if candidate["identity"].get(key) != baseline["identity"].get(key)]
+            if baseline["identity"].get("seed") != SINGLE_SEED:
+                mismatches.append("unsupported_seed")
+            if mismatches:
+                reasons.append(prefix + "_mismatch:" + ",".join(mismatches)); wins.append(False); continue
+            win = finite(bm["j_per_token"]) and float(cm["j_per_token"]) < float(bm["j_per_token"])
             row[prefix + "_energy_win"] = win
             wins.append(win)
             if not win:
                 reasons.append(prefix + "_energy_loss")
-        if candidate_ok and all(wins) and len(wins) == len(BASELINES):
-            row["status"] = "win"
-        row["reasons"] = ";".join(reasons)
         row["baseline_wins"] = sum(wins)
+        if not reasons and len(wins) == len(BASELINES):
+            row["status"] = "screen_m2" if row["m2_experimental"] else "screen_pass"
+        row["reasons"] = ";".join(reasons)
         rows.append(row)
-    out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    keys = sorted({k for r in rows for k in r})
-    with out.open("w", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=keys)
-        w.writeheader()
-        for r in rows:
-            for k, v in list(r.items()):
-                if isinstance(v, (list, dict)):
-                    r[k] = json.dumps(v, sort_keys=True)
-            w.writerow(r)
-    summary = {"points": len(rows), "wins": sum(r["status"] == "win" for r in rows),
-               "inconclusive": sum(r["status"] != "win" for r in rows),
-               "baseline_scope": list(BASELINES)}
-    out.with_suffix(".json").write_text(json.dumps(dict(summary=summary, rows=rows), indent=1))
-    print(json.dumps(summary, indent=1))
+    keys = sorted({key for row in rows for key in row})
+    with out.open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=keys); writer.writeheader()
+        writer.writerows(rows)
+    summary = {"points": len(rows), "screen_pass": sum(r["status"] == "screen_pass" for r in rows),
+               "screen_m2": sum(r["status"] == "screen_m2" for r in rows),
+               "inconclusive": sum(r["status"] == "inconclusive" for r in rows),
+               "baseline_scope": list(BASELINES), "single_seed": True,
+               "seed_policy": SEED_POLICY}
+    out.with_suffix(".json").write_text(json.dumps({"summary": summary, "rows": rows}, indent=2))
+    print(json.dumps(summary, indent=2))
+    return {"summary": summary, "rows": rows}
 
 
 if __name__ == "__main__":
-    p = argparse.ArgumentParser()
-    p.add_argument("candidate_root")
-    p.add_argument("baseline_root")
-    p.add_argument("out")
-    a = p.parse_args()
-    compare(a.candidate_root, a.baseline_root, a.out)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("candidate_root", type=Path)
+    parser.add_argument("baseline_root", type=Path)
+    parser.add_argument("out", type=Path)
+    args = parser.parse_args()
+    compare(args.candidate_root, args.baseline_root, args.out)

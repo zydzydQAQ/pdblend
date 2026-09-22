@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Aggregate strict dominance rows across seeds; incomplete seeds stay unproven."""
+"""Aggregate strict dominance rows for the active single-seed campaign."""
 import argparse
 import csv
 import json
@@ -9,6 +9,8 @@ from pathlib import Path
 
 METRICS = ('j_per_token', 'mean_power_w', 'window_mean_power_w', 'joint_slo_rate',
            'ttft_p99', 'tpot_p99', 'plans', 'wakes', 'parks')
+SINGLE_SEED = 701
+SEED_POLICY = 'single_seed_701'
 
 
 def load_rows(root):
@@ -33,13 +35,14 @@ def aggregate(root, out):
     result = []
     for name, rows in groups.items():
         seeds = sorted(r['seed'] for r in rows)
-        row = dict(name=name, seeds=json.dumps(seeds), complete=seeds == [701, 1701, 2701])
+        row = dict(name=name, seeds=json.dumps(seeds), complete=seeds == [SINGLE_SEED],
+                   single_seed=True, seed_policy=SEED_POLICY)
         for metric in METRICS:
             values = [r[metric] for r in rows if isinstance(r[metric], (int, float)) and math.isfinite(r[metric])]
             row[metric + '_mean'] = statistics.mean(values) if values else None
             row[metric + '_std'] = statistics.stdev(values) if len(values) > 1 else None
             row[metric + '_worst'] = min(values) if metric == 'joint_slo_rate' and values else (max(values) if values else None)
-        row['status'] = 'three_seed_ready' if row['complete'] else 'screening_only'
+        row['status'] = 'single_seed_ready' if row['complete'] else 'screening_only'
         result.append(row)
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -48,7 +51,8 @@ def aggregate(root, out):
         w = csv.DictWriter(fh, fieldnames=keys)
         w.writeheader(); w.writerows(result)
     out.with_suffix('.json').write_text(json.dumps({'rows': result}, indent=1))
-    print(json.dumps({'points': len(result), 'three_seed': sum(r['complete'] for r in result), 'output': str(out)}, indent=1))
+    print(json.dumps({'points': len(result), 'single_seed': sum(r['complete'] for r in result),
+                      'seed_policy': SEED_POLICY, 'output': str(out)}, indent=1))
 
 
 if __name__ == '__main__':

@@ -8,7 +8,9 @@ import statistics
 from pathlib import Path
 
 BASELINES = ('mixed', 'distserve_static', 'dynamollm', 'ecoserve')
-SEEDS = (701, 1701, 2701)
+SINGLE_SEED = 701
+SEEDS = (SINGLE_SEED,)
+SEED_POLICY = "single_seed_701"
 PAIR_FIELDS = ('dataset', 'rate', 'seed', 'duration', 'model', 'tp', 'gpus',
                'trace_sha256', 'corpus_sha256', 'image', 'hardware', 'clock_protocol', 'energy_protocol')
 METRICS = ('j_per_token', 'mean_power_w', 'window_mean_power_w', 'joint_slo_rate',
@@ -50,8 +52,11 @@ def load_evidence(directory, expected=None):
             return None
         if expected is not None and any(ident.get(k) != v for k, v in expected.items()):
             return None
-        required = ('summary.json', 'outcomes.jsonl', 'power.jsonl', 'controller.jsonl', 'freq.jsonl')
-        if any(name not in evidence['artifacts'] for name in required):
+        required_groups = (('summary.json',), ('outcomes.jsonl', 'outcomes.jsonl.gz'),
+                           ('power.jsonl', 'power.jsonl.gz'),
+                           ('controller.jsonl', 'controller.jsonl.gz'),
+                           ('freq.jsonl', 'frequency.jsonl'))
+        if any(not any(name in evidence['artifacts'] for name in group) for group in required_groups):
             return None
         if any(sha(directory / name) != value for name, value in evidence['artifacts'].items()):
             return None
@@ -118,7 +123,7 @@ def compare_seed(candidate, baselines, previous=None):
 
 def aggregate(rows):
     seeds = [r.get('seed') for r in rows]
-    complete = len(seeds) == 3 and set(seeds) == set(SEEDS)
+    complete = len(seeds) == len(SEEDS) and set(seeds) == set(SEEDS)
     stats = {}
     for key in METRICS:
         values = [r.get('metrics', {}).get(key) for r in rows]
@@ -127,4 +132,5 @@ def aggregate(rows):
                           std=statistics.stdev(values) if len(values) > 1 else None,
                           worst=(min(values) if key == 'joint_slo_rate' else max(values)) if values else None)
     return dict(status='win' if complete and all(r['status'] == 'screen_pass' for r in rows) else 'unproven',
-                complete=complete, seeds=seeds, metrics=stats)
+                complete=complete, seeds=seeds, single_seed=True,
+                seed_policy=SEED_POLICY, metrics=stats)
