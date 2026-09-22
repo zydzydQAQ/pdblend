@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from pdblend.profile.acceptance import m2_gate, relative_error
+from pdblend.profile.acceptance import m2_gate, relative_error, validate_parallel_layout
 from pdblend.profile.merge import merge_raw
 
 
@@ -31,3 +31,29 @@ def test_merge_rejects_overlapping_frequency_shards(tmp_path):
     a.write_text(json.dumps(base)); base["environment"]["gpu_uuids"] = ["GPU-b"]; b.write_text(json.dumps(base))
     with pytest.raises(ValueError, match="overlapping"):
         merge_raw([a, b], tmp_path / "out")
+
+
+def test_parallel_layout_validation_checks_ownership_and_concurrency():
+    layout = {
+        "instances": [{"instance_id": "i0", "gpus": [2, 3], "tp": 2, "pp": 1}],
+        "gpus": [2, 3],
+    }
+    raw = {
+        "parallel_layout": layout,
+        "concurrency": {"decode_max_batch": 4, "mixed_background_max_batch": 4,
+                         "prefill_inflight": 1, "transfer_inflight": 1},
+        "prefill": [{"concurrency": 1, "parallel_layout": layout}],
+        "decode": [{"batch": 4, "concurrency": 4, "parallel_layout": layout}],
+        "mixed": [{"batch": 4, "concurrency": 4, "parallel_layout": layout}],
+        "transfer": [{"concurrency": 1, "parallel_layout": layout}],
+    }
+    assert validate_parallel_layout(raw)["passed"]
+    raw["decode"][0]["concurrency"] = 1
+    result = validate_parallel_layout(raw)
+    assert not result["passed"]
+    assert any("decode[0]" in failure for failure in result["failures"])
+
+
+def test_legacy_profile_without_parallel_metadata_is_skipped():
+    result = validate_parallel_layout({"decode": [{"batch": 8}]})
+    assert result == {"passed": True, "skipped": True, "failures": []}

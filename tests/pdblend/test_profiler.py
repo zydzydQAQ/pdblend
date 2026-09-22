@@ -1,6 +1,6 @@
 import json
 
-from pdblend.profile.profiler import load_raw, window_mean_power
+from pdblend.profile.profiler import load_raw, parallel_layout_metadata, window_mean_power
 
 
 def _raw():
@@ -43,3 +43,16 @@ def test_window_mean_power():
     assert window_mean_power(samples, 1.0, 2.0) == 25.0
     assert window_mean_power(samples, 1.0, 2.0, 1) == 2.5
     assert window_mean_power(samples, 5.0, 6.0) is None
+
+
+def test_parallel_layout_metadata_preserves_stage_ownership():
+    class Spec:
+        instance_id = "i0"
+        gpus = (4, 5)
+        tp = 1
+        pp = 2
+        stage_map = {0: (4,), 1: (5,)}
+
+    metadata = parallel_layout_metadata([Spec()])
+    assert metadata["gpus"] == [4, 5]
+    assert metadata["instances"][0]["stage_map"] == {"0": [4], "1": [5]}

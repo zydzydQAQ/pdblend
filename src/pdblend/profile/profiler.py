@@ -25,6 +25,8 @@ from ..bench.gates import kv_bytes_per_token, random_prompt
 from ..bench.metering import FREQUENCY_TIERS, Gpus
 from ..engine.client import EngineClient, PDTransfer, pd_complete
 from ..engine.launcher import Fleet, make_specs
+from ..model_registry import ModelRegistry
+from .identity import ProfileKey, provenance
 from .model import DecodePoint, PrefillPoint, StaticState, fit
 
 PREFILL_INPUTS = (128, 512, 1024, 2048, 4096, 7168)
@@ -37,17 +39,55 @@ MIXED_FREQS = (1500, 2100, 2520)
 TRANSFER_INPUTS = (512, 2048, 7168)
 
 
+def parallel_layout_metadata(specs) -> dict:
+    """Return the physical layout used by a profile measurement.
+
+    Keeping this manifest in raw evidence makes it possible to distinguish
+    interference measured across independent instances from interference
+    between requests sharing one engine.  ``InstanceSpec`` is intentionally
+    duck-typed here so this helper remains usable by lightweight tests.
+    """
+    instances = []
+    all_gpus = []
+    for spec in specs:
+        gpus = [int(g) for g in spec.gpus]
+        all_gpus.extend(gpus)
+        stage_map = getattr(spec, "stage_map", None)
+        if stage_map is None:
+            tp, pp = int(spec.tp), int(getattr(spec, "pp", 1))
+            stage_map = {stage: tuple(gpus[stage * tp:(stage + 1) * tp]) for stage in range(pp)}
+        instances.append(dict(instance_id=spec.instance_id, gpus=gpus,
+                              tp=int(spec.tp), pp=int(getattr(spec, "pp", 1)),
+                              stage_map={str(k): list(v) for k, v in stage_map.items()}))
+    return dict(instances=instances, gpus=all_gpus,
+                gpu_count=len(all_gpus), unique_gpu_count=len(set(all_gpus)),
+                instance_count=len(instances))
+
+
 def window_mean_power(samples, start_s: float, end_s: float, gpu_index: int = 0) -> float | None:
     inside = [row[1][gpu_index] for row in samples if start_s <= row[0] <= end_s]
     return statistics.fmean(inside) if inside else None
 
 
 class Profiler:
-    def __init__(self, model: str, gpus: Sequence[int], tp: int = 1, freqs: Sequence[int] = FREQUENCY_TIERS,
+    def __init__(self, model: str, gpus: Sequence[int], tp: int = 1, pp: int = 1,
+                 system: str = "pdblend", role: str = "mixed", workload_shape: str = "default",
+                 hardware_id: str = "", engine_revision: str = "vllm-0.10.1.1",
+                 freqs: Sequence[int] = FREQUENCY_TIERS,
                  window_s: float = 2.0, out_dir: Path = Path("results/v2/profile"), kv_connector: str | None = "P2pNcclConnector",
                  mixed_freqs: Sequence[int] = (1500, 2100, 2520), decode_repeats: int = 3,
                  decode_settle_s: float = 2.0, decode_measure_s: float = 5.0, base_port: int = 8100):
-        self.model, self.gpus, self.tp, self.freqs, self.window_s = model, list(gpus), tp, tuple(freqs), window_s
+        self.model, self.gpus, self.tp, self.pp, self.system = model, list(gpus), tp, pp, system
+        self.role, self.workload_shape = role, workload_shape
+        self.hardware_id, self.engine_revision = hardware_id or "unknown", engine_revision
+        model_key = Path(model).name
+        model_root = os.environ.get("PDBLEND_MODELS_DIR")
+        if not model_root:
+            model_root = str(Path(model).parent) if Path(model).is_absolute() else "/models"
+        receipt = os.environ.get("PDBLEND_MODEL_VERIFICATION_RECEIPT")
+        self.model_spec = ModelRegistry(model_root, verification_receipt=receipt).get(model_key) if receipt else ModelRegistry(model_root).get(model_key)
+        self.model_spec.validate_topology(tp, pp, require_memory=False)
+        self.freqs, self.window_s = tuple(freqs), window_s
         self.mixed_freqs = tuple(mixed_freqs)
         if decode_repeats < 3 or decode_settle_s < 2 or decode_measure_s < 5:
             raise ValueError("profile-v2 requires >=3 repeats, >=2 s settle and >=5 s measurement")
@@ -57,18 +97,35 @@ class Profiler:
         self.out_dir = Path(out_dir)
         self.out_dir.mkdir(parents=True, exist_ok=True)
         self.meter = Gpus(self.gpus)
-        self.specs = make_specs(model, self.gpus, tp=tp, base_port=base_port, kv_connector=kv_connector)
+        self.specs = make_specs(model, self.gpus, tp=tp, pp=pp, base_port=base_port, kv_connector=kv_connector)
+        self.parallel_layout = parallel_layout_metadata(self.specs)
+        self.concurrency = dict(decode_max_batch=max(DECODE_BATCHES),
+                                mixed_background_max_batch=max(b for b, _ in MIXED_PROBES),
+                                prefill_inflight=1, transfer_inflight=1)
         self.transfer = PDTransfer(kv_connector, {s.instance_id: s.zmq_address for s in self.specs})
         self.kv_bpt = kv_bytes_per_token(self.specs[0].model_path)
-        self.raw: dict = dict(schema=RAW_SCHEMA, model=model, gpus=self.gpus, tp=tp, freqs=list(self.freqs),
+        self.profile_key = ProfileKey(system, self.model_spec.model_id, engine_revision, self.hardware_id,
+                                      tp, pp, role, workload_shape)
+        self.raw: dict = dict(schema=RAW_SCHEMA, model=model, model_id=self.model_spec.model_id,
+                              gpus=self.gpus, tp=tp, pp=pp, system=system, role=role,
+                              workload_shape=workload_shape, profile_key=self.profile_key.as_dict(),
+                              profile_namespace=self.profile_key.namespace(),
+                              parallel_layout=self.parallel_layout,
+                              concurrency=self.concurrency,
+                              freqs=list(self.freqs),
                               prefill=[], decode=[], mixed=[], static={}, transfer=[], freq_switch_s=[],
                               kv_bytes_per_token=self.kv_bpt,
+                              model_hash=self.model_spec.model_hash,
+                              tokenizer_hash=self.model_spec.tokenizer_hash,
+                              verification_receipt=self.model_spec.verification_receipt,
                               config=dict(decode_repeats=self.decode_repeats,
                                            decode_settle_s=self.decode_settle_s,
                                            decode_measure_s=self.decode_measure_s,
                                            mixed_freqs=list(self.mixed_freqs), base_port=base_port,
                                            decode_batches=list(DECODE_BATCHES)),
-                              environment=self._environment_metadata(self.gpus))
+                              environment=self._environment_metadata(self.gpus),
+                              provenance=provenance(model=self.model_spec, engine_revision=engine_revision,
+                                                    hardware_id=self.hardware_id))
 
     def _environment_metadata(self, gpus: Sequence[int]) -> dict:
         def pkg(name):
@@ -98,8 +155,9 @@ class Profiler:
         return dict(timestamp_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                     hostname=platform.node(), python=platform.python_version(),
                     vllm=pkg("vllm"), torch=pkg("torch"), cuda=os.environ.get("CUDA_VERSION"),
-                    image_digest=os.environ.get("PDBLEND_IMAGE_DIGEST"),
-                    source_hash=os.environ.get("PDBLEND_SOURCE_HASH"),
+                    image_digest=os.environ.get("PDBLEND_IMAGE_DIGEST") or os.environ.get("PDBLEND_IMAGE_ID"),
+                    source_hash=os.environ.get("PDBLEND_SOURCE_HASH") or os.environ.get("PDBLEND_SOURCE_SHA256"),
+                    hardware_id=os.environ.get("PDBLEND_HARDWARE_ID") or self.hardware_id,
                     gpu_uuids=uuids or os.environ.get("NVIDIA_VISIBLE_DEVICES"))
 
     def _lock(self, freq: int, gpus: Sequence[int]) -> float:
@@ -129,6 +187,7 @@ class Profiler:
                         times.append(r.first_token_s - r.submitted_s)
                 busy = sum(times) / m["duration_s"]
                 self.raw["prefill"].append(dict(freq_mhz=f, input_tokens=n, seconds=statistics.median(times),
+                                                concurrency=1, parallel_layout=self.parallel_layout,
                                                 power_w=m["mean_power_w"] / len(gpus) if self.tp == 1 else m["mean_power_w"],
                                                 runs=len(times), busy_fraction=busy))
                 print(f"prefill f={f} n={n}: {statistics.median(times)*1e3:.1f} ms {m['mean_power_w']:.0f} W", flush=True)
@@ -216,6 +275,7 @@ class Profiler:
             evidence.write_text(json.dumps(dict(start_s=start, end_s=end, power=power_samples,
                 frequency=clocks, start_token_counts=start_counts, end_token_counts=end_counts)))
             return dict(batch=batch, context_tokens=ctx, effective_context_tokens=effective_context,
+                concurrency=batch, parallel_layout=self.parallel_layout,
                 step_seconds=(end - start) / statistics.median(counts),
                 power_w=sum(power) if self.tp > 1 else statistics.fmean(power),
                 steady_window_s=end - start, start_s=start, end_s=end,
@@ -280,6 +340,8 @@ class Profiler:
                 alone = next((r["seconds"] for r in self.raw["prefill"]
                               if r["freq_mhz"] == f and r["input_tokens"] == chunk), None)
                 row = dict(freq_mhz=f, batch=batch, chunk_tokens=chunk, context_tokens=ctx,
+                           concurrency=batch, parallel_layout=self.parallel_layout,
+                           interference="decode_with_chunked_prefill",
                            base_step_s=base["step_seconds"] if base else None, alone_prefill_s=alone)
                 if base is None or alone is None:
                     row.update(valid=False, invalid_reason="missing_base_step_or_prefill")
@@ -378,7 +440,8 @@ class Profiler:
                     if mixed.error or mixed.ttft_s is None or pre.error or dec is None or dec.error:
                         raise RuntimeError(mixed.error or pre.error or (dec.error if dec else "missing decode"))
                     rows.append((dec.first_token_s - pre.submitted_s) - mixed.ttft_s)
-                self.raw["transfer"].append(dict(input_tokens=n, overhead_s=statistics.median(rows), runs=len(rows)))
+                self.raw["transfer"].append(dict(input_tokens=n, overhead_s=statistics.median(rows), runs=len(rows),
+                                                  concurrency=1, parallel_layout=self.parallel_layout))
                 print(f"transfer n={n}: overhead {statistics.median(rows)*1e3:.1f} ms", flush=True)
 
     # ---- driver ----------------------------------------------------------------------------------
@@ -409,12 +472,42 @@ class Profiler:
         self._checkpoint()
         model = self.to_model()
         model.save(self.out_dir / "profile.json")
+        (self.out_dir / "completion.json").write_text(json.dumps({
+            "status": "passed", "complete": True, "hardware_qualified": True,
+            "formal_eligible": False, "profile": str((self.out_dir / "profile.json").resolve()),
+            "profile_key": self.profile_key.as_dict(),
+            "raw_sha256": __import__("hashlib").sha256((self.out_dir / "raw.json").read_bytes()).hexdigest(),
+        }, indent=2, sort_keys=True) + "\n")
         print(f"profile written to {self.out_dir} in {self.raw['elapsed_s']/60:.1f} min; residuals: "
               + json.dumps({k: round(v, 3) for k, v in model.residuals.items()}), flush=True)
         return self.out_dir / "profile.json"
 
     def _checkpoint(self) -> None:
-        (self.out_dir / "raw.json").write_text(json.dumps(self.raw, indent=1, default=str))
+        payload = json.dumps(self.raw, indent=1, sort_keys=True, default=str)
+        (self.out_dir / "raw.json").write_text(payload)
+        # Bind immutable sample and holdout artifacts to every checkpoint. A
+        # holdout is a disjoint deterministic subset of measured rows; quality
+        # gates still decide whether its error meets the formal threshold.
+        sample, holdout = {}, {}
+        for section in ("prefill", "decode", "mixed", "transfer"):
+            rows = list(self.raw.get(section, ()))
+            sample[section] = rows[::2]
+            holdout[section] = rows[1::2]
+        sample["static"] = self.raw.get("static", {})
+        holdout["static"] = self.raw.get("static", {})
+        sample_path = self.out_dir / "samples" / "profile-sample.json"
+        holdout_path = self.out_dir / "samples" / "profile-holdout.json"
+        sample_path.parent.mkdir(parents=True, exist_ok=True)
+        sample_path.write_text(json.dumps(sample, indent=1, sort_keys=True, default=str))
+        holdout_path.write_text(json.dumps(holdout, indent=1, sort_keys=True, default=str))
+        from .identity import evidence_binding, sha256_value
+        bindings = {"sample": evidence_binding([sample_path], kind="sample"),
+                    "holdout": evidence_binding([holdout_path], kind="holdout")}
+        self.raw["evidence_bindings"] = bindings
+        identity_payload = {key: value for key, value in self.raw.items() if key != "identity_sha256"}
+        self.raw["identity_sha256"] = sha256_value(identity_payload)
+        # Rewrite raw once more so the identity digest covers bindings.
+        (self.out_dir / "raw.json").write_text(json.dumps(self.raw, indent=1, sort_keys=True, default=str))
 
     def resume(self) -> tuple[str, ...]:
         """Load an earlier raw.json and return the sections it already holds, so a rerun can skip them."""
@@ -424,10 +517,10 @@ class Profiler:
         old = json.loads(path.read_text())
         if old.get("schema") != RAW_SCHEMA or old.get("config") != self.raw.get("config"):
             raise ValueError("incompatible raw schema/settings: use a new profile output directory")
-        for key in ("source_hash", "image_digest", "gpu_uuids"):
+        for key in ("source_hash", "image_digest", "gpu_uuids", "hardware_id"):
             if old.get("environment", {}).get(key) != self.raw.get("environment", {}).get(key):
                 raise ValueError(f"cannot resume profile with changed {key}")
-        if (old.get("model"), old.get("tp"), old.get("freqs")) != (self.model, self.tp, list(self.freqs)):
+        if (old.get("model"), old.get("model_id"), old.get("tp"), old.get("pp"), old.get("system"), old.get("role"), old.get("freqs")) != (self.model, self.model_spec.model_id, self.tp, self.pp, self.system, self.role, list(self.freqs)):
             return ()
         self.raw.update(old)
         done = []
@@ -468,7 +561,8 @@ class Profiler:
                    static, [(t["input_tokens"], t["overhead_s"]) for t in r["transfer"]],
                    kv_bytes_per_token=r.get("kv_bytes_per_token", self.kv_bpt), kv_capacity_tokens=r.get("kv_capacity_tokens", 0),
                    freq_switch_s=statistics.median(r["freq_switch_s"]) if r["freq_switch_s"] else 0.15,
-                   model=self.model, tp=self.tp)
+                   model=self.model, tp=self.tp, pipeline_parallel=self.pp,
+                   system=self.system, profile_key=self.profile_key.as_dict())
         mixed = r.get("mixed", [])
         model.quality["mixed"] = dict(valid=sum(bool(x.get("valid")) for x in mixed),
             invalid=sum(not x.get("valid", False) for x in mixed),
@@ -483,4 +577,8 @@ def load_raw(path: Path, model: str, tp: int, kv_bpt: int):
     p.raw = json.loads(Path(path).read_text())
     p.freqs = tuple(p.raw["freqs"])
     p.model, p.tp, p.kv_bpt = model, tp, kv_bpt
+    p.pp = int(p.raw.get("pp", 1))
+    p.system = p.raw.get("system", "pdblend")
+    p.profile_key = ProfileKey(**p.raw["profile_key"]) if p.raw.get("profile_key") else ProfileKey(
+        p.system, p.raw.get("model_id", model), "unknown", "unknown", tp, p.pp)
     return p.to_model()

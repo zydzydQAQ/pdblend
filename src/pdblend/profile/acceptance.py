@@ -8,9 +8,71 @@ from pathlib import Path
 
 from .merge import sha256
 from .profiler import DECODE_BATCHES, DECODE_CONTEXTS, DECODE_STEPS, PREFILL_INPUTS, MIXED_PROBES
+from .identity import require_profile_provenance
 
 FREQS = (900, 1200, 1500, 1800, 2100, 2520)
 SEEDS = (701, 1701, 2701)
+
+
+def validate_parallel_layout(raw) -> dict:
+    """Validate physical ownership and concurrency annotations in profile raw data.
+
+    Older synthetic fixtures do not have these fields and are accepted by
+    returning a skipped result.  Profiles emitted by :class:`Profiler` carry
+    the manifest and are rejected when a row could have been collected under a
+    different layout or concurrency level.
+    """
+    layout = raw.get('parallel_layout')
+    concurrency = raw.get('concurrency')
+    if layout is None and concurrency is None:
+        return dict(passed=True, skipped=True, failures=[])
+    failures = []
+    if not isinstance(layout, dict):
+        failures.append('parallel_layout must be an object')
+    else:
+        instances = layout.get('instances')
+        gpus = layout.get('gpus')
+        if not isinstance(instances, list) or not instances:
+            failures.append('parallel_layout.instances is empty')
+        if not isinstance(gpus, list) or not gpus:
+            failures.append('parallel_layout.gpus is empty')
+        elif len(gpus) != len(set(gpus)):
+            failures.append('parallel_layout reuses a physical GPU')
+        if isinstance(instances, list):
+            flattened = []
+            for instance in instances:
+                if not isinstance(instance, dict):
+                    failures.append('parallel_layout instance is not an object')
+                    continue
+                igpus = instance.get('gpus', [])
+                tp, pp = instance.get('tp'), instance.get('pp', 1)
+                valid_shape = (isinstance(igpus, list) and isinstance(tp, int) and isinstance(pp, int)
+                               and len(igpus) == tp * pp)
+                if not valid_shape:
+                    failures.append('parallel_layout instance GPU count does not equal TP*PP')
+                flattened.extend(igpus if isinstance(igpus, list) else [])
+            if isinstance(gpus, list) and flattened != gpus:
+                failures.append('parallel_layout.gpus does not match instance ownership')
+    if not isinstance(concurrency, dict):
+        failures.append('concurrency must be an object')
+    else:
+        for key in ('decode_max_batch', 'mixed_background_max_batch', 'prefill_inflight', 'transfer_inflight'):
+            value = concurrency.get(key)
+            if not isinstance(value, int) or value < 1:
+                failures.append(f'concurrency.{key} must be a positive integer')
+
+    def check_rows(section, expected):
+        for index, row in enumerate(raw.get(section, [])):
+            if 'concurrency' not in row or row.get('concurrency') != expected(row):
+                failures.append(f'{section}[{index}] concurrency does not match workload')
+            if layout is not None and row.get('parallel_layout') != layout:
+                failures.append(f'{section}[{index}] parallel_layout mismatch')
+
+    check_rows('prefill', lambda row: 1)
+    check_rows('decode', lambda row: row.get('batch'))
+    check_rows('mixed', lambda row: row.get('batch'))
+    check_rows('transfer', lambda row: 1)
+    return dict(passed=not failures, skipped=False, failures=failures)
 
 
 def relative_error(predicted, observed):
@@ -31,6 +93,17 @@ def quality_audit(raw, model, directory: Path):
         fail('environment', reason='invalid_gpu_uuids')
     if raw.get('schema') != 2:
         fail('schema', observed=raw.get('schema'))
+    # Legacy synthetic/raw profiles remain loadable for diagnostics, but every
+    # new profile carrying an identity must pass the independent provenance and
+    # sample/holdout binding gate before it can be accepted for a campaign.
+    if raw.get('profile_key') is not None:
+        try:
+            require_profile_provenance(raw)
+        except (TypeError, ValueError) as exc:
+            fail('profile_provenance', reason=str(exc))
+    layout_check = validate_parallel_layout(raw)
+    if not layout_check['passed']:
+        fail('parallel_layout', failures=layout_check['failures'])
     cfg = raw.get('config', {})
     for key, minimum in (('decode_repeats', 3), ('decode_settle_s', 2), ('decode_measure_s', 5)):
         if cfg.get(key, 0) < minimum:
