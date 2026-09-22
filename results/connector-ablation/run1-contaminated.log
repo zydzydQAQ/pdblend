@@ -1,0 +1,60 @@
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 12.8.1
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+lock clocks: rc=0 GPU clocks set to "(gpuClkMin 2520, gpuClkMax 2520)" for GPU 00000000:00:05.0
+GPU clocks set to "(gpuClkMin 2520, gpuClkMax 2520)" for GPU 00000000:00:06.0
+GPU clocks set to "(gpuClkMin 2520, gpuClkMax 2520)" for GPU 00000000:00:07.0
+GPU clocks set to "(gpuClkMin 2520, gpuClkMax 2520)" for GPU 00000000:00:08.0
+GPU clocks set to "(gpuClkMin 2520, gpuClkMax 2520)" for GPU 00000000:00:09.0
+GPU clocks set to "(gpuClkMin 2520, gpuClkMax 2520)" for GPU 00000000:00:0A.0
+GPU clocks set to "(gpuClkMin 2520, gpuClkMax 2520)" for GPU 00000000:00:0B.0
+GPU clocks set to "(gpuClkMin 2520, gpuClkMax 2520)" for GPU 00000000:00:0C.0
+All done. 
+mixed n=512: ttft 71.7 ms
+mixed n=2048: ttft 266.8 ms
+mixed n=7168: ttft 1000.9 ms
+patched n=512 r=0: overhead 110.8 ms (median 110.8) text_exact=False err=None
+patched n=512 r=1: overhead 65.6 ms (median 88.2) text_exact=False err=None
+patched n=512 r=2: overhead 76.4 ms (median 76.4) text_exact=False err=None
+patched n=512 r=3: overhead 75.7 ms (median 76.0) text_exact=False err=None
+patched n=512 r=4: overhead 78.0 ms (median 76.4) text_exact=False err=None
+patched n=2048 r=0: overhead 86.6 ms (median 86.6) text_exact=True err=None
+patched n=2048 r=1: overhead 77.4 ms (median 82.0) text_exact=False err=None
+patched n=2048 r=2: overhead 83.7 ms (median 83.7) text_exact=False err=None
+patched n=2048 r=3: overhead 79.5 ms (median 81.6) text_exact=False err=None
+patched n=2048 r=4: overhead 89.1 ms (median 83.7) text_exact=False err=None
+patched n=7168 r=0: overhead 121.8 ms (median 121.8) text_exact=True err=None
+patched n=7168 r=1: overhead 128.0 ms (median 124.9) text_exact=False err=None
+patched n=7168 r=2: overhead 4139.3 ms (median 128.0) text_exact=False err=None
+patched n=7168 r=3: overhead 156.8 ms (median 142.4) text_exact=False err=None
+patched n=7168 r=4: overhead 170.7 ms (median 156.8) text_exact=False err=None
+patched burst: {"n": 1024, "concurrency": 16, "ok": 16, "errors": [], "prefill_window_s": 2.264552354812622, "prefill_rps": 7.065414039113219, "all_done_s": 2.636639356613159, "median_pd_ttft_s": 2.231545925140381}
+upstream n=512 r=0: overhead 113.1 ms (median 113.1) text_exact=False err=None
+upstream n=512 r=1: overhead 97.1 ms (median 105.1) text_exact=False err=None
+upstream n=512 r=2: overhead 105.1 ms (median 105.1) text_exact=False err=None
+upstream n=512 r=3: overhead 110.0 ms (median 107.5) text_exact=False err=None
+upstream n=512 r=4: overhead 109.9 ms (median 109.9) text_exact=False err=None
+upstream n=2048 r=0: overhead 37.6 ms (median 37.6) text_exact=True err=None
+upstream n=2048 r=1: overhead 3883.8 ms (median 1960.7) text_exact=False err=None
+upstream n=2048 r=2: overhead 100.5 ms (median 100.5) text_exact=False err=None
+upstream n=2048 r=3: overhead 100.7 ms (median 100.6) text_exact=False err=None
+upstream n=2048 r=4: overhead 99.0 ms (median 100.5) text_exact=False err=None
+upstream n=7168 r=0: overhead 137.7 ms (median 137.7) text_exact=True err=None
+upstream n=7168 r=1: overhead 156.4 ms (median 147.1) text_exact=False err=None
+upstream n=7168 r=2: overhead 164.5 ms (median 156.4) text_exact=False err=None
+upstream n=7168 r=3: overhead 130.3 ms (median 147.1) text_exact=False err=None
+upstream n=7168 r=4: overhead 4009.3 ms (median 156.4) text_exact=False err=None
+upstream burst: {"n": 1024, "concurrency": 16, "ok": 16, "errors": [], "prefill_window_s": 2.253598213195801, "prefill_rps": 7.099757137857591, "all_done_s": 2.6276633739471436, "median_pd_ttft_s": 2.223025321960449}
+done in 85s -> /home/pdblend4/results/connector-ablation/results.json

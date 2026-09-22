@@ -1,0 +1,7 @@
+PDblend migration archive checkpoint: 2026-09-21
+
+/home/pdblend4 is the current PDblend workspace. /home/pdblend is intentionally untouched.
+The cold sharegpt-x0.5-pdblend result from HEAD and interrupted x0.3/x0.4 result directories are archived here.
+Completed live result points: 16. Incomplete live result directories: 0 at checkpoint.
+Raw completed streams were gzip-compressed after round-trip SHA256 verification; summary.json, compare.csv, and the result index remain directly readable.
+The warm-start validation is documented in results/v2/eval-7b-v2/WARM-START-VALIDATION.md.

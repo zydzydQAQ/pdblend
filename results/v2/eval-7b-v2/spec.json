@@ -54,7 +54,8 @@
    "dataset": "sharegpt",
    "rate": 8.109,
    "scale": 0.5,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "alpaca-x0.1-mixed",
@@ -810,28 +811,32 @@
    "dataset": "alpaca",
    "rate": 90.547,
    "scale": 0.5,
-   "policy": "pdblend_no_park"
+   "policy": "pdblend_no_park",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "alpaca-x0.5-pdblend_no_pd",
    "dataset": "alpaca",
    "rate": 90.547,
    "scale": 0.5,
-   "policy": "pdblend_no_pd"
+   "policy": "pdblend_no_pd",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "alpaca-x0.5-pdblend_no_shield",
    "dataset": "alpaca",
    "rate": 90.547,
    "scale": 0.5,
-   "policy": "pdblend_no_shield"
+   "policy": "pdblend_no_shield",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "alpaca-x0.5-pdblend_fixed_pools",
    "dataset": "alpaca",
    "rate": 90.547,
    "scale": 0.5,
-   "policy": "pdblend_fixed_pools"
+   "policy": "pdblend_fixed_pools",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "sharegpt-x0.5-mixed_dvfs",
@@ -859,28 +864,32 @@
    "dataset": "sharegpt",
    "rate": 8.109,
    "scale": 0.5,
-   "policy": "pdblend_no_park"
+   "policy": "pdblend_no_park",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "sharegpt-x0.5-pdblend_no_pd",
    "dataset": "sharegpt",
    "rate": 8.109,
    "scale": 0.5,
-   "policy": "pdblend_no_pd"
+   "policy": "pdblend_no_pd",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "sharegpt-x0.5-pdblend_no_shield",
    "dataset": "sharegpt",
    "rate": 8.109,
    "scale": 0.5,
-   "policy": "pdblend_no_shield"
+   "policy": "pdblend_no_shield",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "sharegpt-x0.5-pdblend_fixed_pools",
    "dataset": "sharegpt",
    "rate": 8.109,
    "scale": 0.5,
-   "policy": "pdblend_fixed_pools"
+   "policy": "pdblend_fixed_pools",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "longbench-x0.5-mixed_dvfs",
@@ -908,210 +917,240 @@
    "dataset": "longbench",
    "rate": 6.422,
    "scale": 0.5,
-   "policy": "pdblend_no_park"
+   "policy": "pdblend_no_park",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "longbench-x0.5-pdblend_no_pd",
    "dataset": "longbench",
    "rate": 6.422,
    "scale": 0.5,
-   "policy": "pdblend_no_pd"
+   "policy": "pdblend_no_pd",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "longbench-x0.5-pdblend_no_shield",
    "dataset": "longbench",
    "rate": 6.422,
    "scale": 0.5,
-   "policy": "pdblend_no_shield"
+   "policy": "pdblend_no_shield",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "longbench-x0.5-pdblend_fixed_pools",
    "dataset": "longbench",
    "rate": 6.422,
    "scale": 0.5,
-   "policy": "pdblend_fixed_pools"
+   "policy": "pdblend_fixed_pools",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "alpaca-x0.1-pdblend",
    "dataset": "alpaca",
    "rate": 18.109,
    "scale": 0.1,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "alpaca-x0.2-pdblend",
    "dataset": "alpaca",
    "rate": 36.219,
    "scale": 0.2,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "alpaca-x0.3-pdblend",
    "dataset": "alpaca",
    "rate": 54.328,
    "scale": 0.3,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "alpaca-x0.4-pdblend",
    "dataset": "alpaca",
    "rate": 72.438,
    "scale": 0.4,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "alpaca-x0.5-pdblend",
    "dataset": "alpaca",
    "rate": 90.547,
    "scale": 0.5,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "alpaca-x0.6-pdblend",
    "dataset": "alpaca",
    "rate": 108.656,
    "scale": 0.6,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "alpaca-x0.7-pdblend",
    "dataset": "alpaca",
    "rate": 126.766,
    "scale": 0.7,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "alpaca-x0.8-pdblend",
    "dataset": "alpaca",
    "rate": 144.875,
    "scale": 0.8,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "alpaca-x0.9-pdblend",
    "dataset": "alpaca",
    "rate": 162.984,
    "scale": 0.9,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "sharegpt-x0.1-pdblend",
    "dataset": "sharegpt",
    "rate": 1.622,
    "scale": 0.1,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "sharegpt-x0.2-pdblend",
    "dataset": "sharegpt",
    "rate": 3.244,
    "scale": 0.2,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "sharegpt-x0.3-pdblend",
    "dataset": "sharegpt",
    "rate": 4.866,
    "scale": 0.3,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "sharegpt-x0.4-pdblend",
    "dataset": "sharegpt",
    "rate": 6.488,
    "scale": 0.4,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "sharegpt-x0.6-pdblend",
    "dataset": "sharegpt",
    "rate": 9.731,
    "scale": 0.6,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "sharegpt-x0.7-pdblend",
    "dataset": "sharegpt",
    "rate": 11.353,
    "scale": 0.7,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "sharegpt-x0.8-pdblend",
    "dataset": "sharegpt",
    "rate": 12.975,
    "scale": 0.8,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "sharegpt-x0.9-pdblend",
    "dataset": "sharegpt",
    "rate": 14.597,
    "scale": 0.9,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "longbench-x0.1-pdblend",
    "dataset": "longbench",
    "rate": 1.284,
    "scale": 0.1,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "longbench-x0.2-pdblend",
    "dataset": "longbench",
    "rate": 2.569,
    "scale": 0.2,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "longbench-x0.3-pdblend",
    "dataset": "longbench",
    "rate": 3.853,
    "scale": 0.3,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "longbench-x0.4-pdblend",
    "dataset": "longbench",
    "rate": 5.138,
    "scale": 0.4,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "longbench-x0.5-pdblend",
    "dataset": "longbench",
    "rate": 6.422,
    "scale": 0.5,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "longbench-x0.6-pdblend",
    "dataset": "longbench",
    "rate": 7.706,
    "scale": 0.6,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "longbench-x0.7-pdblend",
    "dataset": "longbench",
    "rate": 8.991,
    "scale": 0.7,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "longbench-x0.8-pdblend",
    "dataset": "longbench",
    "rate": 10.275,
    "scale": 0.8,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   },
   {
    "name": "longbench-x0.9-pdblend",
    "dataset": "longbench",
    "rate": 11.559,
    "scale": 0.9,
-   "policy": "pdblend"
+   "policy": "pdblend",
+   "profile": "results/v2/profile-7b-pdblend/profile.json"
   }
  ]
 }

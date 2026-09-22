@@ -1,0 +1,56 @@
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 12.8.1
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+lock clocks: rc=0 GPU clocks set to "(gpuClkMin 2520, gpuClkMax 2520)" for GPU 00000000:00:07.0
+GPU clocks set to "(gpuClkMin 2520, gpuClkMax 2520)" for GPU 00000000:00:08.0
+All done. 
+mixed n=512: ttft 71.3 ms
+mixed n=2048: ttft 265.1 ms
+mixed n=7168: ttft 994.7 ms
+patched n=512 r=0: overhead 30.1 ms (median 30.1) text_exact=True err=None
+patched n=512 r=1: overhead 30.9 ms (median 30.5) text_exact=True err=None
+patched n=512 r=2: overhead 30.7 ms (median 30.7) text_exact=False err=None
+patched n=512 r=3: overhead 30.6 ms (median 30.7) text_exact=True err=None
+patched n=512 r=4: overhead 30.0 ms (median 30.6) text_exact=True err=None
+patched n=2048 r=0: overhead 36.6 ms (median 36.6) text_exact=True err=None
+patched n=2048 r=1: overhead 36.2 ms (median 36.4) text_exact=True err=None
+patched n=2048 r=2: overhead 36.2 ms (median 36.2) text_exact=True err=None
+patched n=2048 r=3: overhead 36.4 ms (median 36.3) text_exact=True err=None
+patched n=2048 r=4: overhead 35.7 ms (median 36.2) text_exact=True err=None
+patched n=7168 r=0: overhead 42.2 ms (median 42.2) text_exact=True err=None
+patched n=7168 r=1: overhead 40.8 ms (median 41.5) text_exact=False err=None
+patched n=7168 r=2: overhead 42.6 ms (median 42.2) text_exact=True err=None
+patched n=7168 r=3: overhead 43.7 ms (median 42.4) text_exact=True err=None
+patched n=7168 r=4: overhead 52.6 ms (median 42.6) text_exact=True err=None
+patched burst 128x48: {"n": 128, "concurrency": 48, "ok": 48, "errors": [], "prefill_window_s": 0.8820099830627441, "prefill_rps": 54.421152732673086, "all_done_s": 1.3189723491668701, "median_pd_ttft_s": 0.8935583829879761}
+patched burst 1024x16: {"n": 1024, "concurrency": 16, "ok": 16, "errors": [], "prefill_window_s": 2.131546974182129, "prefill_rps": 7.50628543203425, "all_done_s": 2.526172399520874, "median_pd_ttft_s": 1.3932085037231445}
+upstream n=512 r=0: overhead 28.8 ms (median 28.8) text_exact=False err=None
+upstream n=512 r=1: overhead 28.9 ms (median 28.9) text_exact=False err=None
+upstream n=512 r=2: overhead 28.6 ms (median 28.8) text_exact=False err=None
+upstream n=512 r=3: overhead 28.2 ms (median 28.7) text_exact=False err=None
+upstream n=512 r=4: overhead 28.9 ms (median 28.8) text_exact=False err=None
+upstream n=2048 r=0: overhead 31.6 ms (median 31.6) text_exact=False err=None
+upstream n=2048 r=1: overhead 33.7 ms (median 32.7) text_exact=False err=None
+upstream n=2048 r=2: overhead 32.9 ms (median 32.9) text_exact=False err=None
+upstream n=2048 r=3: overhead 31.5 ms (median 32.2) text_exact=False err=None
+upstream n=2048 r=4: overhead 33.5 ms (median 32.9) text_exact=False err=None
+upstream n=7168 r=0: overhead 38.2 ms (median 38.2) text_exact=False err=None
+upstream n=7168 r=1: overhead 37.6 ms (median 37.9) text_exact=False err=None
+upstream n=7168 r=2: overhead 45.9 ms (median 38.2) text_exact=False err=None
+upstream n=7168 r=3: overhead 38.6 ms (median 38.4) text_exact=False err=None
+upstream n=7168 r=4: overhead 44.7 ms (median 38.6) text_exact=False err=None
+upstream burst 128x48: {"n": 128, "concurrency": 48, "ok": 48, "errors": [], "prefill_window_s": 1.2041847705841064, "prefill_rps": 39.86099240959254, "all_done_s": 1.6511509418487549, "median_pd_ttft_s": 0.7309747934341431}
+upstream burst 1024x16: {"n": 1024, "concurrency": 16, "ok": 16, "errors": [], "prefill_window_s": 2.1233882904052734, "prefill_rps": 7.535126793482606, "all_done_s": 2.520639181137085, "median_pd_ttft_s": 1.2647602558135986}
+done in 215s -> /home/pdblend4/results/connector-ablation/results.json

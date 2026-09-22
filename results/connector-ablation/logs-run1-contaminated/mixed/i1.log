@@ -1,0 +1,8 @@
+INFO 09-21 14:20:27 [__init__.py:241] Automatically detected platform cuda.
+WARNING 09-21 14:20:29 [api_server.py:998] SECURITY WARNING: Development endpoints are enabled! This should NOT be used in production!
+WARNING 09-21 14:20:29 [__init__.py:1726] argument '--disable-log-requests' is deprecated and replaced with '--enable-log-requests'. This will be removed in v0.12.0.
+[1;36m(APIServer pid=27)[0;0m INFO 09-21 14:20:29 [api_server.py:1805] vLLM API server version 0.10.1.1
+[1;36m(APIServer pid=27)[0;0m INFO 09-21 14:20:29 [utils.py:326] non-default args: {'model_tag': '/models/Qwen2.5-7B-Instruct', 'host': '127.0.0.1', 'port': 8101, 'model': '/models/Qwen2.5-7B-Instruct', 'dtype': 'bfloat16', 'max_model_len': 8192, 'served_model_name': ['m'], 'enable_sleep_mode': True, 'gpu_memory_utilization': 0.85, 'enable_prefix_caching': False, 'max_num_batched_tokens': 8192, 'max_num_seqs': 256, 'enable_chunked_prefill': True}
+[1;36m(APIServer pid=27)[0;0m INFO 09-21 14:20:34 [__init__.py:711] Resolved architecture: Qwen2ForCausalLM
+[1;36m(APIServer pid=27)[0;0m INFO 09-21 14:20:34 [__init__.py:1750] Using max model len 8192
+[1;36m(APIServer pid=27)[0;0m INFO 09-21 14:20:34 [scheduler.py:222] Chunked prefill is enabled with max_num_batched_tokens=8192.

@@ -1,4 +1,4 @@
-# RESTART — eval-7b-v2 矩阵实验重启手册
+# RESTART — PDblend eval-7b-v2 矩阵实验重启手册
 
 ## 0. 一句话
 
@@ -7,7 +7,7 @@
 ## 1. 停机时状态（2026-09-21 15:00）
 
 - 工作区 `/home/pdblend4`：代码、语料（`datasets/prepared/2026-09-21-7b-v2-half`）、profile（`results/v2/profile-7b/profile.json`）、spec（`results/v2/eval-7b-v2/spec.json`）、结果全部在此。唯一外部依赖：`/home/models` 模型权重挂载 + 镜像 `pdblend:l20-cu128-vllm-v1`。
-- 进度 **15/156**。点顺序：sharegpt-x0.5 五策略快速组 ✓ → alpaca x0.1–x0.9 mixed ✓ → sharegpt x0.1–x0.9 mixed（x0.1 ✓，x0.2 起继续）→ longbench mixed → distserve_static / dynamollm / ecoserve 各 27 点 → 自家梯子+消融 x0.5 共 21 点 → **pdblend 27 点排最后**。剩余 ≈141 点 × 约 6.5 分钟 ≈ 15 小时。
+- 进度 **16/156**。点顺序：sharegpt-x0.5 五策略快速组 ✓ → alpaca x0.1–x0.9 mixed ✓ → sharegpt x0.1–x0.2 mixed ✓；`sharegpt-x0.3-mixed` 曾发生引擎退出，已归档并会从原 spec 重跑。其余点按 spec 顺序继续。
 - 主判定指标：**j_per_token（全程能耗÷输出 token）**，门槛 joint_slo_rate≥0.9；对比表 = `results/v2/eval-7b-v2/compare.csv`。
 - **冻结纪律**：baseline（mixed/distserve_static/dynamollm/ecoserve）测完即冻结。禁止改动共享规划模型参数（`control/planner.py` 的 safety/rho_decode/dwell_s 及 decode/prefill 模型、`profile.json`）——否则已测 baseline 与 static_best 全部失效。pdblend 独占路径可改：`control/policies/__init__.py` 的 pdblend 条目、`control/controller.py`、`control/shield.py`。
 - 每个新点落盘：summary.json / outcomes.jsonl / power.jsonl / **util.jsonl（SM 利用率）/ freq.jsonl（频率）** / controller.jsonl / logs/。前 13 个点（重启前测的）没有 util/freq，compare.csv 里对应列为空。
@@ -33,7 +33,7 @@ setsid nohup docker run --rm --name pdb2-matrix-v2 \
   -e PYTHONPATH=/home/pdblend4/src -e PDBLEND_MODELS_DIR=/models \
   -w /home/pdblend4 \
   pdblend:l20-cu128-vllm-v1 \
-  python -m pdblend2.cli matrix results/v2/eval-7b-v2/spec.json \
+  python -m pdblend.cli matrix results/v2/eval-7b-v2/spec.json \
   >> /home/pdblend4/results/v2/logs/eval-7b-v2-matrix.log 2>&1 &
 ```
 
@@ -76,10 +76,10 @@ docker run --rm --ulimit nofile=65536:65536 --network none \
     --network host -v /home/pdblend4:/home/pdblend4 -v /home/models:/models \
     -e PYTHONPATH=/home/pdblend4/src -e PDBLEND_MODELS_DIR=/models -w /home/pdblend4 \
     pdblend:l20-cu128-vllm-v1 \
-    python -m pdblend2.cli bench --policy pdblend --profile results/v2/profile-7b/profile.json \
+    python -m pdblend.cli bench --policy pdblend --profile results/v2/profile-7b/profile.json \
       --corpus datasets/prepared/2026-09-21-7b-v2-half --dataset sharegpt --rate 8.11 --scale 0.5 \
       --duration 300 --seed 701 --out results/v2/smoke/<自定义名>
   ```
-- **测试**：改码后跑 `docker run --rm --ulimit nofile=65536:65536 --network none -v /home/pdblend4:/home/pdblend4 -e PYTHONPATH=/home/pdblend4/src -w /home/pdblend4 pdblend:l20-cu128-vllm-v1 python -m pytest tests/pdblend2/ -q`，要求 67 passed + 1 skipped。
-- 别动无关容器（如其他终端的 focused_joliot）。git 提交用 `git -c user.name=pdblend4 -c user.email=noreply@local commit ...`。
+- **测试**：改码后跑 `docker run --rm --ulimit nofile=65536:65536 --network none -v /home/pdblend4:/home/pdblend4 -e PYTHONPATH=/home/pdblend4/src -w /home/pdblend4 pdblend:l20-cu128-vllm-v1 python -m pytest tests/pdblend/ -q`，要求 67 passed + 1 skipped。
+- 别动无关容器（如其他终端的 focused_joliot）。git 提交用 `git -c user.name=pdblend -c user.email=noreply@local commit ...`。
 - 战役文档：`results/v2/eval-7b-v2/OPTIMIZATION-LOG.md`（判定标准 + 优化迭代记录）；baseline 全量完成后补 `BASELINES-FROZEN.md` 快照。

@@ -1,0 +1,51 @@
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 12.8.1
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+[22:46:27] sharegpt-x0.5-mixed: {"policy": "mixed", "dataset": "sharegpt", "rate": 8.109}
+[load] t=  30.2s sent=212 done=154
+[load] t=  60.3s sent=447 done=390
+[load] t=  90.4s sent=685 done=606
+[load] t= 120.4s sent=935 done=855
+[load] t= 150.6s sent=1218 done=1133
+[load] t= 180.7s sent=1473 done=1408
+[load] t= 210.8s sent=1719 done=1656
+[load] t= 241.1s sent=1943 done=1881
+[load] t= 271.1s sent=2187 done=2120
+{"name": "sharegpt-x0.5-mixed", "status": "ok", "policy": "mixed", "joint_slo_rate": 1.0, "success_rate": 1.0, "ttft_p90": 0.1742568016052246, "tpot_p90": 0.026229798677149585, "energy_j": 659257.7407271034, "window_energy_j": 638507.2925683421, "mean_power_w": 2115.650900205864, "j_per_request": 269.0847921335116, "final_roles": {"i0": "M", "i1": "M", "i2": "M", "i3": "M", "i4": "M", "i5": "M", "i6": "M", "i7": "M"}}
+[22:52:51] alpaca-x0.1-mixed: {"policy": "mixed", "dataset": "alpaca", "rate": 18.109}
+[load] t=  30.0s sent=500 done=450
+[load] t=  60.0s sent=1061 done=1016
+[load] t=  90.2s sent=1646 done=1579
+[load] t= 120.2s sent=2170 done=2102
+[load] t= 150.3s sent=2737 done=2672
+[load] t= 180.3s sent=3269 done=3214
+[load] t= 210.3s sent=3840 done=3780
+[load] t= 240.3s sent=4419 done=4348
+[load] t= 270.3s sent=4939 done=4868
+{"name": "alpaca-x0.1-mixed", "status": "ok", "policy": "mixed", "joint_slo_rate": 1.0, "success_rate": 1.0, "ttft_p90": 0.050121307373046875, "tpot_p90": 0.02236947923336389, "energy_j": 627214.5637495893, "window_energy_j": 611910.31739035, "mean_power_w": 2027.779389367845, "j_per_request": 115.29679480690979, "final_roles": {"i0": "M", "i1": "M", "i2": "M", "i3": "M", "i4": "M", "i5": "M", "i6": "M", "i7": "M"}}
+[22:58:09] sharegpt-x0.5-distserve_static: {"policy": "distserve_static", "dataset": "sharegpt", "rate": 8.109}
+[load] t=  30.2s sent=212 done=156
+[load] t=  60.3s sent=447 done=392
+[load] t=  90.4s sent=685 done=611
+[load] t= 120.4s sent=935 done=860
+[load] t= 150.6s sent=1218 done=1137
+[load] t= 180.7s sent=1473 done=1414
+[load] t= 210.8s sent=1719 done=1657
+[load] t= 241.1s sent=1943 done=1886
+[load] t= 271.1s sent=2187 done=2125
+{"name": "sharegpt-x0.5-distserve_static", "status": "ok", "policy": "distserve_static", "joint_slo_rate": 1.0, "success_rate": 1.0, "ttft_p90": 0.28424930572509766, "tpot_p90": 0.023367489387377833, "energy_j": 605058.9089384088, "window_energy_j": 586733.8054156092, "mean_power_w": 1943.6352718064131, "j_per_request": 246.96281997486074, "final_roles": {"i0": "P", "i1": "P", "i2": "D", "i3": "D", "i4": "D", "i5": "D", "i6": "D", "i7": "D"}}
+{"name": "sharegpt-x0.5-mixed", "status": "ok", "policy": "mixed", "joint_slo_rate": 1.0, "success_rate": 1.0, "ttft_p90": 0.1742568016052246, "tpot_p90": 0.026229798677149585, "energy_j": 659257.7407271034, "window_energy_j": 638507.2925683421, "mean_power_w": 2115.650900205864, "j_per_request": 269.0847921335116, "final_roles": {"i0": "M", "i1": "M", "i2": "M", "i3": "M", "i4": "M", "i5": "M", "i6": "M", "i7": "M"}}
+{"name": "alpaca-x0.1-mixed", "status": "ok", "policy": "mixed", "joint_slo_rate": 1.0, "success_rate": 1.0, "ttft_p90": 0.050121307373046875, "tpot_p90": 0.02236947923336389, "energy_j": 627214.5637495893, "window_energy_j": 611910.31739035, "mean_power_w": 2027.779389367845, "j_per_request": 115.29679480690979, "final_roles": {"i0": "M", "i1": "M", "i2": "M", "i3": "M", "i4": "M", "i5": "M", "i6": "M", "i7": "M"}}
+{"name": "sharegpt-x0.5-distserve_static", "status": "ok", "policy": "distserve_static", "joint_slo_rate": 1.0, "success_rate": 1.0, "ttft_p90": 0.28424930572509766, "tpot_p90": 0.023367489387377833, "energy_j": 605058.9089384088, "window_energy_j": 586733.8054156092, "mean_power_w": 1943.6352718064131, "j_per_request": 246.96281997486074, "final_roles": {"i0": "P", "i1": "P", "i2": "D", "i3": "D", "i4": "D", "i5": "D", "i6": "D", "i7": "D"}}

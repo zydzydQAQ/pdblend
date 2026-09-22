@@ -35,7 +35,7 @@
 
 ### 验证
 
-- pytest tests/pdblend2：67 passed + 1 skipped（新增 2 测试：hold_initial 持有暖计划 / 无 hold_initial 回退 fail-open）。
+- pytest tests/pdblend：67 passed + 1 skipped（新增 2 测试：hold_initial 持有暖计划 / 无 hold_initial 回退 fail-open）。
 - 离线 sanity（scripts/warm_plan_sanity.py，27 点）：pdblend 暖计划 = static_best 计划（同源离线预测），例如：
   - sharegpt-x0.5: M5+3L1@2100（模型预测 1350W；实测稳态通常低于预测）
   - alpaca x0.1–x0.7: M1–M7@1800 + L1 补齐（434–1797W）
@@ -68,3 +68,50 @@
 - 停机深度：off 被 L1 严格支配（35.4W/35s vs 25.9W/0.028s）→ pdblend 禁选 off。
 - PD 门控复核：减半语料 sharegpt mean 784 tok 下 min_pd_input_tokens=256 是否仍合理。
 - 排程：JSQ / drain_timeout 30s。
+
+## 迭代 2 — pdblend 独占校准 profiler（创新点）+ x0.5 正面交锋（2026-09-21 晚）
+
+### 结论（compare.csv 口径）
+
+| policy | mean_power(W) | j/tok | joint |
+|---|---:|---:|---:|
+| ecoserve（原最佳 baseline） | 1271 | 0.5078 | 1.0 |
+| pdblend 迭代 1（旧代码落盘） | 1279 | 0.5097 | 1.0 |
+| **pdblend 迭代 2（最终栈）** | **868.7** | **0.3503** | **0.9971** |
+
+**判定：WIN，-31.0%。** ttft_p90 0.864s（SLO 5.0，余量 5.8×）、tpot_p90 0.0753s（SLO 0.15，余量 2×）、终态 M3+off5、全程 plan 10 次有界。
+
+### 根因（回答"为什么规划器选不中 M4"——profiler 三件套）
+
+1. **冻结 profile 原始测量过期**（主因）：引擎构建已变。同 grid 点 decode step(32,1024,2100)：冻结拟合 61ms vs 当夜新测 **28.3ms**（差 2.2×）；kv_capacity 453392→411824；静态功耗也漂移（parked 25.9→37.0W、off 35.4→36.0W——**off 不再被 L1 支配**，迭代 1 待办中"禁选 off"的结论随新数据反转）。
+2. **冻结 json 为旧版 3 系数拟合**：B 与 B·ctx 在 3 值 ctx 网格上共线，beta 被压成 0，batch 增长全塞进注意力项。
+3. **排队不动点放大器**：γ 高估 ~30% → Little 分母贴边（0.246）→ 稳态 batch 估出 2.2×（55 vs 实测 ~25）→ rho 容量门 569<653 判 M4"队列爆炸"。功率高估 6-9% 为连带误伤（以为 B=55，decode_power 随 B 涨）。
+
+### 路线（用户拍板）：pdblend profiler 独立，作为创新点
+
+baseline 继续用冻结的 results/v2/profile-7b/profile.json（全程未动）；pdblend 家族（27 主点 + 12 消融点，spec.json per-point 覆盖）用当夜重测的 6 频校准 profile：**results/v2/profile-7b-pdblend/**（34.8min 全量校准，decode_time 残差 6.6-14.2%，prefill 1.2-5%）。接线零代码改动（matrix.py 的 defaults+point 合并机制），gen_spec_v2.py 已同步。原"容量松动/home override"方案作废——胜利来自模型本身，无任何单点特权选型。
+
+### 验证门（重启矩阵前全部通过）
+
+- **真值对照**：三次固定布局实测（fixed-m5-2100 1279.9W / fixed-m4-2100 1097.6W / fixed-m4-2520 1274.7W），新模型预测功率误差 **+2.3% / +2.3% / +3.7%**，可行性与排序全部正确。
+- **39 点 argmin 表**（scripts/audit_pdblend_profile.py → profile-7b-pdblend/audit.json）：无 fallback、无荒谬布局；x0.5 argmin = M2+off6@1800 = 706.6W（6 频比 2 频解锁 1800MHz 档）。
+- **异 seed 稳健**（回应过拟合疑虑）：M4+4L1@2100 在 seed 701 / 1701 分别 1097.6W/0.4376 与 1097.9W/0.4341，joint 均 1.0——选型依据是负载档位而非特定 trace。
+- **全栈先行验证**（adaptive-calibrated，2 频 profile + 完整控制栈）：911.2W / 0.3673 / joint 0.998，终态 M3+off5。
+
+### x0.5 重跑控制轨迹（controller.jsonl）
+
+首条 forecast rate=7.18（bootstrap 先验生效，旧代码从 2.0 爬坡）；初始计划即 argmin **M2+off6@1800**（t=0 home 落位）；ramp 期 shield 两级提级（clock→2520、M2→M3）兜住瞬态 TTFT 压力；随后稳定，终态 M3+off5。驻锚 + plan_hold_30s + down_votes_2 将抖动压在 ramp 期（plan 10 次 vs 迭代 0 的 15 次，且全部发生在前 ~100s）。
+
+### 协调记录（双会话）
+
+另一会话的 stage1 队列（calibration-2100-2520 → fixed-m4 两 seed → adaptive-calibrated）与本轮优化并行，其 2 频校准与先行验证结果被直接复用；其 driver 脚本曾两次自动恢复 matrix，均在 pdblend profile 就绪前被按 §2 规程暂停清理（残点零损失）。6 频校准完成后 matrix 于 ~21:31 恢复，x0.5-pdblend 为首个重跑点。GPU 争抢事故一次（profile-6f 首跑因并发容器内存不足失败，重跑成功）。
+
+### 后续
+
+- 26 个 pdblend 矩阵点（索引 130-155）将由 runner 断点续跑，全部使用 6 频校准 profile；消融点同。
+- 长期（freeze 窗口外）：baseline 共享 profile 已过期 2.2×，重新 profiling 后 dynamollm/ecoserve 的数字也会变——报告时需在论文口径中说明 profiler 版本。
+- decode_power 弱仿射（残差 14-32%）未影响真值门（±3.7% 内），若后续点出现功率排序误判可考虑分段功率拟合。
+
+### 停机交接（21:50）
+
+矩阵于 44/156 点完成处按 §2 停止（残点已清、显存归零），GPU 让给 codex 修正 profiler。恢复：codex 完工后按 RESTART.md §3 重启即可（幂等续跑；pdblend 家族 39 点已接线 spec 中的 profile-7b-pdblend 路径，若 codex 更新该文件内容无需再改 spec；若改路径需同步 spec.json 与 gen_spec_v2.py）。

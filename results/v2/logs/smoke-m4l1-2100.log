@@ -1,0 +1,43 @@
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 12.8.1
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/usr/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/home/pdblend4/src/pdblend/cli.py", line 189, in <module>
+    main()
+  File "/home/pdblend4/src/pdblend/cli.py", line 137, in main
+    print(json.dumps(brief(bench_point(vars(args))), indent=1))
+  File "/home/pdblend4/src/pdblend/bench/matrix.py", line 188, in bench_point
+    return run_point(a["model"], gpus, int(a["tp"]), a["policy"], Path(a["profile"]), trace, SLO(*bc.SLOS[a["dataset"]]),
+  File "/home/pdblend4/src/pdblend/bench/run.py", line 167, in run_point
+    result = asyncio.run(_point(fleet, meter, model, policy, slo, trace, warmup or [], out_dir, proxy_port,
+  File "/usr/lib/python3.10/asyncio/runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "/usr/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/home/pdblend4/src/pdblend/bench/run.py", line 76, in _point
+    runner = await _serve_proxy(proxy, proxy_port)
+  File "/home/pdblend4/src/pdblend/bench/run.py", line 64, in _serve_proxy
+    await web.TCPSite(runner, "127.0.0.1", port).start()
+  File "/opt/venv/lib/python3.10/site-packages/aiohttp/web_runner.py", line 138, in start
+    self._server = await loop.create_server(
+  File "/usr/lib/python3.10/asyncio/base_events.py", line 1519, in create_server
+    raise OSError(err.errno, 'error while attempting '
+OSError: [Errno 98] error while attempting to bind on address ('127.0.0.1', 8000): address already in use
+Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f6b1c9fb700>

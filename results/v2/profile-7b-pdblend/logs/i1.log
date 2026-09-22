@@ -1,0 +1,88 @@
+INFO 09-21 12:55:25 [__init__.py:241] Automatically detected platform cuda.
+WARNING 09-21 12:55:27 [api_server.py:998] SECURITY WARNING: Development endpoints are enabled! This should NOT be used in production!
+WARNING 09-21 12:55:27 [__init__.py:1726] argument '--disable-log-requests' is deprecated and replaced with '--enable-log-requests'. This will be removed in v0.12.0.
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 12:55:27 [api_server.py:1805] vLLM API server version 0.10.1.1
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 12:55:27 [utils.py:326] non-default args: {'model_tag': '/models/Qwen2.5-7B-Instruct', 'host': '127.0.0.1', 'port': 8101, 'model': '/models/Qwen2.5-7B-Instruct', 'dtype': 'bfloat16', 'max_model_len': 8192, 'served_model_name': ['m'], 'enable_sleep_mode': True, 'gpu_memory_utilization': 0.85, 'enable_prefix_caching': False, 'max_num_batched_tokens': 8192, 'max_num_seqs': 256, 'enable_chunked_prefill': True, 'kv_transfer_config': KVTransferConfig(kv_connector='P2pNcclConnector', engine_id='44382e18-94cd-4d3e-8523-fe8773acf2ca', kv_buffer_device='cuda', kv_buffer_size=1000000000.0, kv_role='kv_both', kv_rank=None, kv_parallel_size=1, kv_ip='127.0.0.1', kv_port=28101, kv_connector_extra_config={'http_port': '8101', 'send_type': 'PUT_ASYNC', 'nccl_num_channels': '8', 'mem_pool_size_gb': '4'}, kv_connector_module_path=None)}
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 12:55:32 [__init__.py:711] Resolved architecture: Qwen2ForCausalLM
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 12:55:32 [__init__.py:1750] Using max model len 8192
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 12:55:32 [scheduler.py:222] Chunked prefill is enabled with max_num_batched_tokens=8192.
+INFO 09-21 12:55:35 [__init__.py:241] Automatically detected platform cuda.
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:55:37 [core.py:636] Waiting for init message from front-end.
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:55:37 [core.py:74] Initializing a V1 LLM engine (v0.10.1.1) with config: model='/models/Qwen2.5-7B-Instruct', speculative_config=None, tokenizer='/models/Qwen2.5-7B-Instruct', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, override_neuron_config={}, tokenizer_revision=None, trust_remote_code=False, dtype=torch.bfloat16, max_seq_len=8192, download_dir=None, load_format=auto, tensor_parallel_size=1, pipeline_parallel_size=1, disable_custom_all_reduce=False, quantization=None, enforce_eager=False, kv_cache_dtype=auto, device_config=cuda, decoding_config=DecodingConfig(backend='auto', disable_fallback=False, disable_any_whitespace=False, disable_additional_properties=False, reasoning_backend=''), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None), seed=0, served_model_name=m, enable_prefix_caching=False, chunked_prefill_enabled=True, use_async_output_proc=True, pooler_config=None, compilation_config={"level":3,"debug_dump_path":"","cache_dir":"","backend":"","custom_ops":[],"splitting_ops":["vllm.unified_attention","vllm.unified_attention_with_output","vllm.mamba_mixer2"],"use_inductor":true,"compile_sizes":[],"inductor_compile_config":{"enable_auto_functionalized_v2":false},"inductor_passes":{},"cudagraph_mode":1,"use_cudagraph":true,"cudagraph_num_of_warmups":1,"cudagraph_capture_sizes":[512,504,496,488,480,472,464,456,448,440,432,424,416,408,400,392,384,376,368,360,352,344,336,328,320,312,304,296,288,280,272,264,256,248,240,232,224,216,208,200,192,184,176,168,160,152,144,136,128,120,112,104,96,88,80,72,64,56,48,40,32,24,16,8,4,2,1],"cudagraph_copy_inputs":false,"full_cuda_graph":false,"pass_config":{},"max_capture_size":512,"local_cache_dir":null}
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:55:39 [parallel_state.py:1134] rank 0 in world size 1 is assigned as DP rank 0, PP rank 0, TP rank 0, EP rank 0
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:55:39 [factory.py:50] Creating v1 connector with name: P2pNcclConnector and engine_id: 44382e18-94cd-4d3e-8523-fe8773acf2ca
+[1;36m(EngineCore_0 pid=862)[0;0m WARNING 09-21 12:55:39 [base.py:80] Initializing KVConnectorBase_V1. This API is experimental and subject to change in the future as we iterate the design.
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:55:39 [__init__.py:1418] Found nccl from library libnccl.so.2
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:55:40 [p2p_nccl_engine.py:171] 💯P2pNcclEngine init, rank:0, local_rank:0, http_address:127.0.0.1:8101, zmq_address:127.0.0.1:28101, proxy_address:, send_type:PUT_ASYNC, buffer_size_threshold:1000000000.00, nccl_num_channels:8
+[1;36m(EngineCore_0 pid=862)[0;0m WARNING 09-21 12:55:40 [topk_topp_sampler.py:61] FlashInfer is not available. Falling back to the PyTorch-native implementation of top-p & top-k sampling. For the best performance, please install FlashInfer.
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:55:40 [gpu_model_runner.py:1953] Starting to load model /models/Qwen2.5-7B-Instruct...
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:55:40 [gpu_model_runner.py:1985] Loading model from scratch...
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:55:40 [cuda.py:328] Using Flash Attention backend on V1 engine.
+[1;36m(EngineCore_0 pid=862)[0;0m Loading safetensors checkpoint shards:   0% Completed | 0/4 [00:00<?, ?it/s]
+[1;36m(EngineCore_0 pid=862)[0;0m Loading safetensors checkpoint shards:  25% Completed | 1/4 [00:00<00:01,  2.22it/s]
+[1;36m(EngineCore_0 pid=862)[0;0m Loading safetensors checkpoint shards:  50% Completed | 2/4 [00:00<00:00,  2.18it/s]
+[1;36m(EngineCore_0 pid=862)[0;0m Loading safetensors checkpoint shards:  75% Completed | 3/4 [00:01<00:00,  2.22it/s]
+[1;36m(EngineCore_0 pid=862)[0;0m Loading safetensors checkpoint shards: 100% Completed | 4/4 [00:01<00:00,  2.18it/s]
+[1;36m(EngineCore_0 pid=862)[0;0m Loading safetensors checkpoint shards: 100% Completed | 4/4 [00:01<00:00,  2.19it/s]
+[1;36m(EngineCore_0 pid=862)[0;0m 
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:55:42 [default_loader.py:262] Loading weights took 1.86 seconds
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:55:42 [gpu_model_runner.py:2007] Model loading took 14.2488 GiB and 1.988535 seconds
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:55:47 [backends.py:548] Using cache directory: /root/.cache/vllm/torch_compile_cache/10376bd55c/rank_0_0/backbone for vLLM's torch.compile
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:55:47 [backends.py:559] Dynamo bytecode transform time: 4.42 s
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:55:49 [backends.py:194] Cache the graph for dynamic shape for later use
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:56:04 [backends.py:215] Compiling a graph for dynamic shape takes 16.82 s
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:56:15 [monitor.py:34] torch.compile takes 21.24 s in total
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:56:16 [gpu_worker.py:276] Available KV cache memory: 21.99 GiB
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:56:16 [kv_cache_utils.py:849] GPU KV cache size: 411,824 tokens
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:56:16 [kv_cache_utils.py:853] Maximum concurrency for 8,192 tokens per request: 50.27x
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:56:16 [utils.py:114] Connectors do not specify a kv cache layout, defaulting to NHD.
+[1;36m(EngineCore_0 pid=862)[0;0m Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):   0%|          | 0/67 [00:00<?, ?it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):   3%|▎         | 2/67 [00:00<00:05, 12.85it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):   6%|▌         | 4/67 [00:00<00:04, 13.14it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):   9%|▉         | 6/67 [00:00<00:04, 13.24it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  12%|█▏        | 8/67 [00:00<00:04, 13.28it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  15%|█▍        | 10/67 [00:00<00:04, 13.61it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  18%|█▊        | 12/67 [00:00<00:03, 13.81it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  21%|██        | 14/67 [00:01<00:03, 13.97it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  24%|██▍       | 16/67 [00:01<00:03, 14.14it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  27%|██▋       | 18/67 [00:01<00:03, 14.85it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  30%|██▉       | 20/67 [00:01<00:03, 15.39it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  33%|███▎      | 22/67 [00:01<00:02, 15.79it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  36%|███▌      | 24/67 [00:01<00:02, 16.06it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  39%|███▉      | 26/67 [00:01<00:02, 16.65it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  42%|████▏     | 28/67 [00:01<00:02, 17.11it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  45%|████▍     | 30/67 [00:01<00:02, 17.46it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  48%|████▊     | 32/67 [00:02<00:01, 17.79it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  52%|█████▏    | 35/67 [00:02<00:01, 19.13it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  57%|█████▋    | 38/67 [00:02<00:01, 19.98it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  61%|██████    | 41/67 [00:02<00:01, 20.87it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  66%|██████▌   | 44/67 [00:02<00:01, 22.06it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  70%|███████   | 47/67 [00:02<00:00, 23.02it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  75%|███████▍  | 50/67 [00:02<00:00, 23.93it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  79%|███████▉  | 53/67 [00:02<00:00, 24.84it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  84%|████████▎ | 56/67 [00:03<00:00, 25.20it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  88%|████████▊ | 59/67 [00:03<00:00, 26.03it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  93%|█████████▎| 62/67 [00:03<00:00, 26.59it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  99%|█████████▊| 66/67 [00:03<00:00, 28.00it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE): 100%|██████████| 67/67 [00:03<00:00, 19.43it/s]
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:56:20 [gpu_model_runner.py:2708] Graph capturing finished in 4 secs, took 0.44 GiB
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:56:20 [core.py:214] init engine (profile, create kv cache, warmup model) took 37.61 seconds
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 12:56:20 [factory.py:50] Creating v1 connector with name: P2pNcclConnector and engine_id: 44382e18-94cd-4d3e-8523-fe8773acf2ca
+[1;36m(EngineCore_0 pid=862)[0;0m WARNING 09-21 12:56:20 [base.py:80] Initializing KVConnectorBase_V1. This API is experimental and subject to change in the future as we iterate the design.
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 12:56:20 [loggers.py:142] Engine 000: vllm cache_config_info with initialization after num_gpu_blocks is: 25739
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 12:56:20 [api_server.py:1611] Supported_tasks: ['generate']
+[1;36m(APIServer pid=90)[0;0m WARNING 09-21 12:56:20 [__init__.py:1625] Default sampling parameters have been overridden by the model's Hugging Face generation config recommended from the model creator. If this is not intended, please relaunch vLLM instance with `--generation-config vllm`.
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 12:56:20 [serving_responses.py:120] Using default chat sampling params from model: {'repetition_penalty': 1.05, 'temperature': 0.7, 'top_k': 20, 'top_p': 0.8}
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 12:56:20 [serving_chat.py:134] Using default chat sampling params from model: {'repetition_penalty': 1.05, 'temperature': 0.7, 'top_k': 20, 'top_p': 0.8}
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 12:56:20 [serving_completion.py:77] Using default completion sampling params from model: {'repetition_penalty': 1.05, 'temperature': 0.7, 'top_k': 20, 'top_p': 0.8}
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 12:56:20 [api_server.py:1880] Starting vLLM API server 0 on http://127.0.0.1:8101
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 12:56:20 [launcher.py:36] Available routes are:
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 12:56:20 [launcher.py:44] Route: /openapi.json, Methods: HEAD, GET
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 12:56:20 [launcher.py:44] Route: /docs, Methods: HEAD, GET
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 12:56:20 [launcher.py:44] Route: /docs/oauth2-redirect, Methods: HEAD, GET
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 12:56:20 [launcher.py:44] Route: /redoc, Methods: HEAD, GET
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 12:56:20 [launcher.py:44] Route: /metrics, Methods: GET
+[1;36m(APIServer pid=90)[0;0m INFO:     Started server process [90]
+[1;36m(APIServer pid=90)[0;0m INFO:     Waiting for application startup.
+[1;36m(APIServer pid=90)[0;0m INFO:     Application startup complete.
+[1;36m(APIServer pid=90)[0;0m INFO:     127.0.0.1:50976 - "GET /health HTTP/1.1" 200 OK
+[1;36m(APIServer pid=90)[0;0m INFO:     127.0.0.1:55488 - "POST /v1/completions HTTP/1.1" 200 OK
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 13:28:16 [p2p_nccl_engine.py:49] set_p2p_nccl_context, original_values: {'NCCL_MAX_NCHANNELS': None, 'NCCL_MIN_NCHANNELS': None, 'NCCL_CUMEM_ENABLE': '0', 'NCCL_BUFFSIZE': None, 'NCCL_PROTO': None, 'NCCL_ALGO': None}
+[1;36m(EngineCore_0 pid=862)[0;0m INFO 09-21 13:28:16 [p2p_nccl_engine.py:347] 🤝ncclCommInitRank Success, 127.0.0.1:28101👈127.0.0.1:28100, MyRank:1
+[1;36m(APIServer pid=90)[0;0m INFO:     127.0.0.1:55488 - "POST /v1/completions HTTP/1.1" 200 OK
+[1;36m(APIServer pid=90)[0;0m INFO:     127.0.0.1:55488 - "POST /v1/completions HTTP/1.1" 200 OK
+[1;36m(APIServer pid=90)[0;0m INFO:     127.0.0.1:55488 - "POST /v1/completions HTTP/1.1" 200 OK
+[1;36m(APIServer pid=90)[0;0m INFO:     127.0.0.1:55488 - "POST /v1/completions HTTP/1.1" 200 OK
+[1;36m(APIServer pid=90)[0;0m INFO:     127.0.0.1:55488 - "POST /v1/completions HTTP/1.1" 200 OK
+[1;36m(APIServer pid=90)[0;0m INFO:     127.0.0.1:55488 - "POST /v1/completions HTTP/1.1" 200 OK
+[1;36m(APIServer pid=90)[0;0m INFO:     127.0.0.1:55488 - "POST /v1/completions HTTP/1.1" 200 OK
+[1;36m(APIServer pid=90)[0;0m INFO:     127.0.0.1:55488 - "POST /v1/completions HTTP/1.1" 200 OK
+[1;36m(APIServer pid=90)[0;0m INFO:     127.0.0.1:55488 - "POST /v1/completions HTTP/1.1" 200 OK
+[1;36m(APIServer pid=90)[0;0m INFO:     127.0.0.1:55488 - "POST /v1/completions HTTP/1.1" 200 OK
+[1;36m(APIServer pid=90)[0;0m INFO:     127.0.0.1:55488 - "POST /v1/completions HTTP/1.1" 200 OK
+[1;36m(APIServer pid=90)[0;0m INFO:     127.0.0.1:55488 - "POST /v1/completions HTTP/1.1" 200 OK
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 13:28:21 [loggers.py:123] Engine 000: Avg prompt throughput: 2252.7 tokens/s, Avg generation throughput: 5.2 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%
+[1;36m(APIServer pid=90)[0;0m INFO:     127.0.0.1:55488 - "POST /v1/completions HTTP/1.1" 200 OK
+[1;36m(APIServer pid=90)[0;0m INFO:     127.0.0.1:55488 - "POST /v1/completions HTTP/1.1" 200 OK
+[1;36m(APIServer pid=90)[0;0m INFO:     127.0.0.1:55488 - "POST /v1/completions HTTP/1.1" 200 OK
+[1;36m(APIServer pid=90)[0;0m INFO:     127.0.0.1:55488 - "POST /v1/completions HTTP/1.1" 200 OK
+[1;36m(APIServer pid=90)[0;0m INFO:     127.0.0.1:55488 - "POST /v1/completions HTTP/1.1" 200 OK
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 13:28:31 [loggers.py:123] Engine 000: Avg prompt throughput: 3583.8 tokens/s, Avg generation throughput: 2.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 13:28:41 [loggers.py:123] Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%
+[1;36m(APIServer pid=90)[0;0m INFO 09-21 13:30:05 [launcher.py:101] Shutting down FastAPI HTTP server.
+[rank0]:[W921 13:30:05.287866419 ProcessGroupNCCL.cpp:1479] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+[1;36m(APIServer pid=90)[0;0m INFO:     Shutting down
+[1;36m(APIServer pid=90)[0;0m INFO:     Waiting for application shutdown.
+[1;36m(APIServer pid=90)[0;0m INFO:     Application shutdown complete.

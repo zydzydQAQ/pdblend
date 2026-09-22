@@ -1,0 +1,54 @@
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 12.8.1
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+lock clocks: rc=0 GPU clocks set to "(gpuClkMin 2520, gpuClkMax 2520)" for GPU 00000000:00:07.0
+GPU clocks set to "(gpuClkMin 2520, gpuClkMax 2520)" for GPU 00000000:00:08.0
+All done. 
+mixed n=512: ttft 70.8 ms
+mixed n=2048: ttft 263.1 ms
+mixed n=7168: ttft 990.4 ms
+patched n=512 r=0: overhead 30.0 ms (median 30.0) text_exact=True err=None
+patched n=512 r=1: overhead 31.8 ms (median 30.9) text_exact=False err=None
+patched n=512 r=2: overhead 30.9 ms (median 30.9) text_exact=False err=None
+patched n=512 r=3: overhead 30.9 ms (median 30.9) text_exact=False err=None
+patched n=512 r=4: overhead 30.3 ms (median 30.9) text_exact=False err=None
+patched n=2048 r=0: overhead 38.9 ms (median 38.9) text_exact=True err=None
+patched n=2048 r=1: overhead 36.9 ms (median 37.9) text_exact=False err=None
+patched n=2048 r=2: overhead 38.1 ms (median 38.1) text_exact=False err=None
+patched n=2048 r=3: overhead 37.0 ms (median 37.6) text_exact=False err=None
+patched n=2048 r=4: overhead 37.7 ms (median 37.7) text_exact=False err=None
+patched n=7168 r=0: overhead 42.3 ms (median 42.3) text_exact=True err=None
+patched n=7168 r=1: overhead 43.3 ms (median 42.8) text_exact=False err=None
+patched n=7168 r=2: overhead 43.3 ms (median 43.3) text_exact=False err=None
+patched n=7168 r=3: overhead 41.5 ms (median 42.8) text_exact=False err=None
+patched n=7168 r=4: overhead 53.1 ms (median 43.3) text_exact=False err=None
+patched burst: {"n": 1024, "concurrency": 16, "ok": 16, "errors": [], "prefill_window_s": 2.1328952312469482, "prefill_rps": 7.501540519008975, "all_done_s": 2.5307538509368896, "median_pd_ttft_s": 1.305442452430725}
+upstream n=512 r=0: overhead 29.7 ms (median 29.7) text_exact=False err=None
+upstream n=512 r=1: overhead 28.9 ms (median 29.3) text_exact=False err=None
+upstream n=512 r=2: overhead 29.0 ms (median 29.0) text_exact=False err=None
+upstream n=512 r=3: overhead 28.4 ms (median 28.9) text_exact=False err=None
+upstream n=512 r=4: overhead 30.9 ms (median 29.0) text_exact=False err=None
+upstream n=2048 r=0: overhead 34.0 ms (median 34.0) text_exact=False err=None
+upstream n=2048 r=1: overhead 34.0 ms (median 34.0) text_exact=False err=None
+upstream n=2048 r=2: overhead 32.0 ms (median 34.0) text_exact=False err=None
+upstream n=2048 r=3: overhead 32.7 ms (median 33.3) text_exact=False err=None
+upstream n=2048 r=4: overhead 33.5 ms (median 33.5) text_exact=False err=None
+upstream n=7168 r=0: overhead 38.0 ms (median 38.0) text_exact=False err=None
+upstream n=7168 r=1: overhead 36.3 ms (median 37.1) text_exact=False err=None
+upstream n=7168 r=2: overhead 37.8 ms (median 37.8) text_exact=False err=None
+upstream n=7168 r=3: overhead 37.6 ms (median 37.7) text_exact=False err=None
+upstream n=7168 r=4: overhead 42.6 ms (median 37.8) text_exact=False err=None
+upstream burst: {"n": 1024, "concurrency": 16, "ok": 16, "errors": [], "prefill_window_s": 2.123612403869629, "prefill_rps": 7.5343315808689635, "all_done_s": 2.519807815551758, "median_pd_ttft_s": 1.3014483451843262}
+done in 203s -> /home/pdblend4/results/connector-ablation/results.json
