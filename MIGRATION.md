@@ -11,11 +11,11 @@
 |---|------|--------|------|
 | 1 | 本仓库（含 .git） | `/home/pdblend4` | ~60 MB |
 | 2 | Docker 镜像 `pdblend:l20-cu128-vllm-v1` | 本机 docker daemon | ~28 GB（导出后） |
-| 3 | 镜像构建上下文（重建用，含 vLLM 补丁） | `/home/pdblend3` 的 `docker/Dockerfile.v1-p2p` + `engine_patches/vllm-0.10.1.1/` | <1 MB |
+| 3 | 镜像构建上下文（重建用，含 vLLM 补丁） | 本仓库 `Dockerfile` + `engine_patches/vllm-0.10.1.1/` | <1 MB |
 | 4 | 模型权重 `Qwen2.5-7B-Instruct` | `/home/models/Qwen2.5-7B-Instruct` | ~15 GB |
 
-注意：**Dockerfile 和 vLLM 补丁不在本仓库内**，在 `/home/pdblend3`（`/home/pdblend` 下也有一份相同副本）。
-如果只迁移 `/home/pdblend4`，只能选择 §3 的"镜像导出/导入"路线，无法重建镜像。
+注意：Dockerfile 和 vLLM 补丁已收进本仓库（`Dockerfile` + `engine_patches/vllm-0.10.1.1/`），
+只迁移本仓库即可走 §3 路线 B 重建镜像；`/home/pdblend3/docker/Dockerfile.v1-p2p` 是同一次构建的原始副本。
 
 ## 1. 目标机要求
 
@@ -58,13 +58,15 @@ zstd -d pdblend-l20-v1.tar.zst | docker load
 zstd -d pdblend-l20-v1.tar.zst
 ```
 
-### 路线 B：重建（需要迁移构建上下文）
+### 路线 B：用仓库内 Dockerfile 重建
 
-构建上下文在 `/home/pdblend3`（不是本仓库）：
+构建上下文已在本仓库根（`Dockerfile` + `engine_patches/`，与 `/home/pdblend3/docker/Dockerfile.v1-p2p` 同源）：
 
 ```bash
-cd /home/pdblend3
-docker build -f docker/Dockerfile.v1-p2p -t pdblend:l20-cu128-vllm-v1 .
+cd /home/pdblend4        # 本仓库根
+docker build -t pdblend:l20-cu128-vllm-v1 .
+# 非阿里云网络覆盖镜像源：
+#   --build-arg PIP_INDEX=https://pypi.org/simple --build-arg APT_MIRROR=archive.ubuntu.com
 ```
 
 镜像要点（已固化在 Dockerfile 中，重建时勿改）：
@@ -78,7 +80,7 @@ docker build -f docker/Dockerfile.v1-p2p -t pdblend:l20-cu128-vllm-v1 .
   manifest.json 覆盖 2 个文件并做 sha256 校验：
   - `p2p_nccl_engine.py`：修 P2pNccl 流序错误（否则 remote-prefill 输出乱码）和接收端 OOM
   - `p2p_nccl_connector.py`：kv_both 支持，使实例可在运行时被改写为 P/D/M 角色（pdblend 核心机制）
-- 镜像内虽然 COPY 了 pdblend3 的代码，但运行时靠 `PYTHONPATH` 指向挂载进来的本仓库，互不影响
+- 镜像内会 COPY 本仓库 src 并 pip install（/workspace），但运行时靠 `PYTHONPATH` 指向挂载进来的本仓库，互不影响
 
 ## 4. 模型权重
 

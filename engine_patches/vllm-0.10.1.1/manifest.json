@@ -1,0 +1,19 @@
+{
+  "schema": "pdblend-vllm-overlay-v1",
+  "vllm_version": "0.10.1.1",
+  "base_image": "vllm/vllm-openai:v0.10.1.1",
+  "files": [
+    {
+      "path": "vllm/distributed/kv_transfer/kv_connector/v1/p2p/p2p_nccl_engine.py",
+      "upstream_sha256": "ee9a5d1cab77ec85cf48da55fcbb42b66d581beac6bd5b6f80094112fe523b28",
+      "patched_sha256": "f349be79de769618f952dc0829cf9921483dfb387079fe945c2a7c28937bfd93",
+      "reason": "P2pNcclEngine gathered KV on the idle send_stream while the forward stream's KV write was still queued; gather now runs on the compute stream and send_stream waits on a recorded event. Without this, remote-prefill decode output is garbage. PUT_ASYNC now drains the whole send queue and moves each (remote, dtype) group with one PUTS handshake and one NCCL transfer; per-(request, layer) round trips serialised prefill instances at ~18 rps regardless of prompt length. Batches are capped at 256 MiB and the receiver copies each slice out of the flat buffer: views pinned the whole batch until every request in it had been consumed, which OOMed a D instance under sustained sharegpt load. recv_tensor now pops a slice from recv_store on consumption (freeing the pooled block after the H2D copy); upstream kept every consumed slice until the request finished, a second copy of each D request's prefill KV that grew with concurrency and OOMed the receiver regardless of kv_buffer_size."
+    },
+    {
+      "path": "vllm/distributed/kv_transfer/kv_connector/v1/p2p/p2p_nccl_connector.py",
+      "upstream_sha256": "47bf7351d927c7b028a3831368fb92c9302c06110fa0a0aa80d63125da82e6f0",
+      "patched_sha256": "c8698b99a58fec5e35559fbcf0b94bf22cb174e093a86a48afe188cb7129f9dc",
+      "reason": "kv_both support: the leg of a request (send KV / load KV / plain) is decided per request from ___decode_addr_ in its id versus this engine's own ZMQ address instead of from the fixed kv_role, so one instance can be relabelled P, D or M at runtime. Save and load metadata are kept in separate lists. Scheduler side remembers decode legs whose KV was already scheduled for loading, so a preempted request recomputes its prefill locally instead of waiting for a slice the engine has released."
+    }
+  ]
+}
