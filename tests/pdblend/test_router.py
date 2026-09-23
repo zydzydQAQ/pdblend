@@ -77,3 +77,31 @@ def test_shield_pressure_enters_long_prompt_pd_mode_immediately():
     r.set_pressure_state(shield_active=True, now=10)
     assert r.dispatch("short", 512, 8).path == "M"
     assert r.dispatch("long", 1024, 8).path == "PD"
+
+
+def test_pd_selects_one_compatible_pair_instead_of_independent_projection():
+    router = Router(['p1', 'd1', 'p2', 'd2'], instance_metadata={
+        'p1': {'tp': 1, 'pool_id': 'one', 'generation': 1},
+        'd1': {'tp': 1, 'pool_id': 'one', 'generation': 1},
+        'p2': {'tp': 2, 'pool_id': 'two', 'generation': 2},
+        'd2': {'tp': 2, 'pool_id': 'two', 'generation': 2},
+    })
+    router.set_roles({'p1': 'P', 'd1': 'D', 'p2': 'P', 'd2': 'D'})
+    router.loads['p2'].inflight_prefill_tokens = 1000
+    router.loads['d1'].inflight_seqs = 5
+    route = router.dispatch('one', 2048, 16)
+    assert (route.prefill_instance, route.decode_instance) == ('p1', 'd1')
+    assert route.generation == 1
+    router.loads['d1'].generation = 4
+    assert router.choose(2048) == ('PD', 'p2', 'd2')
+
+
+def test_live_request_prevents_topology_metadata_rewrite():
+    import pytest
+    router = make({'m': 'M'})
+    record = router.dispatch('r', 100, 16)
+    with pytest.raises(RuntimeError, match='in flight'):
+        router.set_instance_metadata('m', tp=2, generation=1)
+    router.finish(record, 16)
+    router.set_instance_metadata('m', tp=2, generation=1)
+    assert router.loads['m'].generation == 1

@@ -1,0 +1,202 @@
+{
+  "adaptations": [
+    {
+      "bytes": 21715,
+      "hardware_qualified": false,
+      "original_artifact": "lineage/dynamollm__predictor.py.original",
+      "original_sha256": "a530300ba170ffd839862d4749afd8fcee6cdbf260877e28ee9a13efaba706cb",
+      "path": "dynamollm/predictor.py",
+      "reason": "Verify schema-3 model-specific tokenizer inventories and accept independently tokenized fixed-work calibration corpora; BERT architecture and class boundaries retained.",
+      "sha256": "6204ceff5b1c8b566f016eb1779dd24060b78e56cae2533f999c273e18fefc5f"
+    },
+    {
+      "bytes": 636,
+      "hardware_qualified": false,
+      "original_artifact": "lineage/ecoserve____init__.py.original",
+      "original_sha256": "7acd3dd6d41bfdf6066a2fbb2cd2b4997febec423e4ccccad945e5ce7f613d0e",
+      "path": "ecoserve/__init__.py",
+      "reason": "Expose the native V1 transport/runtime together with the unchanged independent controller.",
+      "sha256": "20324c97f00182f706856a0342b288adaca1768eaaf031c4b13bde8bfb19611e"
+    },
+    {
+      "bytes": 29401,
+      "hardware_qualified": false,
+      "original_artifact": "lineage/ecoserve__controller.py.original",
+      "original_sha256": "9270970c04a0e899714caf288f51eb68c3bcb2a84877cb14bd8cdc92f79ff472",
+      "path": "ecoserve/controller.py",
+      "reason": "Native V1 adapter: preserve continuous KV on no-op membership control; count only actual schedule events, retire native-completed single-token requests, and explicitly restore admission with generation ACKs. Independent OfficialMacro policy remains unchanged.",
+      "sha256": "19b5bd6c42b046094f510c215dc7e5081f16b7883681c8e5c78333bad3974bb0"
+    }
+  ],
+  "adapter_files": [
+    {
+      "bytes": 27102,
+      "path": "measurement_v1.py",
+      "sha256": "92888d591802a90a516789395bc1b0ea42196df02302ae111eb133342aa2ac9e"
+    },
+    {
+      "bytes": 1991,
+      "path": "measurement_v1.md",
+      "sha256": "746ad20770bb8615c4551559032aa91d1144e3f36893e830df2b1bf364775761"
+    },
+    {
+      "bytes": 2124,
+      "path": "mixed_policy.py",
+      "sha256": "cd853d41dc487ad12086b2ca98854898cc0f62a054318067e15a4dd7c6fbf486"
+    },
+    {
+      "bytes": 27933,
+      "path": "ecoserve/controller.py",
+      "sha256": "9270970c04a0e899714caf288f51eb68c3bcb2a84877cb14bd8cdc92f79ff472"
+    },
+    {
+      "bytes": 417,
+      "path": "ecoserve/__init__.py",
+      "sha256": "7acd3dd6d41bfdf6066a2fbb2cd2b4997febec423e4ccccad945e5ce7f613d0e"
+    }
+  ],
+  "core_files": [
+    {
+      "bytes": 239,
+      "path": "__init__.py",
+      "sha256": "cc2a23039b48759aaa36db6c3fb30a1f8401c400ef23dd86d02a331554c84392"
+    },
+    {
+      "bytes": 6986,
+      "path": "distserve/planning.py",
+      "sha256": "a162377523dd42971bba9c35947e26cf92f4bd421b7f899a6c6e5bb37392cec0"
+    },
+    {
+      "bytes": 10005,
+      "path": "distserve/policy.py",
+      "sha256": "50226c29bec13930fde5b593de26165a2ab40a0aaf5ef266c06a331524c2ce6e"
+    },
+    {
+      "bytes": 8249,
+      "path": "distserve/simulator.py",
+      "sha256": "bf7530fe93dcc61b98d33eca5ba0880d52ef399939d5ce8d6c7b3379c3ae3e9f"
+    },
+    {
+      "bytes": 1144,
+      "path": "distserve/simulator_stage.py",
+      "sha256": "d459dc1a6509b69ad6564b9432ebf26370f365b68c86b576c7dcdeedfb949139"
+    },
+    {
+      "bytes": 5154,
+      "path": "distserve/stage_profile.py",
+      "sha256": "bb5256b12f77c5184061e60a8156a0660f21433c5332b80793d7718f6027f4fa"
+    },
+    {
+      "bytes": 2811,
+      "path": "distserve/pipeline_service_profile.py",
+      "sha256": "4bf95f19e08d0acf20cbbb47ee031666ea3f239ac5ba66d5aed2e6fc28924fe7"
+    },
+    {
+      "bytes": 0,
+      "path": "distserve/_sim/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 0,
+      "path": "distserve/_sim/base/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 4624,
+      "path": "distserve/_sim/base/request.py",
+      "sha256": "eef3b11121698e3a4c25447c1e1b782887ab99db9720604b5831fa2598fd113b"
+    },
+    {
+      "bytes": 3231,
+      "path": "distserve/_sim/base/scheduler.py",
+      "sha256": "7d31c5f781690f4378097c28a94d8a8b7254c23c67b1386269a154a7a22b3f4f"
+    },
+    {
+      "bytes": 15336,
+      "path": "distserve/_sim/base/worker.py",
+      "sha256": "2e0776cc413a08c74a865b05f6c3254f90de932a8c705a236220027ff169b47d"
+    },
+    {
+      "bytes": 0,
+      "path": "distserve/_sim/clusters/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 3292,
+      "path": "distserve/_sim/clusters/disagg.py",
+      "sha256": "951a1162e36da925fd1712b33512ab08318a3f0ca6c1ea85c1a37e1f1283e7df"
+    },
+    {
+      "bytes": 0,
+      "path": "distserve/_sim/estimators/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 1230,
+      "path": "distserve/_sim/estimators/time_estimator.py",
+      "sha256": "fa619d2911864e7d457f1f46492645b721b887347fabdbe5130e1cb89457ac8a"
+    },
+    {
+      "bytes": 1508,
+      "path": "distserve/_sim/utils.py",
+      "sha256": "169c0c3748efc652232398c065b61aafd4636455bac707d0f23beb89a1f0661b"
+    },
+    {
+      "bytes": 11347,
+      "path": "distserve/_sim/LICENSE",
+      "sha256": "69404908366b09fec94adb695525bad9179f10526d237eb8b3f946533554c640"
+    },
+    {
+      "bytes": 11117,
+      "path": "dynamollm/policy.py",
+      "sha256": "6dfccbedf4610c13e02e71abb3f18b5d3889e5d99ed75ef4e1f66a07186e58fa"
+    },
+    {
+      "bytes": 7218,
+      "path": "dynamollm/profiles.py",
+      "sha256": "2c1534985b5fc174167f179bb82451049947a12abe87dd7dce4a268df270149f"
+    },
+    {
+      "bytes": 20136,
+      "path": "dynamollm/predictor.py",
+      "sha256": "a530300ba170ffd839862d4749afd8fcee6cdbf260877e28ee9a13efaba706cb"
+    },
+    {
+      "bytes": 10624,
+      "path": "dynamollm/reconfiguration.py",
+      "sha256": "e6b9c23e65d729017c4482340ae2b62d6c911ca231df4064d65c5154c1e2794b"
+    },
+    {
+      "bytes": 7567,
+      "path": "ecoserve/policy.py",
+      "sha256": "0e80cbeaa91f7453c242d0a7b1d875a602a5e441d265a8d52c432ae621165f46"
+    }
+  ],
+  "excluded": [
+    "legacy vLLM 0.9.2 GPU runtimes",
+    "legacy measurements and predictor checkpoints",
+    "legacy qualification claims"
+  ],
+  "hardware_qualified": false,
+  "migration": "independent_cpu_core",
+  "notes": [
+    "Unadapted core files remain byte-identical to independent local implementations. Explicit adaptations retain checksum-verified original artifacts and target hashes; no GPU qualification follows from migration.",
+    "Stage profiling hooks are copied for adaptation; current V1 worker compatibility is not granted."
+  ],
+  "schema": 2,
+  "source_root": "/home/pdblend/src/pdblend_baselines",
+  "target_engine": "vllm-0.10.1.1",
+  "upstream": {
+    "distserve": {
+      "license": "distserve/LICENSE",
+      "revision": "82831f1604cc6b10bebd360f6c437a07790dde9f"
+    },
+    "dynamollm": {
+      "origin": "local paper reimplementation; not author source or author checkpoint"
+    },
+    "ecoserve": {
+      "license": "ecoserve/LICENSE",
+      "revision": "e7d7f7fe29e20c0218afac305f157dde4513de76"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "repository": "https://github.com/MLSysU/EcoServe",
+  "revision": "e7d7f7fe29e20c0218afac305f157dde4513de76",
+  "retrieved_at": "2026-09-14T09:23:03.458638+00:00",
+  "files": [
+    {
+      "path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/MLSysU/EcoServe/e7d7f7fe29e20c0218afac305f157dde4513de76/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357
+    },
+    {
+      "path": "README.md",
+      "url": "https://raw.githubusercontent.com/MLSysU/EcoServe/e7d7f7fe29e20c0218afac305f157dde4513de76/README.md",
+      "sha256": "12cfaca148cd413c8583a7c3ea38ca08f3b8619d46891040c413e66597dcbdf1",
+      "bytes": 5820
+    },
+    {
+      "path": "ecoserve/macro_instance.py",
+      "url": "https://raw.githubusercontent.com/MLSysU/EcoServe/e7d7f7fe29e20c0218afac305f157dde4513de76/ecoserve/macro_instance.py",
+      "sha256": "bed922907725c55d76c4c67968ed7215c1a65638dfc217d0e2745e283d620de0",
+      "bytes": 11217
+    },
+    {
+      "path": "ecoserve/instance.py",
+      "url": "https://raw.githubusercontent.com/MLSysU/EcoServe/e7d7f7fe29e20c0218afac305f157dde4513de76/ecoserve/instance.py",
+      "sha256": "1159b52b6ed16c94846c32d1c416d0a6f2884a84c01369fe2f9f802b272766e0",
+      "bytes": 7649
+    },
+    {
+      "path": "ecoserve/rpc.py",
+      "url": "https://raw.githubusercontent.com/MLSysU/EcoServe/e7d7f7fe29e20c0218afac305f157dde4513de76/ecoserve/rpc.py",
+      "sha256": "0443e1731b45e8552ee57984dc1fdfb716b3350af47bea4c9102aadc1859997b",
+      "bytes": 759
+    },
+    {
+      "path": "ecoserve/api_server.py",
+      "url": "https://raw.githubusercontent.com/MLSysU/EcoServe/e7d7f7fe29e20c0218afac305f157dde4513de76/ecoserve/api_server.py",
+      "sha256": "ed9d0331e7758581dd3a8b091e953f27af9f65b59aedc1b47cc63fd8db5485fd",
+      "bytes": 4101
+    },
+    {
+      "path": "ecoserve/launch/start.sh",
+      "url": "https://raw.githubusercontent.com/MLSysU/EcoServe/e7d7f7fe29e20c0218afac305f157dde4513de76/ecoserve/launch/start.sh",
+      "sha256": "dab7feef2d27e3f6c4fd7492fc184fe3d97b78f8d345d73f8b42c85862b8d1ae",
+      "bytes": 3361
+    }
+  ],
+  "scope": "Published single-macro core; no public mitosis implementation in this commit"
+}

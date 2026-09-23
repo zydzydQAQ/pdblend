@@ -1,0 +1,119 @@
+{
+  "page_count": 12,
+  "target_pages": 12,
+  "max_pages": 14,
+  "chapter_start_pages": [
+    1,
+    3,
+    6,
+    9
+  ],
+  "has_chinese_text": true,
+  "has_planning_algorithm": true,
+  "has_online_algorithm": true,
+  "figure_count": 5,
+  "normalized_example_correct": true,
+  "carry_budget_correct": true,
+  "energy_example_correct": true,
+  "replacement_characters": 0,
+  "pages": [
+    {
+      "page": 1,
+      "characters": 1024,
+      "outside_page": [],
+      "head": "01 / OVERVIEW · SYSTEM METHOD / PDblend / 选择性 P/D 分离： / 只在值得时，把两阶段分开 / Selective Disaggregation for Efficient LLM Serv"
+    },
+    {
+      "page": 2,
+      "characters": 1503,
+      "outside_page": [],
+      "head": "01 / OVERVIEW · INTERACTION / 三个模块怎样连成一个闭环 / From offline measurements to coordinated online execution / 图 1 / Figur"
+    },
+    {
+      "page": 3,
+      "characters": 1649,
+      "outside_page": [],
+      "head": "02 / OFFLINE MODELING / 离线性能与能耗建模 / Offline Performance and Energy Modeling / Motivation · 为什么需要它 / 同一个请求可以在 M 实例上完成全部"
+    },
+    {
+      "page": 4,
+      "characters": 1463,
+      "outside_page": [],
+      "head": "02 / OFFLINE MODELING / Approach · 从测量到可比较的成本 / 选取代表性条件。固定模型与并行配置，覆盖不同输入长度、batch、上下文和频率。 / Choose representative pro"
+    },
+    {
+      "page": 5,
+      "characters": 1690,
+      "outside_page": [],
+      "head": "02 / OFFLINE MODELING / Approach · 模型与规划器的接口 / 一次查询给出请求形状、候选负载、频率和实例配置。返回值使用同一单位与计量范围，让规划器可以组合成 / 本，而不必了解模型内部的拟合形式。 / "
+    },
+    {
+      "page": 6,
+      "characters": 1675,
+      "outside_page": [],
+      "head": "03 / SELECTIVE DISAGGREGATION PLANNING / 成本感知的选择性分离规划 / Cost-Aware Planning for Selective Disaggregation / Motivatio"
+    },
+    {
+      "page": 7,
+      "characters": 1581,
+      "outside_page": [],
+      "head": "03 / SELECTIVE DISAGGREGATION PLANNING / 方法：在同一窗口内比较完整成本 / Approach: Compare Complete Costs over the Same Window / 输"
+    },
+    {
+      "page": 8,
+      "characters": 1791,
+      "outside_page": [],
+      "head": "03 / SELECTIVE DISAGGREGATION PLANNING / 方法：从候选比较到一个 Plan / Approach: Turn Candidate Comparisons into One Plan / 下面是"
+    },
+    {
+      "page": 9,
+      "characters": 1866,
+      "outside_page": [],
+      "head": "04 / ONLINE COORDINATION / 在线协同与选择性分流 / Online Coordination and Selective Routing / Motivation · 为什么需要在线协同 / 离线模型描述的是测"
+    },
+    {
+      "page": 10,
+      "characters": 1953,
+      "outside_page": [],
+      "head": "04 / ONLINE COORDINATION / Approach · 一条请求如何执行 / From selective routing to a continuous output stream / 沿用8个TP1实例的示例"
+    },
+    {
+      "page": 11,
+      "characters": 1490,
+      "outside_page": [],
+      "head": "04 / ONLINE COORDINATION / Approach · 压力出现时如何调整 / Fast protection, slower planning, and safe transitions / 在线层汇总到达、首"
+    },
+    {
+      "page": 12,
+      "characters": 2682,
+      "outside_page": [],
+      "head": "04 / ONLINE COORDINATION / Approach · 在线协同算法 / Event-driven coordination with asynchronous request execution / 下列算法概"
+    }
+  ],
+  "pdf_sha256": "3996c7903a4ba1bac264526b96c967c7f05d10446db56910654dea3b2b12ab78",
+  "pdf_bytes": 659963,
+  "visual_review": {
+    "status": "passed",
+    "pages_checked": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "checks": [
+      "CJK and English readability",
+      "figure labels and arrows",
+      "algorithm indentation and complete lines",
+      "no text overlap or clipping",
+      "four chapter bookmarks"
+    ]
+  }
+}

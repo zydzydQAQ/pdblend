@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 from ..engine.client import EngineClient, PDTransfer, pd_complete
+from ..engine.handoff_timing import measure_handoff
 from ..engine.launcher import Fleet, make_specs
 from .metering import Gpus
 
@@ -37,21 +38,44 @@ async def _gate_kv(fleet: Fleet, transfer: PDTransfer, lengths, repeats: int, de
         for n in lengths:
             for r in range(repeats):
                 prompt = random_prompt(n, 100 * n + r)
-                mixed = await dc.complete(prompt, decode_tokens, f"mixed-{n}-{r}")
-                pre, dec = await pd_complete(transfer, pc, dc, prompt, decode_tokens, f"pd-{n}-{r}")
+                # Record identical sampling parameters. A shared seed does
+                # not remove floating-point differences in greedy argmax;
+                # mismatching outputs still fail this gate.
+                seed = 100000 + n * 10 + r
+                mixed = await dc.complete(prompt, decode_tokens, f"mixed-{n}-{r}", seed=seed, token_diagnostics=True)
+                pre, dec = await pd_complete(transfer, pc, dc, prompt, decode_tokens,
+                                              f"pd-{n}-{r}", seed=seed, token_diagnostics=True)
                 if dec is None:
                     rows.append(dict(input_tokens=n, repeat=r, error=pre.error, stage="prefill"))
                     continue
                 row = dict(input_tokens=n, repeat=r, kv_bytes=n * kv_bpt,
                            mixed_ttft_s=mixed.ttft_s, mixed_tpot_s=mixed.tpot_s, mixed_text=mixed.text,
                            prefill_leg_s=pre.finished_s - pre.submitted_s,
-                           decode_leg_ttft_s=dec.ttft_s, decode_tpot_s=dec.tpot_s, pd_text=dec.text,
+                           decode_leg_ttft_s=(dec.decode_first_token_s-dec.decode_submitted_s) if dec.decode_first_token_s is not None else None,
+                           decode_tpot_s=dec.tpot_s, pd_text=dec.text,
                            pd_ttft_s=(dec.first_token_s - pre.submitted_s) if dec.first_token_s else None,
-                           error=dec.error or mixed.error, handoff=pre.kv_transfer_params or pre.request_id)
+                           error=dec.error or mixed.error, handoff=pre.kv_transfer_params or pre.request_id,
+                           mixed_token_ids=mixed.token_ids,pd_token_ids=dec.token_ids,
+                           token_ids_match=mixed.token_ids==dec.token_ids and len(dec.token_ids or [])==decode_tokens,
+                           diagnostic_logprobs=True,energy_comparable=False)
                 if row["pd_ttft_s"] is not None and mixed.ttft_s is not None:
-                    row["transfer_overhead_s"] = row["pd_ttft_s"] - mixed.ttft_s
+                    try:
+                        row['handoff_timing']=measure_handoff(mixed,pre,dec)
+                        row["transfer_overhead_s"] = row['handoff_timing']['overhead_s']
+                    except ValueError as exc:
+                        row['error']=row['error'] or str(exc)
+                        rows.append(row)
+                        continue
                     row["effective_gbps"] = (n * kv_bpt / max(row["transfer_overhead_s"], 1e-6)) / 1e9
                     row["text_match"] = mixed.text == dec.text
+                    if not row["text_match"]:
+                        common = 0
+                        while common < min(len(mixed.text), len(dec.text)) and mixed.text[common] == dec.text[common]:
+                            common += 1
+                        row["mismatch_diagnostic"] = {
+                            "common_prefix_chars": common,
+                            "mixed_chars": len(mixed.text), "pd_chars": len(dec.text),
+                        }
                 rows.append(row)
     summary = {}
     for n in lengths:
@@ -63,6 +87,8 @@ async def _gate_kv(fleet: Fleet, transfer: PDTransfer, lengths, repeats: int, de
                 pd_ttft_ms=statistics.median(r["pd_ttft_s"] for r in ok) * 1e3,
                 transfer_overhead_ms=statistics.median(r["transfer_overhead_s"] for r in ok) * 1e3,
                 effective_gbps=statistics.median(r["effective_gbps"] for r in ok),
+                physical_bandwidth=False,
+                token_ids_match_all=all(r['token_ids_match'] for r in ok),
                 text_match_all=all(r["text_match"] for r in ok))
     return dict(rows=rows, summary=summary)
 

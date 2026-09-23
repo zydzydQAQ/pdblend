@@ -1,0 +1,61 @@
+{
+  "document": "pdblend-method-latex.pdf",
+  "pages": 11,
+  "engine": "XeLaTeX",
+  "sha256": "da622d50a33423cc016f51d62b2c7831604f9667836495e22e0d7e8ef25deea2",
+  "layout": "A4, double column, 10 pt body, 178 mm text width",
+  "overfull_boxes": 0,
+  "missing_characters": 0,
+  "unresolved_references": 0,
+  "four_section_structure": true,
+  "figures": [
+    {
+      "file": "figures/01-overview.pdf",
+      "pages": 1,
+      "width_mm": 177.998,
+      "height_mm": 157.0,
+      "raster_images": 0,
+      "vector_paths": 32,
+      "minimum_printed_font_pt": 8.967
+    },
+    {
+      "file": "figures/02-model.pdf",
+      "pages": 1,
+      "width_mm": 177.998,
+      "height_mm": 168.998,
+      "raster_images": 0,
+      "vector_paths": 35,
+      "minimum_printed_font_pt": 8.967
+    },
+    {
+      "file": "figures/03-planning.pdf",
+      "pages": 1,
+      "width_mm": 177.998,
+      "height_mm": 177.998,
+      "raster_images": 0,
+      "vector_paths": 48,
+      "minimum_printed_font_pt": 8.568
+    },
+    {
+      "file": "figures/04-routing.pdf",
+      "pages": 1,
+      "width_mm": 177.998,
+      "height_mm": 172.0,
+      "raster_images": 0,
+      "vector_paths": 33,
+      "minimum_printed_font_pt": 8.967
+    },
+    {
+      "file": "figures/05-control.pdf",
+      "pages": 1,
+      "width_mm": 177.998,
+      "height_mm": 163.999,
+      "raster_images": 0,
+      "vector_paths": 32,
+      "minimum_printed_font_pt": 8.967
+    }
+  ],
+  "numeric_audit": "data/examples.json; reproduced from tests/pdblend/synthetic.py",
+  "visual_review": "All 11 pages reviewed at rendered print proportions by three agents.",
+  "scope": "CPU document generation only; no service/API changes or GPU experiments"
+}

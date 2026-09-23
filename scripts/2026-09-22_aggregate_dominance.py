@@ -6,19 +6,24 @@ import json
 import math
 import statistics
 from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
+from pdblend.seed_config import SINGLE_SEED, SEED_POLICY, has_active_seeds
+from pdblend.bench.dominance import load_evidence
 
 METRICS = ('j_per_token', 'mean_power_w', 'window_mean_power_w', 'joint_slo_rate',
            'ttft_p99', 'tpot_p99', 'plans', 'wakes', 'parks')
-SINGLE_SEED = 701
-SEED_POLICY = 'single_seed_701'
 
 
 def load_rows(root):
     rows = []
     for p in sorted(Path(root).glob('*-pdblend_dominance/summary.json')):
         d = json.loads(p.read_text())
+        evidence = load_evidence(p.parent)
         events = d.get('controller', {}).get('events', {})
         rows.append(dict(name=p.parent.name.removesuffix('-pdblend_dominance'),
+                         evidence_complete=evidence is not None,
                          seed=d.get('trace_meta', {}).get('seed'),
                          j_per_token=d.get('j_per_token'), mean_power_w=d.get('mean_power_w'),
                          window_mean_power_w=d.get('window_mean_power_w'),
@@ -34,8 +39,9 @@ def aggregate(root, out):
         groups.setdefault(row['name'], []).append(row)
     result = []
     for name, rows in groups.items():
-        seeds = sorted(r['seed'] for r in rows)
-        row = dict(name=name, seeds=json.dumps(seeds), complete=seeds == [SINGLE_SEED],
+        seeds = [r['seed'] for r in rows]
+        row = dict(name=name, seeds=json.dumps(seeds),
+                   complete=has_active_seeds(seeds) and all(r['evidence_complete'] for r in rows),
                    single_seed=True, seed_policy=SEED_POLICY)
         for metric in METRICS:
             values = [r[metric] for r in rows if isinstance(r[metric], (int, float)) and math.isfinite(r[metric])]

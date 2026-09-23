@@ -1,0 +1,147 @@
+Use case: scientific-educational.
+Generate ONE new highly detailed research-paper process diagram of an IDEAL eight-GPU layout transition for PDblend. This is a TARGET DESIGN because current PDblend cannot execute GPU-qualified online TP resharding. The user's attached image is only a STYLE REFERENCE, not content to reproduce.
+Use its classic white background, Times/LaTeX serif lettering, crisp black outlines, straight arrows, muted green Prefill, medium blue Decode, yellow request/token rectangles, gray inactive/reconfiguration. No 3D GPUs, decorative icons, gradients, drop shadows, rounded dashboard cards, or photographic elements.
+Landscape canvas around 3:2, maximum practical resolution. Clear hierarchy, small restrained title, large enough labels, generous whitespace. A horizontal eight-GPU swimlane timeline dominates the upper half, with THREE concrete mechanism close-ups below. Readable detail takes precedence over ornament.
+
+TITLE EXACT:
+"Eight-GPU Layout Transition: Drain, Rebuild TP, Reload Weights"
+Subtitle EXACT:
+"IDEAL DESIGN — online TP reconfiguration is not yet GPU-qualified in PDblend"
+Another smaller line:
+"Same model, PP=1. Example W=16 GiB of TP-shardable weights; replicated tensors, KV and workspace counted separately."
+W is an illustrative size of the shardable tensors, not a claim about a real model.
+
+TOP STRIP: CONTROL AND ARRIVALS
+At left show "Planner → transition coordinator" then numbered stage arrows.
+At right show a tiny yellow arriving-request queue splitting into:
+"Admit within capacity → G0/G1"
+"Overflow → bounded hold / backpressure"
+This is reduced-capacity service, not a claim of zero downtime or SLO preservation.
+Coordinator reserves G2–G7; new allocation only after old engines release them. G0/G1 continue serving.
+
+MAIN PANEL: EIGHT EXACT GPU ROWS, SIX TIME COLUMNS
+Use rows G0,G1,G2,G3,G4,G5,G6,G7 exactly once each, aligned on horizontal Time direction.
+Six column headers:
+"0  Old layout"
+"1  Close + drain"
+"2  Release"
+"3  Build + load"
+"4  Verify"
+"5  Commit"
+Vertical dashed stage boundaries. No numeric durations: stages are schematic and event-dependent.
+
+Rows G0 and G1:
+Initial two distinct Mixed TP1 instances, each labeled "M · TP1 · W".
+Draw each as a long uninterrupted green-plus-blue band across all six stages.
+Within the band put "Keep serving within capacity; existing requests stay bound".
+Their full shardable weights remain 16 GiB each. No teardown or TP change for G0/G1.
+
+Rows G2–G7:
+Stage0 all are separate Mixed TP1 instances, green-blue rectangles "M · TP1 · W".
+Stage1 gray admission bar "closed" with remaining green/blue work and small yellow request tickets. A spanning label "Old TP1 requests finish on their original GPUs".
+Stage2 gray-outline empty blocks "engine stopped; HBM freed", only after drain proof.
+For G2–G5 Stage3, draw NEW target instances with TP2 braces grouping rows G2/G3 together and G4/G5 together:
+G2: green "P rank 0 · W₀"
+G3: green "P rank 1 · W₁"
+G4: blue "D rank 0 · W₀"
+G5: blue "D rank 1 · W₁"
+Show a tiny double-headed collective arrow between G2 and G3 labelled "TP2", and between G4 and G5 labelled "TP2". These are TWO separate TP groups, not one TP4 group.
+Above or beside grouping labels: "P instance: {G2,G3}" and "D instance: {G4,G5}".
+Each target rank's shardable weights are 8 GiB.
+Stage4 same grouped GPU ranks, with a light verification overlay and label "load / warmup / probe; admission closed".
+Stage5 those same green P ranks and blue D ranks, normal solid fill, accepting new work.
+G6/G7 stages2–5 are gray "OFF", with "GPU weights = 0". They are process-stopped, not L1 sleep. Host checkpoint remains available.
+Under final column:
+"2×M(TP1) + 1×P(TP2) + 1×D(TP2) + 2 OFF"
+Explicitly counts INSTANCES, not TP ranks.
+
+At boundary stage1→2 add a black lock/barrier shape or small diamond labelled:
+"Native drain proof"
+At boundary stage4→5:
+"All ranks ready → publish route epoch v+1"
+No new request can enter G2–G5 until this final barrier.
+Old requests on G0/G1 can continue across the route-epoch change with original bindings.
+
+LOWER LEFT CLOSE-UP — "(a) Drain requests, then release resources"
+Show exact tiny table:
+"GPU | waiting | running"
+"G2 | 2 | 1"
+"G3 | 1 | 2"
+"G4 | 0 | 2"
+"G5 | 1 | 1"
+"G6 | 0 | 1"
+"G7 | 1 | 0"
+"Total | 5 | 7"
+Beside or beneath it, three queue snapshots with yellow waiting tickets and blue running tickets:
+"waiting 5 + running 7 + completed 0 = 12"
+→ "waiting 2 + running 4 + completed 6 = 12"
+→ "waiting 0 + running 0 + completed 12 = 12"
+No arrivals into these six engines after close. Already queued requests are allowed to run to completion; do not discard or reroute them to the new TP group.
+A small completion feedback path:
+"finish / cancel-cleanup ACK → release request KV"
+Then a gate with concise exact text:
+"Every old rank ACKs:"
+"waiting=0; running=0; live KV=0"
+"pending transfers=0; old epoch matches"
+"Only then: stop old workers and free HBM"
+The distinction between live KV blocks and an allocated empty KV arena must be respected. HBM arena is freed on teardown.
+Footnote:
+"No live TP1 KV is migrated into TP2."
+
+LOWER MIDDLE CLOSE-UP — "(b) Rebuild TP groups and reload weights"
+At top a host/checkpoint rectangle:
+"Verified checkpoint / host cache"
+"W = 16 GiB, same model hash"
+"Partition TP-shardable tensors: W → {W₀, W₁}"
+Then four GPU-rank boxes arranged two rows:
+P group row: "G2 rank0: W₀=8 GiB" ↔ "G3 rank1: W₁=8 GiB"
+D group row: "G4 rank0: W₀=8 GiB" ↔ "G5 rank1: W₁=8 GiB"
+A brace encloses the P row labeled "NCCL group P", and a separate brace encloses D row labeled "NCCL group D".
+Host fan-out arrows carry W₀ to G2 and G4; W₁ to G3 and G5. These are independent copies of the SAME shards in the P and D groups.
+Within each group the rank-to-rank arrow reads "TP collectives", not KV migration.
+A slim label:
+"Create workers + communicators → load shards → allocate empty KV pools"
+Then exact arithmetic:
+"Shardable GPU weights: 8×16 = 128 GiB → 2×16 + 4×8 = 64 GiB"
+"Per GPU: weights + replicated tensors + KV + workspace ≤ HBM capacity"
+This excludes replicated tensors, KV and workspace from the numeric totals; never imply total GPU memory halves exactly.
+P and D both contain the complete model across their two ranks, NOT separate subsets of transformer layers.
+
+LOWER RIGHT CLOSE-UP — "(c) Verify, publish, and resume selective routing"
+Small readiness gate with three short lines:
+"All four target ranks ACK model / shard identity"
+"Golden-output, KV-cleanup and cancel probes pass"
+"TP2 P and D compatible; capacity / profile valid"
+"Test KV released before admission"
+Then a single clear coordinator action:
+"Publish routes v+1 + open new admission"
+Then TWO example routes:
+"256-token input → TP1 Mixed G0 or G1"
+"2048-token input → TP2 P{G2,G3} → TP2 D{G4,G5}"
+Label the example threshold "τ=1024".
+On the long path show two tiny matching rank arrows:
+"G2/r0 → G4/r0"
+"G3/r1 → G5/r1"
+Arrow label "New-request KV, compatible TP2".
+This is post-commit per-request KV transfer, NOT migration of old TP1 KV.
+A short token-output note:
+"P emits y₁; D continues y₂…y₁₂₈"
+"2048 input + y₁; D remaining output=127"
+Use plain text and arrows, no repeated token box train.
+
+FAILURE / COST FOOTER
+A narrow dashed red/brown branch from the drain/verify gates:
+"Failure before commit → keep G2–G7 closed; verified rollback or quarantine"
+Next line:
+"Reload old TP1 weights and validate before restoring old routes; G0/G1 remain available within capacity."
+Rollback after teardown is a real reload, not an instant undo.
+A small equation line:
+"T_transition = T_drain + T_teardown + T_TP-init + T_weight-load + T_verify + T_publish"
+"Measure total energy and request-delay impact; no measured time or energy claimed."
+These are sequential barrier-stage durations, each may include parallel work; do not sum individual GPU times.
+
+LEGEND/CAPTION:
+green Prefill; blue Decode; green+blue Mixed; yellow Request; gray Rebuild/OFF.
+"Illustrative drain-and-reload design; not implemented online TP migration. No extra GPUs."
+Ensure all exact GPU IDs, TP groups, waiting/running totals and arithmetic are correct. Avoid crowding. The dominant visual should be the eight-GPU stage timeline, with subordinate detail windows for queue drain, weight reload, and new routing.
+Output ONLY the completed diagram.

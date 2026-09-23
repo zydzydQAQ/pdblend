@@ -28,6 +28,12 @@ def main(argv=None) -> None:
     pr.add_argument("--model", default="Qwen2.5-7B-Instruct")
     pr.add_argument("--gpus", default="0,1", help="two instances: the first is profiled, the second is the KV transfer peer")
     pr.add_argument("--tp", type=int, default=1)
+    pr.add_argument("--pp", type=int, default=1)
+    pr.add_argument("--system", default="pdblend", choices=["pdblend", "mixed", "distserve", "dynamollm", "ecoserve"])
+    pr.add_argument("--role", default="mixed", choices=["prefill", "decode", "mixed"])
+    pr.add_argument("--workload-shape", default="default")
+    pr.add_argument("--hardware-id", default="unknown")
+    pr.add_argument("--engine-revision", default="vllm-0.10.1.1")
     pr.add_argument("--freqs", default=",".join(map(str, (900, 1200, 1500, 1800, 2100, 2520))))
     pr.add_argument("--sections", default="prefill,decode,mixed,static,transfer")
     pr.add_argument("--window", type=float, default=2.0)
@@ -38,6 +44,8 @@ def main(argv=None) -> None:
     pr.add_argument("--decode-measure", type=float, default=5.0)
     pr.add_argument("--mixed-freqs", default="1500,2100,2520")
     pr.add_argument("--base-port", type=int, default=8100)
+    pr.add_argument("--parallel-instances", action="store_true",
+                    help="run online profile points concurrently across resident fleet instances")
 
     be = sub.add_parser("bench", help="run one benchmark point: fleet + proxy + controller + open-loop load")
     be.add_argument("--model", default="Qwen2.5-7B-Instruct")
@@ -122,6 +130,17 @@ def main(argv=None) -> None:
     cm.add_argument("--slo-ok", type=float, default=0.9, help="measured joint SLO rate counted as 'met'")
     cm.add_argument("--out", type=Path, default=None)
 
+    cs = sub.add_parser("campaign-spec", help="write the active 45-point independent-native comparison")
+    cs.add_argument("--root", type=Path, default=Path("results/2026-09-22/three-model-campaign"))
+    cs.add_argument("--models-dir", type=Path, default=None)
+    cs.add_argument("--corpus-root", type=Path, default=Path("datasets/prepared"))
+    cs.add_argument("--screening", action="store_true", help="use 0.1..0.9 scales instead of formal scales")
+    cs.add_argument("--no-pp", action="store_true", help="emit PP1-only executable points")
+    cs.add_argument("--catalog", action="store_true", help="emit historical topology catalogue instead of active first batch")
+    cs.add_argument("--anchor", action="append", default=[], help="7b=/host/path/to/rate-anchor/completion.json")
+    cs.add_argument("--verification-receipt", type=Path, default=None,
+                    help="full model/tokenizer SHA-256 receipt required for formal identity")
+
     args = parser.parse_args(argv)
     if args.command == "check-model":
         from .bench.check_model import check_model, format_rows
@@ -167,15 +186,35 @@ def main(argv=None) -> None:
         from .bench.matrix import layout_capacity
         print(json.dumps(dict(dataset=args.dataset, layout=args.layout, clocks=args.clocks, tau=args.tau,
                               capacity_rps=layout_capacity(args.profile, args.corpus, args.dataset, args.layout,
-                                                           args.clocks, args.tau))))
+                              args.clocks, args.tau))))
+    elif args.command == "campaign-spec":
+        if not args.catalog:
+            from .bench.first_batch import build
+            if args.screening:
+                parser.error('screening enumeration requires explicit --catalog; active first batch is x0.5')
+            spec = build(args.root.resolve(), args.corpus_root.resolve(),
+                         dict(item.split('=', 1) for item in args.anchor))
+            print(json.dumps(dict(output=str(args.root / 'spec.json'), summary=spec['summary'])))
+            return
+        from .bench.campaign import write_campaign
+        out = args.root / "spec.json"
+        kwargs = dict(corpus_root=args.corpus_root, formal=not args.screening, include_pp=not args.no_pp)
+        if args.verification_receipt is not None:
+            kwargs["verification_receipt"] = args.verification_receipt
+        if args.models_dir is not None:
+            kwargs["models_dir"] = args.models_dir
+        spec = write_campaign(out, **kwargs)
+        print(json.dumps(dict(output=str(out), summary=spec["summary"], campaign_sha256=spec["campaign_sha256"])))
     elif args.command == "profile":
         from .profile.profiler import Profiler
-        prof = Profiler(args.model, [int(g) for g in args.gpus.split(",")], tp=args.tp,
+        prof = Profiler(args.model, [int(g) for g in args.gpus.split(",")], tp=args.tp, pp=args.pp,
+                        system=args.system, role=args.role, workload_shape=args.workload_shape,
+                        hardware_id=args.hardware_id, engine_revision=args.engine_revision,
                         freqs=[int(f) for f in args.freqs.split(",")], window_s=args.window, out_dir=args.out,
                         decode_repeats=args.decode_repeats, decode_settle_s=args.decode_settle,
                         decode_measure_s=args.decode_measure,
                         mixed_freqs=tuple(int(f) for f in args.mixed_freqs.split(",")),
-                        base_port=args.base_port)
+                        base_port=args.base_port, parallel_instances=args.parallel_instances)
         sections = tuple(args.sections.split(","))
         if args.resume:
             have = prof.resume()

@@ -1,5 +1,6 @@
 """CPU tests for the matrix runner helpers."""
 import json
+import pytest
 
 from pdblend.bench.matrix import layout_capacity, parse_kv, run_matrix
 from synthetic import synthetic_model
@@ -30,6 +31,9 @@ def test_run_matrix_dry_and_skip(tmp_path):
     spec = tmp_path / "m3.json"
     spec.write_text(json.dumps(dict(root=str(root), defaults=dict(policy="manual", rate=2.0),
                                     points=[dict(name="done"), dict(name="todo", layout="M=4")])))
+    with pytest.raises(RuntimeError, match="without evidence"):
+        run_matrix(spec, dry=True)
+    (root / "done" / "evidence.json").write_text(json.dumps({"status": "complete", "returncode": 0}))
     rows = run_matrix(spec, dry=True)
     assert [r["status"] for r in rows] == ["skipped", "dry"]
     assert rows[1]["args"]["layout"] == "M=4" and rows[1]["args"]["rate"] == 2.0

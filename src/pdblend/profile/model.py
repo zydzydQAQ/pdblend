@@ -63,12 +63,23 @@ class PerfModel:
     tp: int = 1
     quality: dict = field(default_factory=dict)
     decode_overrides: dict[int, dict] = field(default_factory=dict)
+    # Layout identity is optional for historical synthetic fixtures.  Keeping
+    # these fields after legacy defaults preserves positional construction.
+    pp: int = 1
+    system: str = "pdblend"
+    profile_key: dict = field(default_factory=dict)
+    bounded_coverage: dict = field(default_factory=dict)
+    decode_power_overrides: dict[int, dict] = field(default_factory=dict)
 
     # ---- queries -------------------------------------------------------------------------
     def nearest_freq(self, f: int) -> int:
         return min(self.freqs, key=lambda x: abs(x - f))
 
     def prefill_seconds(self, n: int, f: int) -> float:
+        if self.bounded_coverage:
+            bounds = self.bounded_coverage['prefill_tokens']
+            if f not in self.freqs or not bounds[0] <= n <= bounds[1]:
+                raise ValueError('prefill query outside measured coverage')
         a, b, c = self.prefill_time[self.nearest_freq(f)]
         return max(a + b * n + c * n * n, 1e-4)
 
@@ -85,6 +96,8 @@ class PerfModel:
         return max(b * n + c * n * n, 0.0)
 
     def step_seconds(self, batch: float, ctx: float, f: int) -> float:
+        if self.bounded_coverage and not self.decode_supported(batch, ctx, f):
+            raise ValueError('decode query outside measured coverage')
         frequency = self.nearest_freq(f)
         alpha, beta, gamma, delta = self.decode_time[frequency]
         legacy = max(alpha + beta * batch + gamma * batch * ctx + delta * batch * batch, 1e-4)
@@ -99,19 +112,38 @@ class PerfModel:
         return max(legacy, value, predict(override, b, c))
 
     def decode_supported(self, batch: float, ctx: float, f: int) -> bool:
+        if self.bounded_coverage and f not in self.freqs:
+            return False
         override = self.decode_overrides.get(self.nearest_freq(f))
         if not override:
             return True  # Legacy behavior and baseline admission are unchanged.
         from .decode_fit import supported
         return supported(override, batch, ctx)
 
-    def decode_power_w(self, batch: float, f: int) -> float:
+    def decode_power_supported(self, batch: float, ctx: float, f: int) -> bool:
+        if not self.decode_power_overrides:
+            return True  # Historical affine profiles retain their original API.
+        from .power_table import PowerCoverageError, predict
+        if f not in self.decode_power_overrides or f not in self.freqs:
+            return False
+        try:
+            predict(self.decode_power_overrides[f], batch, ctx)
+            return True
+        except PowerCoverageError:
+            return False
+
+    def decode_power_w(self, batch: float, f: int, *, ctx: float | None = None) -> float:
+        if self.decode_power_overrides:
+            from .power_table import PowerCoverageError, predict
+            if f not in self.decode_power_overrides or f not in self.freqs:
+                raise PowerCoverageError('missing_profile: exact decode power frequency is required')
+            return predict(self.decode_power_overrides[f], batch, ctx)
         q0, q1 = self.decode_power[self.nearest_freq(f)]
         return q0 + q1 * batch
 
     def token_energy_j(self, batch: float, ctx: float, f: int) -> float:
         """Energy per generated token at steady-state batch B."""
-        return self.step_seconds(batch, ctx, f) * self.decode_power_w(batch, f) / max(batch, 1e-6)
+        return self.step_seconds(batch, ctx, f) * self.decode_power_w(batch, f, ctx=ctx) / max(batch, 1e-6)
 
     def static_power_w(self, state: str, f: Optional[int] = None) -> float:
         key = f"active_idle@{self.nearest_freq(f)}" if state == "active_idle" else state
@@ -131,6 +163,8 @@ class PerfModel:
         d = asdict(self)
         if not self.decode_overrides:
             d.pop('decode_overrides', None)
+        if not self.decode_power_overrides:
+            d.pop('decode_power_overrides', None)
         for key in ("prefill_time", "prefill_power", "decode_time", "decode_power"):
             d[key] = {str(k): list(v) for k, v in d[key].items()}
         return json.dumps(d, indent=1)
@@ -147,9 +181,16 @@ class PerfModel:
         d['decode_overrides'] = {int(k): v for k, v in d.get('decode_overrides', {}).items()}
         for spec in d['decode_overrides'].values():
             from .decode_fit import predict
-            if any(not np.isfinite(x) or x < 0 for x in spec['coefficients']):
+            if any(not np.isfinite(x) or (x < 0 and spec['kind'] != 'split_b1_relative') for x in spec['coefficients']):
                 raise ValueError('invalid decode override coefficients')
             predict(spec, 1, 1)  # Reject unknown models instead of silently falling back.
+        d['decode_power_overrides'] = {int(k): v for k, v in d.get('decode_power_overrides', {}).items()}
+        if d['decode_power_overrides']:
+            from .power_table import validate
+            if set(d['decode_power_overrides']) != set(d['freqs']):
+                raise ValueError('decode power override must cover every declared frequency')
+            for spec in d['decode_power_overrides'].values():
+                validate(spec)
         return cls(**d)
 
     def save(self, path: Path) -> None:
@@ -176,7 +217,8 @@ def _quality(pred: np.ndarray, y: np.ndarray) -> dict:
 
 def fit(prefill: Iterable[PrefillPoint], decode: Iterable[DecodePoint], static: dict[str, StaticState],
         transfer_points: Iterable[tuple[int, float]] = (), kv_bytes_per_token: int = 0,
-        kv_capacity_tokens: int = 0, freq_switch_s: float = 0.15, model: str = "", tp: int = 1) -> PerfModel:
+        kv_capacity_tokens: int = 0, freq_switch_s: float = 0.15, model: str = "", tp: int = 1,
+        pipeline_parallel: int = 1, system: str = "pdblend", profile_key: dict | None = None) -> PerfModel:
     prefill, decode = list(prefill), list(decode)
     freqs = tuple(sorted({p.freq_mhz for p in prefill} | {d.freq_mhz for d in decode}))
     pt, pp, dt, dp, residuals, quality = {}, {}, {}, {}, {}, {}
@@ -246,5 +288,9 @@ def fit(prefill: Iterable[PrefillPoint], decode: Iterable[DecodePoint], static: 
                                          np.array([s for _, s in tps]))
     elif len(tps) == 1 and kv_bytes_per_token:
         transfer = (0.0, tps[0][0] * kv_bytes_per_token / max(tps[0][1], 1e-6))
-    return PerfModel(freqs, pt, pp, dt, dp, dict(static), transfer, freq_switch_s,
-                     kv_bytes_per_token, kv_capacity_tokens, residuals, model, tp, quality)
+    return PerfModel(freqs=freqs, prefill_time=pt, prefill_power=pp, decode_time=dt,
+                     decode_power=dp, static=dict(static), transfer=transfer,
+                     freq_switch_s=freq_switch_s, kv_bytes_per_token=kv_bytes_per_token,
+                     kv_capacity_tokens=kv_capacity_tokens, residuals=residuals, model=model,
+                     tp=tp, pp=pipeline_parallel, system=system,
+                     profile_key=profile_key or {}, quality=quality)

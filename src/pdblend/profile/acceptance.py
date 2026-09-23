@@ -9,9 +9,146 @@ from pathlib import Path
 from .merge import sha256
 from .profiler import DECODE_BATCHES, DECODE_CONTEXTS, DECODE_STEPS, PREFILL_INPUTS, MIXED_PROBES
 from .identity import require_profile_provenance
+from ..seed_config import SEEDS, SEED_POLICY, seed_metadata
 
 FREQS = (900, 1200, 1500, 1800, 2100, 2520)
-SEEDS = (701, 1701, 2701)
+def validate_parallel_interference(raw, directory: Path | None = None) -> dict:
+    """Validate the representative isolated/concurrent interference receipt.
+
+    Profiles without parallel mode metadata remain diagnostic-compatible.  A
+    profile claiming parallel qualification must carry a completed receipt,
+    matching representative points, bounded timing and power deltas, and (when
+    a sample path is supplied) an immutable checksum.
+    """
+    external = raw.get('external_interference')
+    local = raw.get('parallel_interference')
+    receipt = external or local
+    receipt_kind = 'external' if external is not None else 'local'
+    mode = raw.get('measured_mode') or (receipt or {}).get('measured_mode')
+    if mode is None and receipt is None:
+        return dict(passed=True, formal_eligible=True, skipped=True, failures=[])
+    failures = []
+    formal_eligible = False
+    if not isinstance(receipt, dict):
+        failures.append('parallel interference receipt is missing')
+        return dict(passed=False, formal_eligible=False, skipped=False, failures=failures)
+    # ProfileWave stores the full cohort comparison in its checksummed sample
+    # and leaves only a compact pointer in raw.json.  Validate the canonical
+    # file contents as the receipt payload while retaining the pointer fields.
+    if receipt_kind == 'external' and directory is not None and receipt.get('samples_file'):
+        evidence_path = directory / receipt['samples_file']
+        if evidence_path.is_file() and receipt.get('samples_sha256') == sha256(evidence_path):
+            try:
+                evidence_payload = json.loads(evidence_path.read_text())
+                if isinstance(evidence_payload, dict):
+                    receipt = {**receipt, **evidence_payload}
+            except (OSError, json.JSONDecodeError):
+                pass
+    if mode == 'serial_cohort':
+        if not receipt.get('complete'):
+            failures.append('serial_cohort receipt is incomplete')
+        return dict(passed=not failures, formal_eligible=False, skipped=False, failures=failures)
+    if mode == 'serial_fallback':
+        if not receipt.get('error') and receipt.get('complete') is not False:
+            failures.append('serial fallback lacks failure reason')
+        return dict(passed=not failures, formal_eligible=False, skipped=False, failures=failures)
+    if mode != 'parallel':
+        failures.append(f'unknown measured_mode: {mode!r}')
+    if receipt.get('complete') is not True:
+        failures.append('parallel interference receipt is incomplete')
+    point = receipt.get('point', {})
+    if not point and isinstance(receipt.get('parallel'), list) and receipt['parallel']:
+        first_member = receipt['parallel'][0]
+        if isinstance(first_member, dict):
+            point = first_member.get('point', {})
+    frequency = point.get('freq_mhz', point.get('frequency'))
+    context = point.get('context_tokens', point.get('context'))
+    if frequency != 2100 or point.get('batch') != 8 or context != 1024:
+        failures.append('parallel interference point must be 2100/B8/context1024')
+    isolated, parallel = receipt.get('isolated'), receipt.get('parallel')
+    def flatten(samples):
+        # ProfileWave records one member object per job, each with an
+        # ``instances`` list. Local probes already provide flat rows.
+        if (isinstance(samples, list) and samples and
+                all(isinstance(item, dict) and isinstance(item.get('instances'), list)
+                    for item in samples)):
+            return [instance for member in samples for instance in member['instances']]
+        return samples
+    isolated, parallel = flatten(isolated), flatten(parallel)
+    if not isinstance(isolated, list) or not isinstance(parallel, list) or not isolated or len(isolated) != len(parallel):
+        failures.append('parallel interference isolated/concurrent samples do not match')
+    else:
+        for index, (base, together) in enumerate(zip(isolated, parallel)):
+            try:
+                timing = relative_error(together['step_seconds'], base['step_seconds'])
+                power = relative_error(together['power_w'], base['power_w'])
+            except (KeyError, TypeError, ValueError) as exc:
+                failures.append(f'interference sample {index} invalid: {exc}')
+                continue
+            if timing > .05 or power > .05:
+                failures.append(f'interference sample {index} exceeds 5%: timing={timing:g}, power={power:g}')
+        validation = receipt.get('validation', {})
+        comparisons_ok = all(item.get('passed') is True for item in receipt.get('comparisons', ()))
+        if (validation.get('passed') is not True and receipt.get('passed') is not True
+                and not comparisons_ok):
+            failures.append('parallel interference validation did not pass')
+    sample = receipt.get('samples_file')
+    digest = receipt.get('samples_sha256')
+    evidence = None
+    if sample or digest:
+        if directory is None or not sample or not digest or not (directory / sample).is_file():
+            failures.append('parallel interference evidence file is missing')
+        elif sha256(directory / sample) != digest:
+            failures.append('parallel interference evidence checksum mismatch')
+        else:
+            try:
+                evidence = json.loads((directory / sample).read_text())
+            except (OSError, json.JSONDecodeError):
+                failures.append('parallel interference evidence is not valid JSON')
+    full_host_failures = []
+    full_host = raw.get('concurrency_environment')
+    if receipt_kind == 'local' and mode == 'parallel' and isinstance(full_host, dict):
+        inventory = full_host.get('physical_gpu_uuids') or full_host.get('all_gpu_uuids')
+        if inventory is None and isinstance(full_host.get('inventory'), list):
+            inventory = [item.get('uuid') if isinstance(item, dict) else item
+                         for item in full_host['inventory']]
+        allocated = full_host.get('allocated_gpu_uuids')
+        peer_snapshots = full_host.get('peer_snapshots')
+        peers = full_host.get('peer_jobs')
+        if peers is None and isinstance(peer_snapshots, list):
+            peers = [peer for snapshot in peer_snapshots if isinstance(snapshot, dict)
+                     for peer in snapshot.get('peers', [])]
+        if not isinstance(inventory, list) or len(inventory) != 8 or len(set(inventory)) != 8:
+            full_host_failures.append('full-host receipt requires eight unique physical GPU UUIDs')
+        if not isinstance(allocated, list) or set(allocated or ()) != set(inventory or ()):
+            full_host_failures.append('allocated UUIDs must equal the complete physical inventory')
+        if peers != []:
+            full_host_failures.append('full-host receipt must explicitly contain no peer jobs')
+        manifest = full_host.get('lease_manifest_file') or full_host.get('samples_file')
+        manifest_sha = full_host.get('lease_manifest_sha256') or full_host.get('samples_sha256')
+        if (directory is None or not manifest or not manifest_sha or
+                not (directory / manifest).is_file() or
+                sha256(directory / manifest) != manifest_sha):
+            full_host_failures.append('full-host lease manifest checksum binding is missing or invalid')
+        if not full_host_failures:
+            formal_eligible = True
+    else:
+        formal_eligible = receipt_kind == 'external' and mode == 'parallel'
+    failures.extend(full_host_failures)
+    if formal_eligible and receipt_kind == 'external':
+        if not isinstance(evidence, dict) or evidence.get('cross_job') is not True:
+            failures.append('external interference evidence lacks cross-job coordinator marker')
+        if not evidence or not evidence.get('cohort_id') or len(evidence.get('members', ())) < 2:
+            failures.append('external interference evidence lacks a multi-member cohort')
+        if not evidence or evidence.get('overlapping_windows') is not True:
+            failures.append('external interference evidence lacks overlapping windows')
+        if isinstance(evidence, dict):
+            from .parallel import common_window_overlap
+            measured = flatten(evidence.get('parallel'))
+            if not isinstance(measured, list) or not common_window_overlap(measured)['passed']:
+                failures.append('external interference lacks common windows across all instances')
+    return dict(passed=not failures, formal_eligible=formal_eligible and not failures,
+                skipped=False, failures=failures)
 
 
 def validate_parallel_layout(raw) -> dict:
@@ -104,6 +241,14 @@ def quality_audit(raw, model, directory: Path):
     layout_check = validate_parallel_layout(raw)
     if not layout_check['passed']:
         fail('parallel_layout', failures=layout_check['failures'])
+    interference_check = validate_parallel_interference(raw, directory)
+    if not interference_check['passed']:
+        fail('parallel_interference', failures=interference_check['failures'])
+    elif (raw.get('parallel_interference') is not None or raw.get('external_interference') is not None) \
+            and not interference_check.get('formal_eligible', False):
+        # Local-fleet evidence remains useful for diagnostics, but quality
+        # audit must never turn it into formal profile eligibility.
+        fail('parallel_interference_formal', reason='cross-job coordinator evidence required')
     cfg = raw.get('config', {})
     for key, minimum in (('decode_repeats', 3), ('decode_settle_s', 2), ('decode_measure_s', 5)):
         if cfg.get(key, 0) < minimum:
@@ -181,17 +326,27 @@ def quality_audit(raw, model, directory: Path):
     for f in FREQS:
         stable = []
         for d in raw.get('decode', []):
-            if d['freq_mhz'] != f or d['batch'] < 4:
+            if d['freq_mhz'] != f or (d['batch'] < 4 and not model.decode_power_overrides):
                 continue
             values = d.get('power_repeats', [])
             cv = statistics.stdev(values) / statistics.mean(values) if len(values) >= 3 and min(values) > 0 else float('inf')
             if cv <= .10:
-                err = relative_error(model.decode_power_w(d['batch'], f), d['power_w'])
                 stable.append(d)
-                metrics.setdefault(f'decode_power@{f}', []).append(err)
-                points.append(dict(metric=f'decode_power@{f}', freq_mhz=f, batch=d['batch'],
-                                   context_tokens=d['context_tokens'], relative_error=err,
-                                   observed=d['power_w'], predicted=model.decode_power_w(d['batch'], f)))
+                observations = d['repeats'] if model.decode_power_overrides else [d]
+                for index, obs in enumerate(observations):
+                    context = obs.get('effective_context_tokens', d.get('effective_context_tokens'))
+                    point = dict(metric=f'decode_power@{f}', freq_mhz=f, batch=d['batch'],
+                                 context_tokens=context, repeat=index, observed=obs['power_w'])
+                    try:
+                        prediction = model.decode_power_w(d['batch'], f, ctx=context)
+                    except ValueError as exc:
+                        fail(f'decode_power@{f}', reason='outside_coverage', point=point, error=str(exc))
+                        continue
+                    err = relative_error(prediction, obs['power_w'])
+                    metrics.setdefault(f'decode_power@{f}', []).append(err)
+                    points.append(dict(point, relative_error=err, predicted=prediction))
+            elif model.decode_power_overrides:
+                fail(f'decode_power@{f}', reason='unstable_power_repeats', batch=d['batch'], cv=cv)
         if len({d['batch'] for d in stable}) < 2:
             fail(f'decode_power@{f}', reason='insufficient_stable_batches')
     quality = {k: dict(mape=statistics.mean(v), max=max(v), samples=len(v)) for k, v in metrics.items()}
@@ -241,14 +396,15 @@ def quality_audit(raw, model, directory: Path):
 
 
 def m2_gate(rows):
-    """Rows must be completed, provenance-checked results for exactly the required seeds."""
+    """Rows must be completed, provenance-checked results for active seeds."""
     reasons = []
-    if len(rows) != 3 or {r.get('seed') for r in rows} != set(SEEDS):
-        reasons.append('requires exactly seeds 701, 1701, 2701')
+    if len(rows) != len(SEEDS) or {r.get('seed') for r in rows} != set(SEEDS):
+        reasons.append(f'requires exactly seeds {list(SEEDS)} under {SEED_POLICY}')
     for r in rows:
         checks = (r.get('complete') is True, r.get('joint_slo_rate', -1) >= .9,
                   r.get('ttft_p99', float('inf')) <= 5, r.get('tpot_p99', float('inf')) <= .15,
                   r.get('power_error') is not None and abs(r['power_error']) <= .05)
         if not all(checks):
             reasons.append(f'seed {r.get("seed")} failed completion/SLO/tail/power checks')
-    return dict(passed=not reasons, reasons=reasons, min_m_instances=2 if not reasons else 4)
+    return dict(passed=not reasons, reasons=reasons, min_m_instances=2 if not reasons else 4,
+                **seed_metadata())

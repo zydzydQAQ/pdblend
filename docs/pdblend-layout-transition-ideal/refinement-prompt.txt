@@ -1,0 +1,10 @@
+Make ONLY three small corrections to this completed scientific diagram. Preserve all other layout, figures, numbers, arrows, colors and text.
+
+1. In the main eight-GPU timeline, G2's "Close + drain" cell currently shows THREE yellow waiting-request rectangles plus one blue running-request rectangle. Delete ONE yellow rectangle so that G2 shows EXACTLY TWO yellow waiting rectangles and ONE blue running rectangle. This must match the table G2 waiting=2, running=1. Do not change any other GPU row or the table.
+
+2. In the bottom-right selective-routing detail, replace the short-request condition under "256-token input" with "(< τ)", and replace the long-request condition under "2048-token input" with "(≥ τ)". The routing rule is input less than tau for Mixed, input greater than or equal to tau for PD.
+
+3. The subtitle has a stray symbol after "PDblend". Remove that trailing symbol. Subtitle should read exactly:
+"IDEAL DESIGN — online TP reconfiguration is not yet GPU-qualified in PDblend"
+
+Do not redraw the figure or alter any other text. Output the final corrected diagram.

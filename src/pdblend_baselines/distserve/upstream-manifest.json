@@ -1,0 +1,134 @@
+{
+  "repository": "https://github.com/LLMServe/DistServe",
+  "revision": "82831f1604cc6b10bebd360f6c437a07790dde9f",
+  "verified_commit_url": "https://github.com/LLMServe/DistServe/commit/82831f1604cc6b10bebd360f6c437a07790dde9f",
+  "retrieved_at": "2026-09-14T09:13:02.523984+00:00",
+  "files": [
+    {
+      "path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/LICENSE",
+      "bytes": 11347,
+      "sha256": "69404908366b09fec94adb695525bad9179f10526d237eb8b3f946533554c640"
+    },
+    {
+      "path": "distserve/context_stage_scheduler.py",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/distserve/context_stage_scheduler.py",
+      "bytes": 7464,
+      "sha256": "2f87a68d6d6ef1381456eb1a725147bbddce15626ee18c32fb3915986400945c"
+    },
+    {
+      "path": "distserve/decoding_stage_scheduler.py",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/distserve/decoding_stage_scheduler.py",
+      "bytes": 11029,
+      "sha256": "4a7ee96fae977e26f3d93e2d0562b31697bd657f5e736a526a8674ea04927eab"
+    },
+    {
+      "path": "distserve/engine.py",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/distserve/engine.py",
+      "bytes": 13784,
+      "sha256": "08f1d46a42d986cb1c6604152f83bc227da8d0b7593736e5f94bcf6c721dd07a"
+    },
+    {
+      "path": "simdistserve/README.md",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/simdistserve/README.md",
+      "bytes": 2947,
+      "sha256": "d77cf6ab127e8948f633d7c0bfec08d8d0364104fb572f157477d208d59c91ee"
+    },
+    {
+      "path": "simdistserve/simulate.py",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/simdistserve/simulate.py",
+      "bytes": 4427,
+      "sha256": "822744db3a5a411240b6752b049c6db6d19a9162c2c46bd9023f3ea50f6a1c9f"
+    },
+    {
+      "path": "simdistserve/benchmarks/search_configs.py",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/simdistserve/benchmarks/search_configs.py",
+      "bytes": 2411,
+      "sha256": "112c20922bea33f357ffbbe8efca58a61d760a99cec49c34909e97f5bececf37"
+    },
+    {
+      "path": "simdistserve/benchmarks/search_binary.py",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/simdistserve/benchmarks/search_binary.py",
+      "bytes": 3621,
+      "sha256": "041059690773f2c9162ad7567b031885f0973f4f5a35e723aaee98703a30a11f"
+    },
+    {
+      "path": "simdistserve/benchmarks/parallel_bisect.py",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/simdistserve/benchmarks/parallel_bisect.py",
+      "bytes": 3458,
+      "sha256": "fe7bf9c1f195dd7841876e3cd655dbfae980f80db2f10940b49169fb35814d57"
+    },
+    {
+      "path": "simdistserve/benchmarks/simulate_dist.py",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/simdistserve/benchmarks/simulate_dist.py",
+      "bytes": 17697,
+      "sha256": "7a3851401ebcbe30e31227115f471de5279dd66c8ddb4a596173340e174651b3"
+    },
+    {
+      "path": "simdistserve/base/workload.py",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/simdistserve/base/workload.py",
+      "bytes": 3238,
+      "sha256": "5772816f83d3e88f65566bd5fec851f06637ce5dc2cdef2b6945b196a8393656"
+    },
+    {
+      "path": "simdistserve/base/worker.py",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/simdistserve/base/worker.py",
+      "bytes": 15056,
+      "sha256": "a628c3eb5e6da26cef08ff2afb058a6277566eba12d0987c2d543832ef6ac9d9"
+    },
+    {
+      "path": "simdistserve/base/scheduler.py",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/simdistserve/base/scheduler.py",
+      "bytes": 2971,
+      "sha256": "782e8ddc32432f39cf0eefb1459a1ab2a2abc9e27b99261a755f611834fb388d"
+    },
+    {
+      "path": "simdistserve/estimators/memory_estimator.py",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/simdistserve/estimators/memory_estimator.py",
+      "bytes": 1826,
+      "sha256": "bd874d02637ee504c67fe834162c47e8165b2e6ec4a75328cafcc56fc9d4625c"
+    },
+    {
+      "path": "simdistserve/base/request.py",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/simdistserve/base/request.py",
+      "bytes": 4404,
+      "sha256": "b9c3e5965f9f148d211ef2b0e6c6e439ddeba18972b017386c2341d0e317c9df"
+    },
+    {
+      "path": "simdistserve/clusters/disagg.py",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/simdistserve/clusters/disagg.py",
+      "bytes": 3012,
+      "sha256": "45009510036c417e4a1975b0f408b40aa1a128342c0a3b77851d2354096d3115"
+    },
+    {
+      "path": "simdistserve/utils.py",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/simdistserve/utils.py",
+      "bytes": 1288,
+      "sha256": "106f8f28e2f6b57edd0fd784c935fcb66268e5fda9fb99634caee34ba3d434e9"
+    },
+    {
+      "path": "simdistserve/constants.py",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/simdistserve/constants.py",
+      "bytes": 786,
+      "sha256": "fb7620980ce290300e5d972d9a0340549ac516d2e588a10d6044d864dce30cdc"
+    },
+    {
+      "path": "simdistserve/estimators/time_estimator.py",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/simdistserve/estimators/time_estimator.py",
+      "bytes": 2734,
+      "sha256": "f7ac76a8b5c15568a4e0fbbea89868be99363682664fc7c8c11663835f52d87f"
+    },
+    {
+      "path": "simdistserve/base/organize_data.py",
+      "url": "https://raw.githubusercontent.com/LLMServe/DistServe/82831f1604cc6b10bebd360f6c437a07790dde9f/simdistserve/base/organize_data.py",
+      "bytes": 4180,
+      "sha256": "2eb0dc56ec27a16c68dcc0c3c38d53be6b63021bffa0475d676e883056575c00"
+    }
+  ],
+  "absent_files": [
+    {
+      "absent_path": "NOTICE",
+      "http_status": 404
+    }
+  ]
+}

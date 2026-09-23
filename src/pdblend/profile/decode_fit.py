@@ -55,6 +55,14 @@ def features(batch, context, kind):
 def predict(spec, batch, context):
     # Scalar hot path, no SciPy dependency in planner queries.
     a = spec['coefficients']; b, c = batch, context; kind = spec['kind']
+    if kind == 'split_b1_relative':
+        low = a[4] + a[5] * c / 4096
+        high = lambda n: a[0] + a[1]*n/64 + a[2]*n*c/65536 + a[3]*(n/64)**2
+        if b <= 1:
+            return low
+        if b < 4:
+            return low + (high(4) - low) * (b - 1) / 3
+        return high(b)
     if kind == 'quadratic_relative':
         return a[0] + a[1]*b/64 + a[2]*b*c/65536 + a[3]*(b/64)**2
     if kind == 'hinge64':
@@ -112,6 +120,46 @@ def fit_candidate(rows, kind, capacity):
                             context=[float(c.min()),float(c.max())], max_batch_context=capacity*.9),
                 objective='squared_relative_error', constraints='nonnegative_coefficients',
                 validation_status='training_only')
+
+
+def fit_split_b1(rows, capacity):
+    """Freeze a six-parameter relative-error fit before independent sampling.
+
+    Small-batch launch overhead is measured separately. The B>=4 polynomial
+    retains the existing four terms, without the previous absolute-error
+    objective which disproportionately weighted long high-batch steps.
+    Signed coefficients are allowed only when the fitted curve is positive
+    throughout the measured domain; a holdout must still qualify the model.
+    """
+    low = [r for r in rows if r['batch'] == 1]
+    high = [r for r in rows if r['batch'] >= 4]
+    if len(low) < 3 or len(high) < 4:
+        raise ValueError('split decode fit needs three B1 and four higher-batch shapes')
+    def solve(data, small):
+        b = np.asarray([r['batch'] for r in data], float)
+        c = np.asarray([r.get('effective_context_tokens', r['context_tokens']) for r in data], float)
+        y = np.asarray([r['step_seconds'] for r in data], float)
+        x = (np.stack([np.ones_like(c), c / 4096], 1) if small else
+             np.stack([np.ones_like(b), b / 64, b*c / 65536, (b / 64)**2], 1))
+        if np.any(y <= 0) or not np.all(np.isfinite(y)):
+            raise ValueError('invalid training timing')
+        return np.linalg.lstsq(x / y[:, None], np.ones(len(y)), rcond=None)[0].tolist()
+    # The observations cover continuous decode windows, not only their
+    # midpoint contexts. Keep the actual covered token interval in the domain.
+    upper = max(r.get('effective_context_tokens', r['context_tokens']) for r in rows)
+    for r in rows:
+        for rep in r.get('repeats', []):
+            upper = max(upper, rep.get('effective_context_tokens', upper) + rep.get('steps', 0) / 2)
+    spec = dict(kind='split_b1_relative', coefficients=solve(high, False)+solve(low, True),
+                domain=dict(batch=[1, max(r['batch'] for r in rows)],
+                            context=[min(r['context_tokens'] for r in rows), upper],
+                            max_batch_context=capacity*.9),
+                objective='squared_relative_error', validation_status='training_only')
+    for b in np.linspace(1, spec['domain']['batch'][1], 65):
+        for c in np.linspace(*spec['domain']['context'], 33):
+            if supported(spec, b, c) and (not np.isfinite(predict(spec, b, c)) or predict(spec, b, c) <= 0):
+                raise ValueError('non-positive decode curve inside measured domain')
+    return spec
 
 
 def errors(observed, predicted):

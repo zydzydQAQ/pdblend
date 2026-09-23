@@ -39,12 +39,18 @@ class Plan:
     ttft_s: float
     tpot_s: float
     detail: dict = field(default_factory=dict)
+    tp: int = 1
+    pp: int = 1
+    pool_id: str = ""
+    generation: int = 0
+    profile_key: str = ""
 
     def active(self) -> int:
         return sum(self.counts.get(r, 0) for r in ACTIVE)
 
     def key(self):
-        return (tuple(sorted(self.counts.items())), self.f_P, self.f_D, self.f_M, self.tau)
+        return (tuple(sorted(self.counts.items())), self.f_P, self.f_D, self.f_M, self.tau,
+                self.tp, self.pp, self.pool_id, self.generation, self.profile_key)
 
 
 @dataclass
@@ -143,7 +149,13 @@ class PoolPlanner:
         """Little's law fixed point: L = rate * out_mean * tpot(B), B = L / servers, tpot = step(B)/(1-dilution)."""
         b, cap = 1.0, 4.0 * self.cfg.max_num_seqs
         for _ in range(32):
-            tpot = self.model.step_seconds(b, ctx, f) / max(1.0 - dilution, 1e-6)
+            # Fractional B is time-average occupancy. A non-idle decode step
+            # still executes at least one sequence; idle duty cycle is modeled
+            # separately below. Never extrapolate a bounded profile below B1.
+            active_batch = max(1.0, b) if (self.model.bounded_coverage or self.model.decode_power_overrides) else b
+            if not self.model.decode_supported(active_batch, ctx, f):
+                return float('inf')
+            tpot = self.model.step_seconds(active_batch, ctx, f) / max(1.0 - dilution, 1e-6)
             nxt = max(rate * out_mean * tpot / servers, 1e-6)
             if nxt > cap:
                 return nxt
@@ -205,16 +217,18 @@ class PoolPlanner:
         if rate * fc.output_mean / n > self.cfg.rho_decode * self._peak_decode_tps(ctx, f):
             return None
         b = self._decode_batch(rate, fc.output_mean, ctx, n, f)
-        if not self.model.decode_supported(b, ctx, f):
+        active_batch = max(1.0, b) if (self.model.bounded_coverage or self.model.decode_power_overrides) else b
+        if (not self.model.decode_supported(active_batch, ctx, f) or
+                not self.model.decode_power_supported(active_batch, ctx, f)):
             return None
         if b > self.cfg.peak_batch_cap or b * (in_mean + fc.output_mean) > self.model.kv_capacity_tokens * 0.9:
             return None
-        step = self.model.step_seconds(b, ctx, f)
+        step = self.model.step_seconds(active_batch, ctx, f)
         idle = self.model.static_power_w("active_idle", f)
         if b >= 1.0:
-            power = self.model.decode_power_w(b, f)
+            power = self.model.decode_power_w(b, f, ctx=ctx)
         else:
-            power = idle + b * max(self.model.decode_power_w(1.0, f) - idle, 0.0)
+            power = idle + b * max(self.model.decode_power_w(1.0, f, ctx=ctx) - idle, 0.0)
         return dict(power_w=n * power, tpot_s=step, first_step_s=step, batch=b)
 
     def _mixed_pool(self, rate: float, fc: Forecast, in_mean: float, in_p95: float, n: int, f: int):
@@ -228,19 +242,21 @@ class PoolPlanner:
             return None
         ctx = in_mean + fc.output_mean / 2.0
         b = self._decode_batch(rate, fc.output_mean, ctx, n, f, dilution=u_p)
-        if not self.model.decode_supported(b, ctx, f):
+        active_batch = max(1.0, b) if (self.model.bounded_coverage or self.model.decode_power_overrides) else b
+        if (not self.model.decode_supported(active_batch, ctx, f) or
+                not self.model.decode_power_supported(active_batch, ctx, f)):
             return None
         if b > self.cfg.peak_batch_cap or b * (in_mean + fc.output_mean) > self.model.kv_capacity_tokens * 0.9:
             return None
         if rate * fc.output_mean / n > self.cfg.rho_decode * (1.0 - u_p) * self._peak_decode_tps(ctx, f):
             return None
-        step = self.model.step_seconds(b, ctx, f)
+        step = self.model.step_seconds(active_batch, ctx, f)
         tpot = step / (1.0 - u_p)
         wait = mdc_wait(rate, s_p, n) or 0.0
         ttft = wait + self.model.prefill_seconds(int(in_p95), f) + tpot
         idle = self.model.static_power_w("active_idle", f)
         p_pre = self.model.prefill_power_w(int(in_mean), f)
-        p_dec = self.model.decode_power_w(b, f) if b >= 1.0 else idle + b * max(self.model.decode_power_w(1.0, f) - idle, 0.0)
+        p_dec = self.model.decode_power_w(b, f, ctx=ctx) if b >= 1.0 else idle + b * max(self.model.decode_power_w(1.0, f, ctx=ctx) - idle, 0.0)
         power = u_p * p_pre + (1.0 - u_p) * p_dec
         return dict(power_w=n * power, ttft_s=ttft, tpot_s=tpot, batch=b, busy=u_p,
                     tpot_miss=self._stall_miss(rate / n, fc, step, f))
@@ -418,7 +434,15 @@ class PoolPlanner:
         """Everything active at max clock; PD only if it lowers predicted TTFT/TPOT violation."""
         N, f = self.cfg.slots, max(self.cfg.freqs)
         counts = {"M": N}
-        m = self._mixed_pool(fc.rate_rps, fc, fc.input_mean, fc.input_p95, N, f) or dict(power_w=float("inf"), ttft_s=float("inf"), tpot_s=float("inf"))
+        m = self._mixed_pool(fc.rate_rps, fc, fc.input_mean, fc.input_p95, N, f)
+        if m is None and self.model.decode_power_overrides:
+            ctx = fc.input_mean + fc.output_mean / 2
+            u = fc.rate_rps * self.model.prefill_marginal_seconds(int(fc.input_mean), f) / N
+            batch = self._decode_batch(fc.rate_rps, fc.output_mean, ctx, N, f, dilution=u)
+            if not self.model.decode_power_supported(max(1., batch), ctx, f):
+                from ..profile.power_table import PowerCoverageError
+                raise PowerCoverageError('missing_profile: fallback layout has no measured decode power coverage')
+        m = m or dict(power_w=float("inf"), ttft_s=float("inf"), tpot_s=float("inf"))
         return Plan(counts, f, f, f, 0, m["power_w"], m["ttft_s"], m["tpot_s"], dict(fallback=True, M=m))
 
 

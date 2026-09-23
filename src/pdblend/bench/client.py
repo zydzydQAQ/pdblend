@@ -48,6 +48,7 @@ class Outcome:
     prefill: str = ""
     decode: str = ""
     error: Optional[str] = None
+    sampling_seed: Optional[int] = None
 
     @property
     def ttft_s(self):
@@ -167,8 +168,9 @@ def nearest_rank(values: Sequence[float], percentile: float):
 
 # ---- replay -------------------------------------------------------------------------------------
 class LoadClient:
-    def __init__(self, proxy_url: str, timeout_s: float = 300.0, concurrency: int = 2048):
-        self.args = (proxy_url, timeout_s, concurrency)
+    def __init__(self, proxy_url: str, timeout_s: float = 300.0, concurrency: int = 2048,
+                 sampling_seed: int | None = None):
+        self.args = (proxy_url, timeout_s, concurrency, sampling_seed)
         self.url = proxy_url.rstrip("/") + "/v1/completions"
         self.timeout = aiohttp.ClientTimeout(total=timeout_s, sock_read=timeout_s)
         self.sem = asyncio.Semaphore(concurrency)
@@ -177,7 +179,11 @@ class LoadClient:
     async def _one(self, session: aiohttp.ClientSession, req: Request, t0: float) -> Outcome:
         body = dict(model="m", prompt=req.prompt, max_tokens=req.max_tokens, temperature=0.0,
                     ignore_eos=True, stream=True, request_id=f"r{req.idx}")
-        out = Outcome(req.idx, req.arrival_s, req.input_tokens, req.max_tokens, time.time())
+        sampling_seed = None if self.args[3] is None else int(self.args[3])
+        if sampling_seed is not None:
+            body["seed"] = sampling_seed
+        out = Outcome(req.idx, req.arrival_s, req.input_tokens, req.max_tokens, time.time(),
+                      sampling_seed=sampling_seed)
         try:
             async with self.sem, session.post(self.url, json=body) as resp:
                 out.path = resp.headers.get("X-PDBlend-Path", "")

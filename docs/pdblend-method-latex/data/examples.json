@@ -1,0 +1,419 @@
+{
+  "schema_version": 1,
+  "status": "synthetic CPU example; not a GPU measurement or full-space optimum",
+  "python_version": "3.10.12",
+  "gpu_frameworks_imported": [],
+  "source_sha256": {
+    "tests/pdblend/synthetic.py": "9b2fbf398d493dbcb996819b761ebb03e39284250a21a5c361bec02a3de062f0",
+    "src/pdblend/profile/model.py": "565c2ad14de6fff5f23e886bd175dee7ac0c3f9dce87e5e008ee50439d3daf40",
+    "src/pdblend/control/forecast.py": "06a254a1b45da446c97b0708b88be75c99fb66f6fe5aa3ca20a7c84de85db29c",
+    "src/pdblend/control/planner.py": "1f87843a13362de69cbc585f928df1969180ac0604a684952ca545cce3b5f230"
+  },
+  "reproduction_script_sha256": "08d046de4f9ca066bf147dac585e3b0a1acfdc6f941f154d3e597a9ee813e379",
+  "planning_inputs": {
+    "forecast": {
+      "rate_rps": 12,
+      "trend_rps": 0,
+      "input_mean": 1728,
+      "input_p95": 4096,
+      "output_mean": 128,
+      "inflight": 0,
+      "inputs": [
+        256,
+        512,
+        2048,
+        4096
+      ],
+      "outputs": [
+        128,
+        128,
+        128,
+        128
+      ],
+      "peak_rps": 0.0,
+      "completed_bins": 0,
+      "recent_rate_rps": 0.0
+    },
+    "gpu_count": 8,
+    "tp": 1,
+    "pp": 1,
+    "horizon_s": 60.0,
+    "slo": {
+      "ttft_s": 1.0,
+      "tpot_s": 0.02,
+      "safety": 0.85
+    },
+    "guarded_latency_proxy_ms": 850.0,
+    "guarded_tpot_ms": 17.0,
+    "min_m_instances": 0,
+    "fixed_M_floor_disabled_for_target_example": true
+  },
+  "traffic_split": {
+    "threshold_tokens": 1024,
+    "PD_share": 0.5,
+    "PD_rate_rps": 6.0,
+    "M_rate_rps": 6.0,
+    "PD_mean_input_tokens": 3072.0,
+    "M_mean_input_tokens": 384.0,
+    "PD_requests_per_horizon": 360.0
+  },
+  "candidates": {
+    "A": {
+      "counts": {
+        "M": 5,
+        "off": 3
+      },
+      "frequencies_mhz": {
+        "P": 2520,
+        "D": 2520,
+        "M": 2520
+      },
+      "threshold_tokens": 0,
+      "power_w": 769.1371899303872,
+      "power_components_w": {
+        "M": 667.1371899303872,
+        "off": 102.0
+      },
+      "latency_proxy_s": 0.21418994043159073,
+      "latency_proxy_ms": 214.18994043159074,
+      "tpot_s": 0.016027938868174982,
+      "tpot_ms": 16.02793886817498,
+      "strict_model_feasible": true,
+      "rejection_reasons": [],
+      "operating_and_standby_energy_j": 46148.23139582323,
+      "switch_energy_j_from_A": 0.0,
+      "window_energy_lower_bound_j": 46148.23139582323,
+      "normalized_energy_lower_bound_A100": 99.99999999999999,
+      "unmodeled_extra_handoff_energy_j": 0.0,
+      "pool_details": {
+        "M": {
+          "power_w": 667.1371899303872,
+          "ttft_s": 0.21418994043159073,
+          "tpot_s": 0.016027938868174982,
+          "batch": 4.923494561161633,
+          "busy": 0.17305436159999998,
+          "tpot_miss": 0.0032847448176735092
+        }
+      }
+    },
+    "B": {
+      "counts": {
+        "M": 4,
+        "off": 4
+      },
+      "frequencies_mhz": {
+        "P": 2520,
+        "D": 2520,
+        "M": 2520
+      },
+      "threshold_tokens": 0,
+      "power_w": 709.5517143170348,
+      "power_components_w": {
+        "M": 573.5517143170348,
+        "off": 136.0
+      },
+      "latency_proxy_s": 0.21806858217900005,
+      "latency_proxy_ms": 218.06858217900006,
+      "tpot_s": 0.017499741776200898,
+      "tpot_ms": 17.4997417762009,
+      "strict_model_feasible": false,
+      "rejection_reasons": [
+        "tpot_above_guard"
+      ],
+      "operating_and_standby_energy_j": 42573.10285902209,
+      "switch_energy_j_from_A": 0.0,
+      "window_energy_lower_bound_j": 42573.10285902209,
+      "normalized_energy_lower_bound_A100": 92.25294571716843,
+      "unmodeled_extra_handoff_energy_j": 0.0,
+      "pool_details": {
+        "M": {
+          "power_w": 573.5517143170348,
+          "ttft_s": 0.21806858217900005,
+          "tpot_s": 0.017499741776200898,
+          "batch": 6.7197449566043375,
+          "busy": 0.21631795199999998,
+          "tpot_miss": 0.03805764292261762
+        }
+      }
+    },
+    "C": {
+      "counts": {
+        "P": 2,
+        "D": 1,
+        "M": 2,
+        "off": 3
+      },
+      "frequencies_mhz": {
+        "P": 2100,
+        "D": 2520,
+        "M": 2520
+      },
+      "threshold_tokens": 1024,
+      "power_w": 708.279576662245,
+      "power_components_w": {
+        "P": 271.42759652032464,
+        "D": 118.86278488197433,
+        "M": 215.98919525994597,
+        "off": 102.0
+      },
+      "latency_proxy_s": 0.3191698332945256,
+      "latency_proxy_ms": 319.1698332945256,
+      "tpot_s": 0.015537255514161675,
+      "tpot_ms": 15.537255514161675,
+      "strict_model_feasible": true,
+      "rejection_reasons": [],
+      "operating_and_standby_energy_j": 42496.774599734694,
+      "switch_energy_j_from_A": 34.0,
+      "window_energy_lower_bound_j": 42530.774599734694,
+      "normalized_energy_lower_bound_A100": 92.16122333040059,
+      "unmodeled_extra_handoff_energy_j": null,
+      "pool_details": {
+        "P": {
+          "power_w": 271.42759652032464,
+          "ttft_s": 0.3036325777803639,
+          "busy": 0.4763418624
+        },
+        "D": {
+          "power_w": 118.86278488197433,
+          "tpot_s": 0.015537255514161675,
+          "first_step_s": 0.015537255514161675,
+          "batch": 11.931392440987164
+        },
+        "M": {
+          "power_w": 215.98919525994597,
+          "ttft_s": 0.20477100459821793,
+          "tpot_s": 0.013775466364657716,
+          "batch": 5.289557558269483,
+          "busy": 0.04652236800000001,
+          "tpot_miss": 0.013089143565236919
+        }
+      }
+    }
+  },
+  "pairwise_comparison": {
+    "scope": "C versus A only; other candidates are not decided",
+    "horizon_s": 60.0,
+    "margin_fraction": 0.08,
+    "normalization_A": 100.0,
+    "accept_C_only_below_normalized_cost": 92.0,
+    "required_gain_j": 3691.8585116658587,
+    "best_case_C_gain_j": 3617.4567960885397,
+    "best_case_C_gain_fraction": 0.07838776669599405,
+    "C_extra_handoff_energy_lower_bound_j": 0.0,
+    "C_extra_handoff_energy_formula": "360 * e joules, where e >= 0 J per PD request is unknown",
+    "pairwise_decision": "keep_A",
+    "reason": "Even zero extra handoff energy leaves the saving below the 8% margin."
+  },
+  "model_query": {
+    "input_tokens": 2048,
+    "output_tokens": 128,
+    "assumed_decode_batch": 16,
+    "representative_context_tokens": 2112.0,
+    "frequency_mhz": 2520,
+    "prefill_ms": 96.114304,
+    "prefill_power_w": 270.0,
+    "decode_step_ms": 16.264960000000002,
+    "decode_power_w": 127.0,
+    "decode_energy_per_token_j": 0.12910312000000002,
+    "handoff_estimate_ms": 28.4881024,
+    "handoff_is_physical_copy_measurement": false,
+    "prefill_grid": [
+      {
+        "frequency_mhz": 900,
+        "input_tokens": 512,
+        "time_ms": 86.0780032,
+        "power_w": 122.14285714285714
+      },
+      {
+        "frequency_mhz": 900,
+        "input_tokens": 2048,
+        "time_ms": 269.1200512,
+        "power_w": 154.28571428571428
+      },
+      {
+        "frequency_mhz": 900,
+        "input_tokens": 4096,
+        "time_ms": 533.7282048,
+        "power_w": 154.28571428571428
+      },
+      {
+        "frequency_mhz": 1200,
+        "input_tokens": 512,
+        "time_ms": 64.55850240000001,
+        "power_w": 132.85714285714286
+      },
+      {
+        "frequency_mhz": 1200,
+        "input_tokens": 2048,
+        "time_ms": 201.8400384,
+        "power_w": 175.71428571428572
+      },
+      {
+        "frequency_mhz": 1200,
+        "input_tokens": 4096,
+        "time_ms": 400.2961536,
+        "power_w": 175.71428571428572
+      },
+      {
+        "frequency_mhz": 1500,
+        "input_tokens": 512,
+        "time_ms": 51.64680192,
+        "power_w": 143.57142857142858
+      },
+      {
+        "frequency_mhz": 1500,
+        "input_tokens": 2048,
+        "time_ms": 161.47203072000002,
+        "power_w": 197.14285714285717
+      },
+      {
+        "frequency_mhz": 1500,
+        "input_tokens": 4096,
+        "time_ms": 320.23692288,
+        "power_w": 197.14285714285717
+      },
+      {
+        "frequency_mhz": 1800,
+        "input_tokens": 512,
+        "time_ms": 43.0390016,
+        "power_w": 154.28571428571428
+      },
+      {
+        "frequency_mhz": 1800,
+        "input_tokens": 2048,
+        "time_ms": 134.5600256,
+        "power_w": 218.57142857142858
+      },
+      {
+        "frequency_mhz": 1800,
+        "input_tokens": 4096,
+        "time_ms": 266.8641024,
+        "power_w": 218.57142857142858
+      },
+      {
+        "frequency_mhz": 2100,
+        "input_tokens": 512,
+        "time_ms": 36.8905728,
+        "power_w": 165.0
+      },
+      {
+        "frequency_mhz": 2100,
+        "input_tokens": 2048,
+        "time_ms": 115.3371648,
+        "power_w": 240.0
+      },
+      {
+        "frequency_mhz": 2100,
+        "input_tokens": 4096,
+        "time_ms": 228.74065920000004,
+        "power_w": 240.0
+      },
+      {
+        "frequency_mhz": 2520,
+        "input_tokens": 512,
+        "time_ms": 30.742144,
+        "power_w": 180.0
+      },
+      {
+        "frequency_mhz": 2520,
+        "input_tokens": 2048,
+        "time_ms": 96.114304,
+        "power_w": 270.0
+      },
+      {
+        "frequency_mhz": 2520,
+        "input_tokens": 4096,
+        "time_ms": 190.61721600000004,
+        "power_w": 270.0
+      }
+    ],
+    "decode_query_by_frequency": [
+      {
+        "frequency_mhz": 900,
+        "batch": 16,
+        "context_tokens": 2112.0,
+        "step_ms": 45.541888,
+        "power_w": 106.42857142857143,
+        "energy_per_token_j": 0.30293488
+      },
+      {
+        "frequency_mhz": 1200,
+        "batch": 16,
+        "context_tokens": 2112.0,
+        "step_ms": 34.156416,
+        "power_w": 110.23809523809524,
+        "energy_per_token_j": 0.23533364
+      },
+      {
+        "frequency_mhz": 1500,
+        "batch": 16,
+        "context_tokens": 2112.0,
+        "step_ms": 27.325132800000002,
+        "power_w": 114.04761904761905,
+        "energy_per_token_j": 0.19477289600000003
+      },
+      {
+        "frequency_mhz": 1800,
+        "batch": 16,
+        "context_tokens": 2112.0,
+        "step_ms": 22.770944,
+        "power_w": 117.85714285714286,
+        "energy_per_token_j": 0.1677324
+      },
+      {
+        "frequency_mhz": 2100,
+        "batch": 16,
+        "context_tokens": 2112.0,
+        "step_ms": 19.517951999999998,
+        "power_w": 121.66666666666667,
+        "energy_per_token_j": 0.14841775999999998
+      },
+      {
+        "frequency_mhz": 2520,
+        "batch": 16,
+        "context_tokens": 2112.0,
+        "step_ms": 16.264960000000002,
+        "power_w": 127.0,
+        "energy_per_token_j": 0.12910312000000002
+      }
+    ]
+  },
+  "figure_display_values": {
+    "candidate_rows": {
+      "A": {
+        "power_w": "769.14",
+        "latency_proxy_ms": "214.19",
+        "tpot_ms": "16.03",
+        "feasible": true
+      },
+      "B": {
+        "power_w": "709.55",
+        "latency_proxy_ms": "218.07",
+        "tpot_ms": "17.50",
+        "feasible": false
+      },
+      "C": {
+        "power_w": "708.28",
+        "latency_proxy_ms": "319.17",
+        "tpot_ms": "15.54",
+        "feasible": true
+      }
+    },
+    "energy": {
+      "A_energy_kj": "46.148",
+      "C_operating_energy_kj": "42.497",
+      "C_switch_kj": "0.034",
+      "C_minimum_normalized_cost": "92.16",
+      "required_gain_kj": "3.692",
+      "best_case_gain_kj": "3.617"
+    }
+  },
+  "interpretation": [
+    "The latency proxy includes PD handoff and a first D step; it is not measured carry-protocol TTFT.",
+    "Synthetic formulas do not establish measured profile coverage or hardware qualification.",
+    "Candidate C uses M2 and is outside the default policy's fixed M-floor enumeration.",
+    "C's unknown incremental handoff energy remains symbolic and nonnegative, not assumed measured zero.",
+    "The lower bound alone rejects replacing A by C at an 8% margin; other candidates are not decided."
+  ],
+  "assertions_passed": true
+}

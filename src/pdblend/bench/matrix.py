@@ -1,7 +1,9 @@
 """Benchmark points from plain dicts: one point (shared by the CLI) or a JSON matrix run unattended."""
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import time
 from dataclasses import replace
 from pathlib import Path
@@ -11,13 +13,88 @@ from ..control.planner import SLO, Plan, PlannerConfig, PoolPlanner
 from ..control.policies import get_policy
 from ..control.policies.baselines import capacity_rps
 from ..profile.model import PerfModel
+from ..seed_config import SINGLE_SEED, SEED_POLICY, seed_metadata
 from . import client as bc
 from .run import make_warmup, run_point
+
+
+def _sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _tree_sha256(root: Path) -> str:
+    """Stable digest for the exact corpus tree used by a point."""
+    h = hashlib.sha256()
+    for path in sorted(p for p in root.rglob("*") if p.is_file()):
+        h.update(str(path.relative_to(root)).encode())
+        h.update(b"\0")
+        h.update(bytes.fromhex(_sha256(path)))
+    return h.hexdigest()
+
+
+def _trace_sha256(trace: list[bc.Request]) -> str:
+    h = hashlib.sha256()
+    for r in trace:
+        h.update(json.dumps([r.idx, r.arrival_s, r.input_tokens, r.max_tokens],
+                            separators=(",", ":"), allow_nan=False).encode())
+        h.update(b"\n")
+    return h.hexdigest()
+
+
+def _env_identity(name: str, default: str = "unknown") -> str:
+    value = os.environ.get(name)
+    return value if value else default
+
+
+def _write_evidence(out: Path, args: dict, result: dict, trace: list[bc.Request], corpus: Path) -> None:
+    """Write a self-contained attestation for one active-workspace matrix point.
+
+    The matrix runner is executed inside a pinned container with read-only source
+    and profile inputs.  The launcher supplies the corresponding hashes and
+    hardware identity through environment variables; missing values remain
+    explicitly ``unknown`` and therefore cannot pass strict pairing.
+    """
+    profile = Path(args["profile"])
+    summary_path = out / "summary.json"
+    identity = {
+        "dataset": args["dataset"], "rate": float(args["rate"]), "seed": int(args["seed"]),
+        **seed_metadata((int(args["seed"]),)),
+        "duration": float(args["duration"]), "trace_window_s": float(result["window_s"]),
+        "requests": int(result["requests"]), "model": args["model"], "tp": int(args["tp"]),
+        "gpus": str(args["gpus"]), "policy": result["policy"]["name"],
+        "trace_sha256": _trace_sha256(trace), "corpus_sha256": _tree_sha256(corpus),
+        "profile_sha256": _sha256(profile),
+        "profile_system": args.get("profile_system", args.get("policy", "unknown")),
+        "profile_key": args.get("profile_key", {}),
+        "source_sha256": _env_identity("PDBLEND_SOURCE_SHA256"),
+        "image": _env_identity("PDBLEND_IMAGE_ID"),
+        "hardware": _env_identity("PDBLEND_HARDWARE_UUIDS"),
+        "clock_protocol": _env_identity("PDBLEND_CLOCK_PROTOCOL", "nvidia-smi-lock-clock-v1"),
+        "energy_protocol": _env_identity("PDBLEND_ENERGY_PROTOCOL", "nvml-0.1s-trapezoid-v1"),
+    }
+    artifacts = {}
+    for path in sorted(out.iterdir()):
+        if path.is_file() and path.name != "evidence.json":
+            artifacts[path.name] = _sha256(path)
+    evidence = {
+        "status": "complete", "returncode": 0, "inputs_unchanged": True,
+        **seed_metadata((int(args["seed"]),)),
+        "identity": identity,
+        "identity_sha256": hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(",", ":"),
+                                             allow_nan=False).encode()).hexdigest(),
+        "artifacts": artifacts,
+        "trace_meta": result.get("trace_meta", {}),
+    }
+    (out / "evidence.json").write_text(json.dumps(evidence, indent=2, sort_keys=True))
 
 DEFAULTS = dict(model="Qwen2.5-7B-Instruct", gpus="0,1,2,3,4,5,6,7", tp=1, policy="pdblend", profile=None,
                 corpus="datasets/prepared/2026-09-13-7b-v1", dataset="sharegpt", split="evaluation",
                 rate=5.0, duration=100.0, stages="", cv=1.5, azure="", azure_offset=0.0, azure_peak=5.0,
-                seed=701, scale=None, connector="P2pNcclConnector", period=10.0, layout="", clocks="P=2520,D=2520,M=2520",
+                seed=SINGLE_SEED, scale=None, connector="P2pNcclConnector", period=10.0, layout="", clocks="P=2520,D=2520,M=2520",
                 tau=0, out=None)
 
 
@@ -37,7 +114,8 @@ def build_trace(a: dict, records: list[dict]):
     else:
         trace = bc.poisson_trace(records, float(a["rate"]), float(a["duration"]), int(a["seed"]), a["dataset"])
     source = a["azure"] and f"azure-{a['azure']}" or (a["stages"] and "staged") or "poisson"
-    return trace, dict(meta, dataset=a["dataset"], seed=a["seed"], scale=a["scale"], source=source)
+    return trace, dict(meta, dataset=a["dataset"], seed=a["seed"], scale=a["scale"], source=source,
+                       **seed_metadata((int(a["seed"]),)))
 
 
 def corpus_forecast(records: list[dict], rate_rps: float) -> Forecast:
@@ -95,8 +173,9 @@ def m3_spec(profile: Path, gpus: str, root: Path, corpus: Path = Path("datasets/
                 for tag, clocks in (("max", "P=2520,D=2520,M=2520"), ("auto", ",".join(f"{k}={v}" for k, v in auto.items()))):
                     points.append(dict(name=f"{ds}-x{sc:g}-{label}-{tag}", dataset=ds, rate=rate, scale=sc, layout=lay,
                                        clocks=clocks, tau=tau))
-    spec = dict(root=str(root), capacity_rps=caps,
-                defaults=dict(policy="manual", profile=str(profile), gpus=gpus, duration=duration, corpus=str(corpus)),
+    spec = dict(root=str(root), capacity_rps=caps, **seed_metadata(),
+                defaults=dict(policy="manual", profile=str(profile), gpus=gpus, duration=duration, corpus=str(corpus),
+                              seed=SINGLE_SEED),
                 points=points)
     root.mkdir(parents=True, exist_ok=True)
     (root / "spec.json").write_text(json.dumps(spec, indent=1))
@@ -115,7 +194,7 @@ def eval_spec(profile: Path, gpus: str, root: Path, corpus: Path = Path("dataset
               reduced_datasets=("sharegpt", "longbench"), reduced_scale: float = 0.5,
               duration: float = 300.0, stages: str = "300:0.25,300:0.75,300:0.5,300:1.0",
               azure=("conv", "code"), azure_duration: float = 1800.0, azure_peak_scale: float = 0.75,
-              azure_policies=("mixed", "mixed_dvfs_park", "pdblend"), seed: int = 701,
+              azure_policies=("mixed", "mixed_dvfs_park", "pdblend"), seed: int = SINGLE_SEED,
               ported_scales=None, reduced_core=(), ported_datasets=None) -> dict:
     """P4 evaluation matrix on one fleet: controlled Poisson, ported baselines, ablations, staged and Azure traces.
 
@@ -158,7 +237,7 @@ def eval_spec(profile: Path, gpus: str, root: Path, corpus: Path = Path("dataset
             for pol in azure_policies:
                 add("azure", name=f"{ds}-azure-{az}-{pol}", dataset=ds, azure=az, azure_peak=peak, scale=azure_peak_scale,
                     duration=azure_duration, policy=pol)
-    spec = dict(root=str(root), capacity_rps=caps, groups=groups,
+    spec = dict(root=str(root), capacity_rps=caps, groups=groups, **seed_metadata((seed,)),
                 defaults=dict(model=model, tp=tp, profile=str(profile), gpus=gpus, duration=duration, corpus=str(corpus),
                               seed=seed),
                 points=points)
@@ -168,9 +247,22 @@ def eval_spec(profile: Path, gpus: str, root: Path, corpus: Path = Path("dataset
 
 
 def bench_point(args: dict) -> dict:
+    if args.get('runner') == 'independent_native_dispatch':
+        raise ValueError('active five-system points require independent_dispatch; legacy matrix policies are forbidden')
     a = dict(DEFAULTS, **{k: v for k, v in args.items() if v is not None})
+    profile_by_system = a.get("profile_by_system", {}) or {}
+    selected_profile = profile_by_system.get(a["policy"]) or profile_by_system.get(a.get("system", ""))
+    if selected_profile:
+        if isinstance(selected_profile, dict):
+            a["profile_key"] = selected_profile.get("profile_key", {})
+            selected_profile = selected_profile.get("path")
+        a["profile"] = selected_profile
+    a["profile_system"] = a.get("policy", "pdblend")
+    if not a.get("profile"):
+        raise ValueError(f"independent profile required for {a['policy']}")
     records = bc.load_split(Path(a["corpus"]), a["dataset"], a["split"])
     trace, meta = build_trace(a, records)
+    meta = dict(meta, trace_sha256=_trace_sha256(trace), corpus_sha256=_tree_sha256(Path(a["corpus"])))
     fixed = None
     if a["layout"]:
         c = parse_kv(a["clocks"])
@@ -185,9 +277,13 @@ def bench_point(args: dict) -> dict:
         history = bc.poisson_trace(records, float(a["rate"]), policy.history_s,
                                    seed=int(a["seed"]) + 90001, source="history")
         warmup = sorted(history + warmup, key=lambda r: r.arrival_s)
-    return run_point(a["model"], gpus, int(a["tp"]), a["policy"], Path(a["profile"]), trace, SLO(*bc.SLOS[a["dataset"]]),
-                     Path(a["out"]), warmup, a["connector"], period_s=float(a["period"]),
-                     fixed_plan=fixed, trace_meta=meta)
+    result = run_point(a["model"], gpus, int(a["tp"]), a["policy"], Path(a["profile"]), trace,
+                       SLO(*bc.SLOS[a["dataset"]]), Path(a["out"]), warmup, a["connector"],
+                       period_s=float(a["period"]), fixed_plan=fixed, trace_meta=meta)
+    # Kept in memory for the attestation writer; run_point has already written
+    # the public summary without serialising request objects.
+    result["_evidence_trace"] = trace
+    return result
 
 
 def brief(result: dict) -> dict:
@@ -215,11 +311,38 @@ def run_matrix(spec_path: Path, only: str = "", dry: bool = False, shard: str = 
         name = point["name"]
         if only and only not in name:
             continue
+        args = dict(spec.get("defaults", {}), **{k: v for k, v in point.items() if k != "name"})
+        active_seed_policy = spec.get("seed_policy") == SEED_POLICY or spec.get("formal")
+        if active_seed_policy:
+            if int(args.get("seed", SINGLE_SEED)) != SINGLE_SEED:
+                raise ValueError(f"{name}: active campaign requires {SEED_POLICY}")
         out = root / name
         if (out / "summary.json").exists():
+            # A summary without the matching attestation is not resumable.  It
+            # may be an old/preliminary run and must be audited or moved aside
+            # explicitly rather than silently becoming paired evidence.
+            evidence_path = out / "evidence.json"
+            try:
+                evidence = json.loads(evidence_path.read_text())
+            except (OSError, ValueError, json.JSONDecodeError):
+                evidence = {}
+            if evidence.get("status") != "complete" or evidence.get("returncode") != 0:
+                raise RuntimeError(f"refusing to skip {name}: summary exists without evidence.json")
+            if active_seed_policy:
+                identity = evidence.get("identity", {})
+                if (identity.get("seed") != SINGLE_SEED
+                        or evidence.get("seed_policy", SEED_POLICY) != SEED_POLICY
+                        or identity.get("seed_policy", SEED_POLICY) != SEED_POLICY):
+                    raise RuntimeError(f"refusing to skip {name}: evidence violates {SEED_POLICY}")
             done.append(dict(name=name, status="skipped"))
             continue
-        args = dict(spec.get("defaults", {}), **{k: v for k, v in point.items() if k != "name"}, out=str(out))
+        args["out"] = str(out)
+        if spec.get("formal"):
+            pol = args.get("policy", args.get("system", ""))
+            profiles = args.get("profile_by_system", {}) or {}
+            if pol in {"distserve_static", "dynamollm", "ecoserve"} and pol not in profiles:
+                done.append(dict(name=name, status="inconclusive", error="independent profile missing"))
+                continue
         if gpus:
             args["gpus"] = gpus
         print(f"[{time.strftime('%H:%M:%S')}] {name}: {json.dumps({k: args[k] for k in ('policy', 'dataset', 'rate', 'layout', 'clocks') if k in args})}",
@@ -229,6 +352,7 @@ def run_matrix(spec_path: Path, only: str = "", dry: bool = False, shard: str = 
             continue
         try:
             result = bench_point(args)
+            _write_evidence(out, args, result, result.pop("_evidence_trace"), Path(args["corpus"]))
             done.append(dict(name=name, status="ok", **brief(result)))
             print(json.dumps(done[-1]), flush=True)
         except Exception as exc:  # keep the matrix going; the point is re-run on the next invocation

@@ -1,0 +1,967 @@
+{
+  "label": "CPU synthetic worked example; not measured hardware performance",
+  "config": {
+    "slots": 8,
+    "slo": {
+      "ttft_s": 1.0,
+      "tpot_s": 0.02,
+      "safety": 0.85
+    },
+    "freqs": [
+      900,
+      1200,
+      1500,
+      1800,
+      2100,
+      2520
+    ],
+    "rho_max": 0.7,
+    "dwell_s": 60.0,
+    "margin": 0.05,
+    "allow_pd": true,
+    "allow_park": [
+      "L1"
+    ],
+    "allow_dvfs": true,
+    "fixed_mixed": false,
+    "min_active": 1,
+    "max_num_seqs": 256,
+    "peak_batch_cap": 160,
+    "max_num_batched_tokens": 8192,
+    "rho_decode": 0.92,
+    "tail_target": 0.9,
+    "min_pd_input_tokens": 256.0,
+    "min_m_instances": 2,
+    "pressure_controls": false,
+    "pd_pressure_active": false,
+    "pd_min_input_tokens": 1024,
+    "pure_pd_min_input_tokens": 2048
+  },
+  "figure_constraints": "8 one-GPU TP1/PP1 instances; min_M=2 explicitly chosen for this example; parked state L1 only; pressure_controls=False.",
+  "initial_workload": {
+    "rate_rps": 12.0,
+    "trend_rps": 0.0,
+    "input_mean": 1728.0,
+    "input_p95": 4096.0,
+    "output_mean": 128.0,
+    "inflight": 0,
+    "inputs": [
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096
+    ],
+    "outputs": [
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128
+    ],
+    "peak_rps": 0.0,
+    "completed_bins": 0,
+    "recent_rate_rps": 0.0
+  },
+  "changed_workload": {
+    "rate_rps": 12.0,
+    "trend_rps": 0.0,
+    "input_mean": 1728.0,
+    "input_p95": 4096.0,
+    "output_mean": 256.0,
+    "inflight": 0,
+    "inputs": [
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096,
+      256,
+      512,
+      2048,
+      4096
+    ],
+    "outputs": [
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256,
+      256
+    ],
+    "peak_rps": 0.0,
+    "completed_bins": 0,
+    "recent_rate_rps": 0.0
+  },
+  "split_tau1024": {
+    "pd_fraction": 0.5,
+    "pd_rps": 6.0,
+    "mixed_rps": 6.0,
+    "mean_pd_input_tokens": 3072.0,
+    "mean_mixed_input_tokens": 384.0
+  },
+  "split_tau4096": {
+    "pd_fraction": 0.25,
+    "pd_rps": 3.0,
+    "mixed_rps": 9.0,
+    "mean_pd_input_tokens": 4096.0,
+    "mean_mixed_input_tokens": 938.6666666666666
+  },
+  "initial_candidates_displayed": {
+    "A": {
+      "feasible": true,
+      "violations": [],
+      "plan": {
+        "counts": {
+          "M": 5,
+          "L1": 3
+        },
+        "f_P": 2520,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 0,
+        "power_w": 772.1371899303872,
+        "ttft_s": 0.21418994043159073,
+        "tpot_s": 0.016027938868174982,
+        "detail": {
+          "M": {
+            "power_w": 667.1371899303872,
+            "ttft_s": 0.21418994043159073,
+            "tpot_s": 0.016027938868174982,
+            "batch": 4.923494561161633,
+            "busy": 0.17305436159999998,
+            "tpot_miss": 0.0032847448176735092
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      }
+    },
+    "B": {
+      "feasible": false,
+      "violations": [
+        "TPOT > 17 ms"
+      ],
+      "plan": {
+        "counts": {
+          "M": 4,
+          "L1": 4
+        },
+        "f_P": 2520,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 0,
+        "power_w": 713.5517143170348,
+        "ttft_s": 0.21806858217900005,
+        "tpot_s": 0.017499741776200898,
+        "detail": {
+          "M": {
+            "power_w": 573.5517143170348,
+            "ttft_s": 0.21806858217900005,
+            "tpot_s": 0.017499741776200898,
+            "batch": 6.7197449566043375,
+            "busy": 0.21631795199999998,
+            "tpot_miss": 0.03805764292261762
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      }
+    },
+    "C": {
+      "feasible": true,
+      "violations": [],
+      "plan": {
+        "counts": {
+          "P": 2,
+          "D": 1,
+          "M": 2,
+          "L1": 3
+        },
+        "f_P": 2100,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 1024,
+        "power_w": 711.279576662245,
+        "ttft_s": 0.3191698332945256,
+        "tpot_s": 0.015537255514161675,
+        "detail": {
+          "P": {
+            "power_w": 271.42759652032464,
+            "ttft_s": 0.3036325777803639,
+            "busy": 0.4763418624
+          },
+          "D": {
+            "power_w": 118.86278488197433,
+            "tpot_s": 0.015537255514161675,
+            "first_step_s": 0.015537255514161675,
+            "batch": 11.931392440987164
+          },
+          "M": {
+            "power_w": 215.98919525994597,
+            "ttft_s": 0.20477100459821793,
+            "tpot_s": 0.013775466364657716,
+            "batch": 5.289557558269483,
+            "busy": 0.04652236800000001,
+            "tpot_miss": 0.013089143565236919
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      }
+    },
+    "D": {
+      "feasible": true,
+      "violations": [],
+      "plan": {
+        "counts": {
+          "P": 2,
+          "D": 2,
+          "M": 2,
+          "L1": 2
+        },
+        "f_P": 2100,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 1024,
+        "power_w": 768.2042678235392,
+        "ttft_s": 0.3171662745085681,
+        "tpot_s": 0.013775466364657716,
+        "detail": {
+          "P": {
+            "power_w": 271.42759652032464,
+            "ttft_s": 0.3036325777803639,
+            "busy": 0.4763418624
+          },
+          "D": {
+            "power_w": 210.78747604326858,
+            "tpot_s": 0.013533696728204226,
+            "first_step_s": 0.013533696728204226,
+            "batch": 5.196869010817144
+          },
+          "M": {
+            "power_w": 215.98919525994597,
+            "ttft_s": 0.20477100459821793,
+            "tpot_s": 0.013775466364657716,
+            "batch": 5.289557558269483,
+            "busy": 0.04652236800000001,
+            "tpot_miss": 0.013089143565236919
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      }
+    },
+    "E_tau4096": {
+      "feasible": false,
+      "violations": [
+        "TPOT > 17 ms",
+        "mixed TPOT miss fraction > 10%"
+      ],
+      "plan": {
+        "counts": {
+          "P": 2,
+          "D": 1,
+          "M": 2,
+          "L1": 3
+        },
+        "f_P": 2100,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 4096,
+        "power_w": 721.7309599562165,
+        "ttft_s": 0.31221380972801877,
+        "tpot_s": 0.017302582816822922,
+        "detail": {
+          "P": {
+            "power_w": 232.96819007588354,
+            "ttft_s": 0.2984975654203168,
+            "busy": 0.3251109888
+          },
+          "D": {
+            "power_w": 105.5338436857277,
+            "tpot_s": 0.013716244307701948,
+            "first_step_s": 0.013716244307701948,
+            "batch": 5.266921842863855
+          },
+          "M": {
+            "power_w": 278.2289261946052,
+            "ttft_s": 0.21193059454660554,
+            "tpot_s": 0.017302582816822922,
+            "batch": 9.965432388521462,
+            "busy": 0.17279929800000002,
+            "tpot_miss": 0.4242429768409427
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      }
+    }
+  },
+  "changed_candidates_displayed": {
+    "A": {
+      "feasible": false,
+      "violations": [
+        "TPOT > 17 ms"
+      ],
+      "plan": {
+        "counts": {
+          "M": 5,
+          "L1": 3
+        },
+        "f_P": 2520,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 0,
+        "power_w": 822.6209689147582,
+        "ttft_s": 0.21611245798163975,
+        "tpot_s": 0.017950456418224008,
+        "detail": {
+          "M": {
+            "power_w": 717.6209689147582,
+            "ttft_s": 0.21611245798163975,
+            "tpot_s": 0.017950456418224008,
+            "batch": 11.028343131624913,
+            "busy": 0.17305436159999998,
+            "tpot_miss": 0.021182283567064048
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      }
+    },
+    "B": {
+      "feasible": false,
+      "violations": [
+        "TPOT > 17 ms",
+        "mixed TPOT miss fraction > 10%"
+      ],
+      "plan": {
+        "counts": {
+          "M": 4,
+          "L1": 4
+        },
+        "f_P": 2520,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 0,
+        "power_w": 770.1814744723733,
+        "ttft_s": 0.2210837904266551,
+        "tpot_s": 0.020514950023855935,
+        "detail": {
+          "M": {
+            "power_w": 630.1814744723733,
+            "ttft_s": 0.2210837904266551,
+            "tpot_s": 0.020514950023855935,
+            "batch": 15.752387770718297,
+            "busy": 0.21631795199999998,
+            "tpot_miss": 0.48978096406104477
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      }
+    },
+    "C": {
+      "feasible": false,
+      "violations": [
+        "TPOT > 17 ms"
+      ],
+      "plan": {
+        "counts": {
+          "P": 2,
+          "D": 1,
+          "M": 2,
+          "L1": 3
+        },
+        "f_P": 2100,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 1024,
+        "power_w": 780.8366415124834,
+        "ttft_s": 0.32606682210485594,
+        "tpot_s": 0.022434244324492064,
+        "detail": {
+          "P": {
+            "power_w": 271.42759652032464,
+            "ttft_s": 0.3036325777803639,
+            "busy": 0.4763418624
+          },
+          "D": {
+            "power_w": 163.89795870801032,
+            "tpot_s": 0.022434244324492064,
+            "first_step_s": 0.022434244324492064,
+            "batch": 34.44897935400517
+          },
+          "M": {
+            "power_w": 240.51108628414843,
+            "ttft_s": 0.20625683371918105,
+            "tpot_s": 0.01526129548562084,
+            "batch": 11.719150188766156,
+            "busy": 0.04652236800000001,
+            "tpot_miss": 0.05672893008888317
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      }
+    },
+    "D": {
+      "feasible": true,
+      "violations": [],
+      "plan": {
+        "counts": {
+          "P": 2,
+          "D": 2,
+          "M": 2,
+          "L1": 2
+        },
+        "f_P": 2100,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 1024,
+        "power_w": 819.7555151372987,
+        "ttft_s": 0.3191996039911723,
+        "tpot_s": 0.015567026210808422,
+        "detail": {
+          "P": {
+            "power_w": 271.42759652032464,
+            "ttft_s": 0.3036325777803639,
+            "busy": 0.4763418624
+          },
+          "D": {
+            "power_w": 237.81683233282573,
+            "tpot_s": 0.015567026210808422,
+            "first_step_s": 0.015567026210808422,
+            "batch": 11.954208083206431
+          },
+          "M": {
+            "power_w": 240.51108628414843,
+            "ttft_s": 0.20625683371918105,
+            "tpot_s": 0.01526129548562084,
+            "batch": 11.719150188766156,
+            "busy": 0.04652236800000001,
+            "tpot_miss": 0.05672893008888317
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      }
+    },
+    "E_tau4096": {
+      "feasible": false,
+      "violations": [
+        "TPOT > 17 ms",
+        "mixed TPOT miss fraction > 10%"
+      ],
+      "plan": {
+        "counts": {
+          "P": 2,
+          "D": 1,
+          "M": 2,
+          "L1": 3
+        },
+        "f_P": 2100,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 4096,
+        "power_w": 785.3845397772409,
+        "ttft_s": 0.3145568388275425,
+        "tpot_s": 0.021649888625428267,
+        "detail": {
+          "P": {
+            "power_w": 232.96819007588354,
+            "ttft_s": 0.2984975654203168,
+            "busy": 0.3251109888
+          },
+          "D": {
+            "power_w": 119.66247263348308,
+            "tpot_s": 0.016059273407225662,
+            "first_step_s": 0.016059273407225662,
+            "batch": 12.33123631674154
+          },
+          "M": {
+            "power_w": 327.7538770678743,
+            "ttft_s": 0.21627790035521088,
+            "tpot_s": 0.021649888625428267,
+            "batch": 24.933066831265535,
+            "busy": 0.17279929800000002,
+            "tpot_miss": 0.9998701285489915
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      }
+    }
+  },
+  "full_enumeration": {
+    "initial_feasible_count": 158,
+    "changed_feasible_count": 55,
+    "initial_chosen_with_current_A": {
+      "counts": {
+        "P": 2,
+        "D": 1,
+        "M": 2,
+        "L1": 3
+      },
+      "f_P": 2100,
+      "f_D": 2520,
+      "f_M": 2520,
+      "tau": 1024,
+      "power_w": 711.279576662245,
+      "ttft_s": 0.3191698332945256,
+      "tpot_s": 0.015537255514161675,
+      "detail": {
+        "P": {
+          "power_w": 271.42759652032464,
+          "ttft_s": 0.3036325777803639,
+          "busy": 0.4763418624
+        },
+        "D": {
+          "power_w": 118.86278488197433,
+          "tpot_s": 0.015537255514161675,
+          "first_step_s": 0.015537255514161675,
+          "batch": 11.931392440987164
+        },
+        "M": {
+          "power_w": 215.98919525994597,
+          "ttft_s": 0.20477100459821793,
+          "tpot_s": 0.013775466364657716,
+          "batch": 5.289557558269483,
+          "busy": 0.04652236800000001,
+          "tpot_miss": 0.013089143565236919
+        }
+      },
+      "tp": 1,
+      "pp": 1,
+      "pool_id": "",
+      "generation": 0,
+      "profile_key": ""
+    },
+    "changed_chosen_with_current_C": {
+      "counts": {
+        "P": 2,
+        "D": 2,
+        "M": 2,
+        "L1": 2
+      },
+      "f_P": 2100,
+      "f_D": 2520,
+      "f_M": 2520,
+      "tau": 1024,
+      "power_w": 819.7555151372987,
+      "ttft_s": 0.3191996039911723,
+      "tpot_s": 0.015567026210808422,
+      "detail": {
+        "P": {
+          "power_w": 271.42759652032464,
+          "ttft_s": 0.3036325777803639,
+          "busy": 0.4763418624
+        },
+        "D": {
+          "power_w": 237.81683233282573,
+          "tpot_s": 0.015567026210808422,
+          "first_step_s": 0.015567026210808422,
+          "batch": 11.954208083206431
+        },
+        "M": {
+          "power_w": 240.51108628414843,
+          "ttft_s": 0.20625683371918105,
+          "tpot_s": 0.01526129548562084,
+          "batch": 11.719150188766156,
+          "busy": 0.04652236800000001,
+          "tpot_miss": 0.05672893008888317
+        }
+      },
+      "tp": 1,
+      "pp": 1,
+      "pool_id": "",
+      "generation": 0,
+      "profile_key": ""
+    }
+  },
+  "transition_A_to_C": {
+    "horizon_s": 60.0,
+    "switch_j": 34.0,
+    "old_horizon_j": 46328.23139582323,
+    "new_horizon_including_switch_j": 42710.774599734694,
+    "saving_j": 3617.4567960885397,
+    "gain_fraction": 0.07808320514507434,
+    "saving_threshold_j": 2316.4115697911616,
+    "energy_hysteresis_passed": true,
+    "unmodeled_extra_energy_strict_upper_bound_j": 1301.0452262973781,
+    "unmodeled_extra_energy_strict_upper_bound_average_w": 21.6840871049563,
+    "unmodeled_extra_energy_strict_upper_bound_per_pd_request_j": 3.614014517492717
+  },
+  "transition_C_to_D_after_output_doubles": {
+    "horizon_s": 60.0,
+    "switch_j": 3.4000000000000004,
+    "old_horizon_j": 46850.198490749004,
+    "new_horizon_including_switch_j": 49188.73090823793,
+    "saving_j": -2338.5324174889247,
+    "gain_fraction": -0.04991510159664935,
+    "saving_threshold_j": 2342.5099245374504,
+    "energy_hysteresis_passed": false,
+    "decision_reason": "Current layout violates TPOT safety target; planner returns the new best feasible candidate before applying energy hysteresis."
+  },
+  "transfer_model_examples": {
+    "2048": {
+      "kv_bytes": 117440512,
+      "transfer_ms": 28.4881024
+    },
+    "3072": {
+      "kv_bytes": 176160768,
+      "transfer_ms": 40.232153600000004
+    },
+    "4096": {
+      "kv_bytes": 234881024,
+      "transfer_ms": 51.9762048
+    }
+  },
+  "switch_model": {
+    "active_idle_power_at_2520_mhz_w": 68.0,
+    "clock_switch_s": 0.1,
+    "L1_wake_s": 0.05,
+    "A_to_C": "No wake; frequency tuple changes: 0.1 s \u00d7 68 W \u00d7 5 active GPUs = 34 J. The implementation charges all new active instances for any pool-frequency tuple change.",
+    "C_to_D": "One L1 instance wakes; no frequency tuple change: 0.05 s \u00d7 68 W = 3.4 J."
+  },
+  "energy_model_scope": "Current planner uses H*P + switch energy and strict gain > margin for a feasible current layout. It does not separately calibrate/charge unknown incremental KV-transfer energy. The extra-energy limit is a sensitivity bound, not a measured zero cost.",
+  "appendix_min_m_zero": {
+    "min_m_instances": 0,
+    "initial_global_best": {
+      "counts": {
+        "P": 2,
+        "D": 2,
+        "M": 0,
+        "L1": 4
+      },
+      "f_P": 2100,
+      "f_D": 2520,
+      "f_M": 2520,
+      "tau": 0,
+      "power_w": 663.1216151208288,
+      "ttft_s": 0.32061063234474246,
+      "tpot_s": 0.014937281809159616,
+      "detail": {
+        "P": {
+          "power_w": 287.2363132983529,
+          "ttft_s": 0.30567335053558287,
+          "busy": 0.5191630848000001
+        },
+        "D": {
+          "power_w": 235.8853018224759,
+          "tpot_s": 0.014937281809159616,
+          "first_step_s": 0.014937281809159616,
+          "batch": 11.471325455618974
+        }
+      },
+      "tp": 1,
+      "pp": 1,
+      "pool_id": "",
+      "generation": 0,
+      "profile_key": ""
+    },
+    "changed_global_best": {
+      "counts": {
+        "P": 2,
+        "D": 3,
+        "M": 0,
+        "L1": 3
+      },
+      "f_P": 2100,
+      "f_D": 2520,
+      "f_M": 2520,
+      "tau": 0,
+      "power_w": 777.5445657433739,
+      "ttft_s": 0.3220037181192654,
+      "tpot_s": 0.016330367583682576,
+      "detail": {
+        "P": {
+          "power_w": 287.2363132983529,
+          "ttft_s": 0.30567335053558287,
+          "busy": 0.5191630848000001
+        },
+        "D": {
+          "power_w": 385.308252445021,
+          "tpot_s": 0.016330367583682576,
+          "first_step_s": 0.016330367583682576,
+          "batch": 16.71804207417017
+        }
+      },
+      "tp": 1,
+      "pp": 1,
+      "pool_id": "",
+      "generation": 0,
+      "profile_key": ""
+    },
+    "purpose": "Appendix only: demonstrates why min_M=2 is an explicit figure configuration, not an unqualified global optimum claim."
+  },
+  "source_sha256": {
+    "src/pdblend/control/planner.py": "1f87843a13362de69cbc585f928df1969180ac0604a684952ca545cce3b5f230",
+    "src/pdblend/control/forecast.py": "06a254a1b45da446c97b0708b88be75c99fb66f6fe5aa3ca20a7c84de85db29c",
+    "src/pdblend/profile/model.py": "565c2ad14de6fff5f23e886bd175dee7ac0c3f9dce87e5e008ee50439d3daf40",
+    "tests/pdblend/synthetic.py": "9b2fbf398d493dbcb996819b761ebb03e39284250a21a5c361bec02a3de062f0"
+  },
+  "assertions_passed": true
+}

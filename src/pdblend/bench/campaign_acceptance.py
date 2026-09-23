@@ -16,18 +16,17 @@ from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
 from ..profile.identity import canonical_json, profile_identity, sha256_value
+from ..seed_config import SINGLE_SEED, SEEDS, SEED_POLICY
 
-# Active matrix comparisons intentionally use one reproducible workload seed.
-# Historical three-seed artifacts remain readable when callers pass an
-# explicit seed list, but the default campaign gate is seed 701 only.
-SINGLE_SEED = 701
-SEEDS = (SINGLE_SEED,)
-SEED_POLICY = "single_seed_701"
 DEFAULT_SYSTEMS = ("mixed", "distserve", "dynamollm", "ecoserve", "pdblend")
 COMMON_IDENTITY_FIELDS = (
     "model", "dataset", "rate", "duration", "trace_sha256", "corpus_sha256",
     "image", "source_sha256", "hardware", "clock_protocol", "energy_protocol",
     "engine_revision", "vllm", "torch", "cuda",
+)
+NATIVE_COMMON_IDENTITY_FIELDS = tuple(f for f in COMMON_IDENTITY_FIELDS if f != 'source_sha256') + (
+    'identity_protocol', 'runtime_source_sha256', 'measurement_source_sha256',
+    'model_hash', 'tokenizer_hash',
 )
 PROFILE_FIELDS = ("system", "model", "tp", "pp", "role", "profile_sha256")
 METRIC_FIELDS = ("joint_slo_rate", "success_rate", "j_per_token")
@@ -35,6 +34,11 @@ METRIC_FIELDS = ("joint_slo_rate", "success_rate", "j_per_token")
 
 class IdentityMismatch(ValueError):
     """Raised by the strict pairing API when records cannot be compared."""
+
+
+def _common_fields(ident):
+    return (NATIVE_COMMON_IDENTITY_FIELDS if ident.get('identity_protocol') == 'independent_native_v2'
+            else COMMON_IDENTITY_FIELDS)
 
 
 def _finite(value: object) -> bool:
@@ -109,8 +113,19 @@ def validate_evidence(record: Mapping | None, *, require_profile: bool = True) -
         return {"status": "inconclusive", "reasons": ["missing_evidence"]}
     reasons: list[str] = []
     ident = _identity(record)
+    summary = _summary(record)
     if not isinstance(ident, Mapping):
         return {"status": "inconclusive", "reasons": ["missing_identity"]}
+    # Completion metadata is authoritative when it explicitly says this was
+    # development-only, non-comparable, or CPU-only evidence.  Check both the
+    # record and summary layers because runners have emitted both layouts.
+    for source in (record, ident, summary):
+        if source.get("formal_eligible") is False:
+            reasons.append("development_only")
+        if source.get("energy_comparable") is False:
+            reasons.append("energy_not_comparable")
+        if source.get("hardware_executed") is False:
+            reasons.append("no_gpu_execution")
     if record.get("status") != "complete":
         reasons.append("execution_incomplete")
     if record.get("returncode") != 0:
@@ -121,7 +136,7 @@ def validate_evidence(record: Mapping | None, *, require_profile: bool = True) -
         reasons.append("missing_identity_digest")
     elif record["identity_sha256"] != sha256_value(dict(_raw_identity(record))):
         reasons.append("identity_digest_mismatch")
-    required = [field for field in COMMON_IDENTITY_FIELDS if field != "trace_sha256"] + list(PROFILE_FIELDS) + ["seed"]
+    required = [field for field in _common_fields(ident) if field != "trace_sha256"] + list(PROFILE_FIELDS) + ["seed", "source_sha256"]
     for field in required:
         if ident.get(field) in (None, "", "unknown"):
             reasons.append("missing_identity:" + field)
@@ -131,6 +146,9 @@ def validate_evidence(record: Mapping | None, *, require_profile: bool = True) -
         reasons.append("missing_identity:workload")
     if ident.get("seed") != SINGLE_SEED:
         reasons.append("unsupported_seed:" + str(ident.get("seed")))
+    for source in (record, ident):
+        if source.get("seed_policy", SEED_POLICY) != SEED_POLICY or source.get("single_seed", True) is not True:
+            reasons.append("invalid_seed_policy_marker")
     slo_target = ident.get("slo") or ident.get("slo_target") or _summary(record).get("slo_target")
     if slo_target in (None, "", "unknown"):
         if not any(ident.get(k) not in (None, "", "unknown") for k in ("ttft_slo_s", "tpot_slo_s")):
@@ -162,7 +180,7 @@ def validate_evidence(record: Mapping | None, *, require_profile: bool = True) -
 def common_identity(record: Mapping) -> dict:
     """Return fields that must match when pairing different systems."""
     ident = _identity(record)
-    return {field: _common_value(ident, field) for field in COMMON_IDENTITY_FIELDS} | {"slo_target": _slo_target(ident, record)}
+    return {field: _common_value(ident, field) for field in _common_fields(ident)} | {"slo_target": _slo_target(ident, record)}
 
 
 def _common_value(ident: Mapping, field: str):
@@ -182,7 +200,7 @@ def _slo_target(ident: Mapping, record: Mapping | None = None):
 
 def pair_key(record: Mapping) -> tuple:
     ident = _identity(record)
-    return tuple(_common_value(ident, field) for field in COMMON_IDENTITY_FIELDS) + (_slo_target(ident, record), ident.get("seed"))
+    return tuple(_common_value(ident, field) for field in _common_fields(ident)) + (_slo_target(ident, record), ident.get("seed"))
 
 
 def pair_records(candidate: Mapping | None, baseline: Mapping | None) -> dict:
@@ -194,7 +212,8 @@ def pair_records(candidate: Mapping | None, baseline: Mapping | None) -> dict:
                 "candidate": left, "baseline": right, "single_seed": True,
                 "seed_policy": SEED_POLICY}
     a, b = left["identity"], right["identity"]
-    mismatches = [field for field in COMMON_IDENTITY_FIELDS + ("seed",)
+    fields = tuple(dict.fromkeys(_common_fields(a) + _common_fields(b)))
+    mismatches = [field for field in fields + ("seed",)
                   if _common_value(a, field) != _common_value(b, field)]
     if _slo_target(a, candidate) != _slo_target(b, baseline):
         mismatches.append("slo_target")
@@ -242,7 +261,7 @@ def _campaign_group_key(record: Mapping) -> tuple:
     ident = _identity(record)
     # TP/PP and profile hash are deliberately excluded: systems may use
     # different legal layouts and independently calibrated profiles.
-    return tuple(canonical_json(_common_value(ident, field)) for field in COMMON_IDENTITY_FIELDS) + (canonical_json(_slo_target(ident, record)),)
+    return tuple(canonical_json(_common_value(ident, field)) for field in _common_fields(ident)) + (canonical_json(_slo_target(ident, record)),)
 
 
 def accept_campaign(records: Mapping | Iterable[Mapping], *, systems: Sequence[str] = DEFAULT_SYSTEMS,

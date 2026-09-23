@@ -1,0 +1,3 @@
+In the lower "Long request" Client row, correct ONLY the token labels. There are five yellow rectangles. Their labels from left to right must be exactly:
+y₁, y₂, y₃, y₄, y₁₂₈.
+Specifically, change the duplicated y₂ near x=1204,y=736 to y₃, and change the following y₃ near x=1239,y=736 to y₄. Keep the first y₁, first y₂, final y₁₂₈, all rectangles, all arrows, all equations and every other part of the picture unchanged. This is a two-label text correction, not a redesign.

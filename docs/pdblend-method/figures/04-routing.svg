@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="645" viewBox="0 0 960 645">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#536878"/></marker></defs>
+<rect width="960" height="100%" fill="#ffffff"/>
+<rect x="20" y="16" width="920" height="91" rx="12" fill="#edf4f8" stroke="#23688d" stroke-width="1.8"/>
+<text x="480.0" y="51.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="24" font-weight="700" fill="#23688d" text-anchor="middle">已生效配置 / Effective plan</text>
+<text x="480.0" y="85.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">8 × TP1: P1 + D2 + M4 + L1; τ = 1024; requested output = 128</text>
+<text x="40" y="147.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="700" fill="#167d7f" text-anchor="start">短请求 / SHORT: 256 &lt; 1024</text>
+<rect x="370" y="119" width="244" height="74" rx="12" fill="#eaf6f3" stroke="#167d7f" stroke-width="1.8"/>
+<text x="492.0" y="154.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="21" font-weight="700" fill="#167d7f" text-anchor="middle">M</text>
+<text x="492.0" y="188.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">一次完成全部输出</text>
+<path d="M 40,177 L 350,177" fill="none" stroke="#167d7f" stroke-width="2.4" marker-end="url(#arrow)"/>
+<path d="M 628,155 L 926,155" fill="none" stroke="#167d7f" stroke-width="2.4" marker-end="url(#arrow)"/>
+<text x="780" y="142.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#167d7f" text-anchor="middle">128 tokens → Client</text>
+<text x="480" y="218.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="18" font-weight="700" fill="#23688d" text-anchor="middle">长请求 / LONG: 2048 ≥ 1024</text>
+<text x="116" y="251.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#163047" text-anchor="middle">Client / Proxy</text>
+<line x1="116" y1="263" x2="116" y2="559" stroke="#c8d7df" stroke-width="2" stroke-dasharray="7 6"/>
+<text x="440" y="251.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#163047" text-anchor="middle">P</text>
+<line x1="440" y1="263" x2="440" y2="559" stroke="#c8d7df" stroke-width="2" stroke-dasharray="7 6"/>
+<text x="811" y="251.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#163047" text-anchor="middle">D</text>
+<line x1="811" y1="263" x2="811" y2="559" stroke="#c8d7df" stroke-width="2" stroke-dasharray="7 6"/>
+<path d="M 116,286 L 440,286" fill="none" stroke="#536878" stroke-width="2.4" marker-end="url(#arrow)"/>
+<text x="278" y="271.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="18" font-weight="400" fill="#536878" text-anchor="middle">prompt[2048], budget = 1</text>
+<text x="460" y="320.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="18" font-weight="400" fill="#bd7631" text-anchor="start">P 保留原始 prompt 的 KV</text>
+<path d="M 440,357 L 116,357" fill="none" stroke="#167d7f" stroke-width="2.4" marker-end="url(#arrow)"/>
+<text x="278" y="340.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#167d7f" text-anchor="middle">首 token y1 → 客户端</text>
+<text x="101" y="383.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="17" font-weight="400" fill="#167d7f" text-anchor="end">TTFT 截止</text>
+<path d="M 116,414 L 811,414" fill="none" stroke="#536878" stroke-width="2.4" marker-end="url(#arrow)"/>
+<text x="470" y="399.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="18" font-weight="400" fill="#536878" text-anchor="middle">prompt[2048] + [y1] → 2049 tokens; remaining budget = 127</text>
+<path d="M 440,463 L 811,463" fill="none" stroke="#bd7631" stroke-width="2.4" marker-end="url(#arrow)"/>
+<text x="626" y="449.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="18" font-weight="400" fill="#bd7631" text-anchor="middle">KV[2048] → D 复用 / reuse</text>
+<path d="M 811,525 L 116,525" fill="none" stroke="#167d7f" stroke-width="2.4" marker-end="url(#arrow)"/>
+<text x="468" y="509.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="18" font-weight="400" fill="#167d7f" text-anchor="middle">y2 … y128 → 合并为同一个逻辑输出 / one logical stream</text>
+<rect x="85" y="569" width="790" height="60" rx="12" fill="#edf4f8" stroke="#23688d" stroke-width="1.8"/>
+<text x="480.0" y="604.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="700" fill="#23688d" text-anchor="middle">最终 usage / Final usage: input = 2048; output = 128</text>
+</svg>

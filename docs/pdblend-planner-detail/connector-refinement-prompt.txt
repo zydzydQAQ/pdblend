@@ -1,0 +1,11 @@
+Correct only the CONNECTORS in this PDblend diagram. Preserve every number, word, table cell, GPU tile, color and box.
+
+The long request R_l currently has a WRONG black arrow from Router down to the "Proxy → Client" output rail. A request must first enter Prefill. ERASE that wrong arrowhead and its final downward segment. Route the R_l request to the P-pool engine queue for G3:
+on the 1536x1024 canvas, from the Router output near (240,675), run right to (348,675), down to (348,738), right to (741,738), up to (741,616), then right with an arrowhead into the P engine queue at (773,616).
+This route uses the white gutter BELOW the Mixed pool and LEFT of the P pool, so it must not cross any box text. Do not terminate the request arrow at the Client rail. Keep "2048 ≥ 1024 → P then D" beside this branch. The short-request route to G1 remains unchanged.
+
+The dashed observations-feedback line must ORIGINATE FROM the "Proxy → Client" rail / proxy records and return to the same top Planner. Currently its lower end appears to originate at the D-pool top edge. Extend/reroute its lower portion through the right outer margin from the right end of the Proxy rail, then upward and into Planner. It must not go through the D device or its labels. Keep the observations label and dashed line style.
+
+Finally remove the short dangling dashed arrow above "New forecast" that ends under the GPU area. Replace it with the simple text "Triggers the same Planner" inside the New forecast box, if there is room; otherwise omit that short extra arrow because the main feedback loop already connects proxy observations to Planner.
+
+Change nothing else. Especially preserve the verified numbers, exactly eight GPU tiles, 7.81% saving, G7 wake-up, and the P-first-token and KV paths.

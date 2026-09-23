@@ -1,0 +1,474 @@
+"""Official EcoServe core adapted to a fixed engine transport.
+
+Multi-macro membership and scaling are paper supplements: the pinned artifact
+only publishes one macro. There are no PDblend policy or profiler imports.
+"""
+import asyncio
+from collections import deque
+import inspect
+import math
+import statistics
+import time
+from types import SimpleNamespace
+
+from .policy import OfficialMacro, PrefillProfile, OutputBuffer, InstanceState
+
+
+_DONE = object()
+_CONTROL_FIELDS = ('role', 'mode', 'admit_prefill', 'admit_decode')
+
+
+class EcoServeController:
+    def __init__(self, config, transport, journal):
+        self.config, self.transport, self.journal = config, transport, journal
+        self.specs = {i['id']: dict(i) for i in config['instances']}
+        if len(self.specs) != len(config['instances']) or not self.specs:
+            raise ValueError('distinct nonempty EcoServe instance identifiers required')
+        self.profile = PrefillProfile.load(config['eco_prefill_csv'])
+        self.ttft_ms, self.tpot_ms = config['slo_ttft_s'] * 1000, config['slo_tpot_s'] * 1000
+        self.lower, self.upper = config.get('eco_macro_lower',2), config.get('eco_macro_upper',3)
+        if not (type(self.lower) is int and type(self.upper) is int and 1 <= self.lower <= self.upper
+                and self.upper >= 2*self.lower-1):
+            raise ValueError('invalid paper-supplement macro bounds')
+        count = config.get('eco_initial_instances',len(self.specs))
+        if type(count) is not int or not 1 <= count <= len(self.specs):
+            raise ValueError('invalid initial EcoServe instance count')
+        self.period = float(config.get('eco_scale_period_s',5))
+        self.poll = float(config.get('eco_state_poll_s',.01))
+        self.history_window = float(config.get('eco_history_window_s',60))
+        self.drain_timeout = float(config.get('eco_drain_timeout_s',120))
+        self.request_timeout = float(config.get('request_timeout_s',120))
+        for value in (self.period,self.poll,self.history_window,self.drain_timeout,self.request_timeout):
+            if not math.isfinite(value) or value <= 0: raise ValueError('positive finite control time required')
+        self.active_frequency = config.get('eco_active_frequency_mhz',2520)
+        if 'eco_park_frequency_mhz' in config:
+            raise ValueError('EcoServe uses common reset-clock parking; remove eco_park_frequency_mhz')
+        self.park_idle = config.get('park_idle',True)
+        self.members = {i: InstanceState(i,schedule_time=time.time()*1000) for i in self.specs}
+        self.groups = []
+        layout = []
+        for identifier in list(self.specs)[:count]: self._layout_add(layout,identifier)
+        self._set_layout(layout)
+        self.states, self.cursors = {}, {i:0 for i in self.specs}
+        self.buffers = {i:OutputBuffer() for i in self.specs}
+        self.active = {}
+        self.seen = set()
+        self.ttft_history = deque(maxlen=4096)
+        self.draining, self.quarantined = set(), set()
+        self.lock = asyncio.Lock()
+        self.refresh_lock, self.resize_lock, self.startup_lock = asyncio.Lock(), asyncio.Lock(), asyncio.Lock()
+        self.tasks, self.producers = [], set()
+        self.version, self.failure = 0, None
+        self.started, self.closed = False, False
+
+    @property
+    def assigned(self):
+        return {i for group in self.groups for i in group.identifiers}
+
+    async def emit(self, kind, **data):
+        data.setdefault('at_s',time.time())
+        value = self.journal(kind,**data)
+        if inspect.isawaitable(value): await value
+
+    def _group(self, identifiers):
+        group = OfficialMacro(identifiers,self.profile,self.ttft_ms,self.tpot_ms)
+        group.instance_states = [self.members[i] for i in identifiers]
+        for previous in self.groups:
+            current = previous.identifiers[previous.prefill_instance]
+            if current in identifiers:
+                group.prefill_instance = identifiers.index(current)
+                break
+        return group
+
+    def _set_layout(self, layout):
+        groups = [self._group(list(ids)) for ids in layout]
+        self.groups = groups
+
+    def _layout_add(self, layout, identifier):
+        if not layout:
+            layout.append([identifier]);return
+        index = next((j for j,g in enumerate(layout) if len(g)<self.upper),0)
+        layout[index].append(identifier)
+        if len(layout[index])>self.upper:
+            group=layout[index]
+            layout[index:index+1]=[group[:-self.lower],group[-self.lower:]]
+
+    def _layout_remove(self, identifier):
+        layout = [[i for i in group.identifiers if i!=identifier] for group in self.groups]
+        layout = [group for group in layout if group]
+        for first in range(len(layout)):
+            for second in range(first+1,len(layout)):
+                if len(layout[first])+len(layout[second])<=self.upper:
+                    layout[first]+=layout.pop(second)
+                    return layout
+        # A 3+2 layout can contract to 3+1: neither group can be merged within
+        # an upper bound of three. Move an existing worker handle from the
+        # larger group to restore 2+2, preserving its resident requests and KV.
+        for group in layout:
+            if len(group)<self.lower:
+                donor=next((other for other in layout if len(other)>self.lower),None)
+                if donor is None:raise RuntimeError('EcoServe macro bounds cannot be restored')
+                while len(group)<self.lower and len(donor)>self.lower:group.append(donor.pop())
+                if len(group)<self.lower:raise RuntimeError('EcoServe macro bounds cannot be restored')
+        return layout
+
+    @staticmethod
+    def _idle(state):
+        return not any(state.get(k) for k in ('running','waiting','active','streams','kv_allocations',
+            'transfer_allocations','transfers_pending','pending_transfers','transfer_tasks','controller_pending'))
+
+    async def _clock(self, identifier, frequency):
+        outcome = await self.transport.clock(self.specs[identifier]['gpus'],frequency)
+        if isinstance(outcome,dict) and (outcome.get('acknowledged') is False or outcome.get('success') is False):
+            raise RuntimeError('unacknowledged EcoServe physical clock')
+        await self.emit('eco_clock',instance_id=identifier,frequency_mhz=frequency,outcome=outcome)
+
+    async def _park(self,identifier):
+        outcome=await self.transport.park(self.specs[identifier]['gpus'])
+        if isinstance(outcome,dict) and (outcome.get('acknowledged') is False or outcome.get('success') is False):
+            raise RuntimeError('unacknowledged EcoServe common parking')
+        await self.emit('eco_park',instance_id=identifier,operation='common_reset_locked_clocks',outcome=outcome)
+
+    async def _control(self, identifier, fields=None):
+        state = await self.transport.state(identifier)
+        desired = fields or dict(role='mixed',mode='temporal',admit_prefill=True,admit_decode=True)
+        if (type(state.get('generation')) is int and state.get('acknowledged_generation')==state['generation']
+                and not state.get('error') and not state.get('runtime_error')
+                and state.get('accepting',True) and all(state.get(k)==v for k,v in desired.items())):
+            # A macro membership change moves CPU handles, not execution mode.
+            # Reissuing unchanged /control would briefly close engine admission.
+            self.states[identifier]=state
+            await self.emit('eco_control_confirmed',instance_id=identifier,noop=True,
+                            generation=state['generation'],observed_engine_state=state)
+            return
+        payload = dict(desired,generation=state['generation']+1)
+        await self.transport.json(identifier,'/control',payload)
+        observed = await self.transport.state(identifier)
+        if (observed.get('generation') != payload['generation']
+                or observed.get('acknowledged_generation') != payload['generation']
+                or any(observed.get(k)!=v for k,v in desired.items())):
+            raise RuntimeError('EcoServe control ACK differs from requested generation')
+        self.states[identifier] = observed
+
+    async def startup(self):
+        async with self.startup_lock:
+            await self._startup()
+
+    async def _startup(self):
+        if self.started:return
+        if self.closed:raise RuntimeError('EcoServe controller is closed')
+        original = {i:await self.transport.state(i) for i in self.specs}
+        if any(not self._idle(state) for state in original.values()):
+            raise RuntimeError('EcoServe startup requires drained fixed engine instances')
+        changed=[]
+        try:
+            for identifier in self.specs:
+                changed.append(identifier)
+                await self._control(identifier)
+                if identifier in self.assigned:
+                    await self._clock(identifier,self.active_frequency)
+                elif self.park_idle:
+                    await self._park(identifier)
+            await self.refresh(initial=True)
+        except BaseException:
+            for identifier in reversed(changed):
+                try:await self._control(identifier,{k:original[identifier][k] for k in _CONTROL_FIELDS})
+                except Exception:self.quarantined.add(identifier)
+            raise
+        self.started=True
+        self.tasks=[asyncio.create_task(self._poll_loop()),asyncio.create_task(self._scale_loop())]
+        await self.emit('eco_startup',origin='official_core_with_paper_supplement',
+            groups=[g.identifiers for g in self.groups],profile_sha256=self.profile.source_sha256,
+            prediction_formula='author_csv_ms_integer_truncation',frozen=False)
+
+    async def refresh(self, *, initial=False):
+        async with self.refresh_lock:
+            ids=list(self.specs)
+            values=await asyncio.gather(*(self.transport.state(i) for i in ids))
+            batches=await asyncio.gather(*(self.transport.events(i,after_seq=self.cursors[i]) for i in ids))
+            async with self.lock:
+                for identifier,state,batch in zip(ids,values,batches):
+                    if state.get('error') or state.get('runtime_error') or state.get('evidence_complete') is False:
+                        raise RuntimeError('EcoServe engine telemetry is unhealthy: '+identifier)
+                    self.states[identifier]=state
+                    if 'free_kv_tokens' not in state:raise RuntimeError('EcoServe actual KV telemetry missing')
+                    self.members[identifier].free_blocks=state['free_kv_tokens']//16
+                    cursor=self.cursors[identifier]
+                    rows=batch['events']
+                    group=next((g for g in self.groups if identifier in g.identifiers),None)
+                    # Membership can be removed before its final executed-step
+                    # event arrives. Update the same physical state while parked
+                    # so reactivation cannot revive a completed ghost request.
+                    if group is None:group=self._group([identifier])
+                    for index,event in enumerate(rows):
+                        if not (initial and index==0) and event['seq']!=cursor+1:
+                            raise RuntimeError('EcoServe native scheduler sequence gap: '+identifier)
+                        if event['block_size']!=16:raise RuntimeError('official EcoServe block size is 16')
+                        group.update_state(SimpleNamespace(instance_id=group.identifiers.index(identifier),
+                            free_blocks=event['free_blocks'],prefill_mode=event['prefill_mode'],
+                            schedule_time=event['at_s']*1000,schedule_queue=event['schedule_queue'],
+                            all_queue=event['all_queue']))
+                        cursor=event['seq']
+                    if batch['next_seq']!=cursor and not initial:
+                        raise RuntimeError('EcoServe native scheduler sequence cursor mismatch: '+identifier)
+                    self.cursors[identifier]=batch['next_seq']
+            for identifier,batch in zip(ids,batches):
+                for event in batch['events']:
+                    await self.emit('eco_native_step',instance_id=identifier,**event)
+
+    async def _poll_loop(self):
+        try:
+            while True:
+                await asyncio.sleep(self.poll)
+                await self.refresh()
+        except asyncio.CancelledError:raise
+        except Exception as exc:
+            self.failure=str(exc)
+            await self.emit('eco_controller_failure',error=str(exc),phase='native_events')
+
+    async def _scale_loop(self):
+        try:
+            while True:
+                await asyncio.sleep(self.period)
+                await self.scale_once()
+        except asyncio.CancelledError:raise
+        except Exception as exc:
+            self.failure=str(exc)
+            await self.emit('eco_controller_failure',error=str(exc),phase='paper_scaling')
+
+    def _routable_group(self, group):
+        eligible=[i for i in group.identifiers if i not in self.draining|self.quarantined]
+        if not eligible:return None
+        return group if tuple(eligible)==group.identifiers else self._group(eligible)
+
+    @staticmethod
+    async def _receive(queue, timeout):
+        # On Python 3.10 wait_for can consume an outer cancellation when its
+        # inner queue get completes in the same loop turn. Keep ownership of
+        # the receive task so client cancellation always reaches the engine.
+        task=asyncio.create_task(queue.get())
+        try:
+            ready,_=await asyncio.wait((task,),timeout=timeout)
+            if not ready:raise asyncio.TimeoutError('EcoServe request timeout')
+            return task.result()
+        finally:
+            if not task.done():task.cancel()
+            await asyncio.gather(task,return_exceptions=True)
+
+    async def handle(self,payload,request_id):
+        if not self.started:await self.startup()
+        if self.failure:raise RuntimeError(self.failure)
+        if self.closed:raise RuntimeError('EcoServe controller is closed')
+        prompt=payload.get('prompt')
+        if not isinstance(prompt,list) or not prompt or not all(type(i) is int and i>=0 for i in prompt):
+            raise ValueError('EcoServe controller requires tokenized prompt')
+        if type(payload.get('max_tokens')) is not int or payload['max_tokens']<1:
+            raise ValueError('positive output workload required')
+        arrived=time.time()
+        await self.refresh()
+        async with self.lock:
+            if request_id in self.seen:raise ValueError('duplicate EcoServe request identifier')
+            if self.failure:raise RuntimeError(self.failure)
+            candidates=[r for g in self.groups if (r:=self._routable_group(g)) is not None]
+            if not candidates:raise RuntimeError('no available EcoServe macro')
+            group=min(candidates,key=lambda g:(sum(len(i.requests) for i in g.instance_states),g.identifiers))
+            # This global least-request selection is a declared paper supplement;
+            # the intra-macro schedule is exactly the public author algorithm.
+            selected=group.schedule(SimpleNamespace(request_id=request_id,prompt_len=len(prompt)))
+            identifier=group.identifiers[selected]
+            if not self.states[identifier].get('accepting',True):
+                group.forget_cancelled(request_id)
+                raise RuntimeError('official EcoServe target engine is not accepting')
+            for index,send in group.controls:
+                self.buffers[group.identifiers[index]].control(send,self.ttft_ms,now_ms=time.time()*1000)
+            controls=[dict(instance_id=group.identifiers[index],send_output=send) for index,send in group.controls]
+            group.controls.clear()
+            # A filtered view during drain keeps the selected physical member.
+            for original in self.groups:
+                if identifier in original.identifiers:
+                    original.prefill_instance=original.identifiers.index(identifier)
+            entry=dict(instance_id=identifier,queue=asyncio.Queue(),arrived=arrived,first=False,engine_done=False)
+            self.active[request_id]=entry;self.seen.add(request_id)
+            producer=asyncio.create_task(self._produce(request_id,dict(payload,request_id=request_id)))
+            self.producers.add(producer);producer.add_done_callback(self.producers.discard)
+        await self.emit('eco_admission',request_id=request_id,instance_id=identifier,
+            origin='official_core',controls=controls,prompt_blocks=(len(prompt)+16)//16,
+            predicted_prefill_ms=self.profile.predict_ms(len(prompt)),arrived_s=arrived)
+        completed=False
+        try:
+            deadline=time.monotonic()+self.request_timeout
+            while True:
+                event=await self._receive(entry['queue'],max(0.,deadline-time.monotonic()))
+                if event is _DONE:
+                    completed=True;break
+                if isinstance(event,BaseException):raise event
+                if event.get('token_ids') and not entry['first']:
+                    entry['first']=True
+                    self.ttft_history.append((time.time(),time.time()-arrived))
+                yield event
+        finally:
+            if not completed:
+                producer.cancel()
+                await asyncio.gather(producer,return_exceptions=True)
+                await self.transport.cancel(identifier,request_id)
+            async with self.lock:
+                self.buffers[identifier].cancel(request_id)
+                if not completed:
+                    for group in self.groups:group.forget_cancelled(request_id)
+                self.active.pop(request_id,None)
+
+    async def _produce(self,request_id,payload):
+        entry=self.active[request_id];identifier=entry['instance_id']
+        final=False;packet_seq=0
+        try:
+            async for event in self.transport.stream(identifier,payload):
+                if event.get('error'):raise RuntimeError(str(event['error']))
+                finished=any(choice.get('finish_reason') is not None for choice in event.get('choices',[]))
+                packet_seq+=1
+                # Preserve the actual engine SSE before the author's hold/flush
+                # rules. This receipt never drives scheduling or progress state.
+                await self.emit('eco_engine_output',request_id=request_id,instance_id=identifier,
+                    packet_seq=packet_seq,token_ids=list(event.get('token_ids',[])),
+                    token_index=event.get('token_index'),usage=event.get('usage'),finished=finished)
+                if finished:entry['engine_done']=True;final=True
+                async with self.lock:
+                    unfinished=sum(not row['engine_done'] for row in self.active.values() if row['instance_id']==identifier)
+                    flushed=self.buffers[identifier].receive(request_id,event,now_ms=time.time()*1000,unfinished=unfinished)
+                    for rid,item in flushed:
+                        target=self.active.get(rid)
+                        if target is None:continue
+                        target['queue'].put_nowait(item)
+                        if any(c.get('finish_reason') is not None for c in item.get('choices',[])):
+                            target['queue'].put_nowait(_DONE)
+                if flushed:await self.emit('eco_output_flush',instance_id=identifier,count=len(flushed),
+                                          send_output=self.buffers[identifier].send_output)
+            if not final:raise RuntimeError('EcoServe engine stream ended without terminal output')
+        except asyncio.CancelledError:raise
+        except Exception as exc:
+            entry['engine_done']=True
+            entry['queue'].put_nowait(exc)
+
+    async def scale_once(self):
+        if self.failure:raise RuntimeError(self.failure)
+        await self.refresh()
+        now=time.time()
+        recent=[value for at,value in self.ttft_history if now-self.history_window<=at<=now]
+        available=[i for i in self.specs if i not in self.assigned|self.draining|self.quarantined
+                   and self._idle(self.states[i])]
+        await self.emit('eco_scale_observation',origin='paper_supplement',observed_at_s=now,
+            history_window_s=self.history_window,history_count=len(recent),
+            mean_ttft_s=statistics.mean(recent) if recent else None,
+            ttft_threshold_s=self.ttft_ms/1000,
+            ttft_exceeds_threshold=bool(recent and statistics.mean(recent)>self.ttft_ms/1000),
+            available_instances=available,groups=[g.identifiers for g in self.groups],
+            native_cursors=dict(self.cursors))
+        if recent and statistics.mean(recent)>self.ttft_ms/1000:
+            if available:return await self.add_member(sorted(available)[0],trigger='mean_ttft')
+            await self.emit('eco_scale_budget_exhausted',origin='paper_supplement',mean_ttft_s=statistics.mean(recent))
+            return False
+        for group in sorted(self.groups,key=lambda g:(len(g.identifiers)<=self.lower,len(g.identifiers),g.identifiers)):
+            # Autoscaling is absent upstream. The paper supplement uses the
+            # paper mean saved-TPOT signal, while admission retains author max.
+            credits=[r.ttft+r.num_iterations*self.tpot_ms-now*1000+r.arrival_time
+                     for i in group.instance_states for r in i.requests if r.num_iterations]
+            threshold=self.ttft_ms*(len(group.identifiers)+1)/len(group.identifiers)
+            exceeds=bool(credits and statistics.mean(credits)>threshold)
+            await self.emit('eco_scale_macro_observation',origin='paper_supplement',observed_at_s=now,
+                members=group.identifiers,saved_tpot_count=len(credits),
+                mean_saved_tpot_ms=statistics.mean(credits) if credits else None,
+                saved_tpot_threshold_ms=threshold,saved_tpot_exceeds_threshold=exceeds,
+                minimum_instances=self.lower,assigned_instances=len(self.assigned),
+                native_cursors=dict(self.cursors))
+            if exceeds:
+                if len(self.assigned)>self.lower:
+                    return await self.remove_member(group.identifiers[-1],trigger='saved_tpot')
+        return False
+
+    async def _rollback_controls(self, before, identifiers):
+        for identifier in reversed(identifiers):
+            try:await self._control(identifier,{k:before[identifier][k] for k in _CONTROL_FIELDS})
+            except Exception:self.quarantined.add(identifier)
+
+    async def add_member(self,identifier,*,trigger='explicit_functional'):
+        async with self.resize_lock:
+            if identifier in self.assigned:return False
+            if identifier not in self.specs or identifier in self.quarantined:return False
+            await self.refresh()
+            if not self._idle(self.states[identifier]):return False
+            before={i:dict(s) for i,s in self.states.items()}
+            layout_before=[list(g.identifiers) for g in self.groups]
+            layout=[list(g) for g in layout_before];self._layout_add(layout,identifier)
+            await self.emit('eco_membership_prepare',origin='paper_supplement',operation='add',
+                instance_id=identifier,before=layout_before,desired=layout,trigger=trigger,
+                observed_engine_states=before,native_cursors=dict(self.cursors))
+            affected=[i for g in layout for i in g]
+            acknowledged=[]
+            try:
+                await self._clock(identifier,self.active_frequency)
+                for member in affected:
+                    acknowledged.append(member);await self._control(member)
+                async with self.lock:
+                    self._set_layout(layout);self.version+=1
+            except BaseException:
+                await self._rollback_controls(before,acknowledged)
+                if self.park_idle and identifier not in self.quarantined:
+                    try:await self._park(identifier)
+                    except Exception:self.quarantined.add(identifier)
+                await self.emit('eco_membership_rollback',origin='paper_supplement',operation='add',
+                    instance_id=identifier,quarantined=sorted(self.quarantined))
+                raise
+            await self.emit('eco_membership_commit',origin='paper_supplement',operation='add',
+                instance_id=identifier,before=layout_before,after=layout,trigger=trigger,
+                split=len(layout)>len(layout_before),version=self.version,worker_kv_preserved=True)
+            return True
+
+    async def remove_member(self,identifier,*,trigger='explicit_functional'):
+        async with self.resize_lock:
+            if identifier not in self.assigned or len(self.assigned)<=self.lower:return False
+            before={i:await self.transport.state(i) for i in self.specs}
+            layout_before=[list(g.identifiers) for g in self.groups]
+            async with self.lock:self.draining.add(identifier)
+            await self.emit('eco_membership_prepare',origin='paper_supplement',operation='remove',
+                instance_id=identifier,before=layout_before,trigger=trigger,
+                observed_engine_states=before,native_cursors=dict(self.cursors))
+            acknowledged=[]
+            try:
+                deadline=time.monotonic()+self.drain_timeout
+                while True:
+                    state=await self.transport.state(identifier)
+                    active=any(r['instance_id']==identifier and not r['engine_done'] for r in self.active.values())
+                    if self._idle(state) and not active:break
+                    if time.monotonic()>=deadline:raise TimeoutError('EcoServe removed member did not drain')
+                    await asyncio.sleep(self.poll)
+                await self.emit('eco_member_drained',origin='paper_supplement',instance_id=identifier,
+                                observed_engine_state=state,active_engine_request=False)
+                for member in self.assigned:
+                    acknowledged.append(member);await self._control(member)
+                if self.park_idle:await self._park(identifier)
+                async with self.lock:
+                    layout=self._layout_remove(identifier)
+                    self._set_layout(layout);self.draining.discard(identifier);self.version+=1
+            except BaseException:
+                await self._rollback_controls(before,acknowledged)
+                try:await self._clock(identifier,self.active_frequency)
+                except Exception:self.quarantined.add(identifier)
+                async with self.lock:self.draining.discard(identifier)
+                await self.emit('eco_membership_rollback',origin='paper_supplement',operation='remove',
+                    instance_id=identifier,quarantined=sorted(self.quarantined))
+                raise
+            await self.emit('eco_membership_commit',origin='paper_supplement',operation='remove',
+                instance_id=identifier,before=layout_before,after=layout,trigger=trigger,
+                merge=len(layout)<len(layout_before),version=self.version,worker_kv_preserved=True)
+            return True
+
+    async def close(self):
+        if self.closed:return
+        self.closed=True
+        for task in self.tasks:task.cancel()
+        await asyncio.gather(*self.tasks,return_exceptions=True)
+        for task in tuple(self.producers):task.cancel()
+        await asyncio.gather(*tuple(self.producers),return_exceptions=True)
+        for rid,entry in tuple(self.active.items()):
+            await self.transport.cancel(entry['instance_id'],rid)
+            entry['queue'].put_nowait(RuntimeError('EcoServe controller closed'))
+        await self.emit('eco_closed',failure=self.failure,quarantined=sorted(self.quarantined))

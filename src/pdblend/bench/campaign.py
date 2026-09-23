@@ -13,16 +13,16 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Iterable
 
-from ..model_registry import ModelRegistry, ModelSpec, pd_configurations
+from ..model_registry import ModelRegistry, ModelSpec
+from ..seed_config import SINGLE_SEED, SEEDS, SEED_POLICY
 
 SYSTEMS = ("mixed", "distserve", "dynamollm", "ecoserve", "pdblend")
 TP_MODES = ("fixed_tp", "offline_tp", "resident_hetero_tp", "slow_reshard_tp")
-# The current campaign is intentionally a single workload-seed comparison.
-# Keep this in one place so matrix generation, manifests and audits cannot
-# silently drift back to the historical three-seed schedule.
-SINGLE_SEED = 701
-SEEDS = (SINGLE_SEED,)
-SEED_POLICY = "single_seed_701"
+PDBLEND_TP = {
+    "Qwen2.5-7B-Instruct": (1, 2, 4),
+    "Qwen2.5-14B-Instruct": (1, 2, 4),
+    "Qwen2.5-32B-Instruct": (2, 4),
+}
 DATASETS = {
     "alpaca": {"ttft_s": 1.0, "tpot_s": 0.10},
     "sharegpt": {"ttft_s": 5.0, "tpot_s": 0.15},
@@ -71,10 +71,17 @@ def corpus_path(root: Path, model: ModelSpec) -> Path:
 
 
 def required_profile_keys(model: ModelSpec, *, systems: Iterable[str] = SYSTEMS,
-                          require_memory: bool = True) -> list[dict]:
+                          require_memory: bool = True, include_pp: bool = True) -> list[dict]:
     rows = []
     for system in systems:
         for tp, pp in model.legal_topologies(require_memory=require_memory):
+            if not include_pp and pp != 1:
+                continue
+            # TP8 is a possible standalone layout on 14B/32B, but cannot
+            # host a symmetric P/D pair on this eight-GPU campaign. PDBlend
+            # profiles use one bounded TP-only space for both request paths.
+            if system == "pdblend" and (pp != 1 or tp not in PDBLEND_TP[model.model_id]):
+                continue
             roles = ("mixed",) if system in ("mixed", "ecoserve") else ("prefill", "decode", "mixed")
             for role in roles:
                 rows.append({"system": system, "model_id": model.model_id,
@@ -110,8 +117,8 @@ def build_campaign(*, models_dir: Path | str = "/models", corpus_root: Path | st
         # for DistServe qualification and explicitly marked unsupported until
         # the stage adapter is installed.
         if not include_pp:
-            tops = tuple((tp, 1) for tp, _ in tops)
-        for row in required_profile_keys(model, systems=systems, require_memory=True):
+            tops = tuple((tp, pp) for tp, pp in tops if pp == 1)
+        for row in required_profile_keys(model, systems=systems, require_memory=True, include_pp=include_pp):
             row = dict(row, corpus=str(corpus), corpus_status=corpus_status)
             if row["pp"] != 1:
                 row["status"] = "unsupported_engine"
@@ -120,6 +127,9 @@ def build_campaign(*, models_dir: Path | str = "/models", corpus_root: Path | st
             profiles.append(row)
         for system in systems:
             allowed_tops = tops
+            if system == "pdblend":
+                allowed_tops = tuple((tp, pp) for tp, pp in tops
+                                     if pp == 1 and tp in PDBLEND_TP[model.model_id])
             if system == "dynamollm":
                 allowed_tops = tuple(x for x in tops if x[1] == 1)
             if system == "ecoserve":
@@ -171,6 +181,11 @@ def audit_campaign(path: Path | str) -> dict:
         reasons.append(f"requires seed policy {SEED_POLICY}")
     if payload.get("single_seed") is not True or payload.get("seed_policy") != SEED_POLICY:
         reasons.append("missing single-seed marker")
+    if not points:
+        reasons.append("missing matrix points")
+    if any(p.get("seed") != SINGLE_SEED or p.get("single_seed") is not True
+           or p.get("seed_policy") != SEED_POLICY for p in points):
+        reasons.append("invalid point seed policy")
     if any(p.get("status") != "ready" for p in points):
         reasons.append("incomplete profile/corpus/engine coverage")
     return {"formal_eligible": not reasons, "reasons": reasons,

@@ -314,3 +314,22 @@ def test_shield_protection_lease_blocks_immediate_downshift():
     assert shield.update(hot, now) == 1
     assert shield.protection_active(now + 30.0)
     assert not shield.protection_active(now + 61.0)
+
+
+def test_prefill_source_cannot_park_before_remote_decode_starts():
+    controller, fleet, router = make_controller(n=2)
+    router.set_roles({'i0': 'P', 'i1': 'D'})
+    controller.roles.update({'i0': 'P', 'i1': 'D'})
+    request = router.dispatch('pd-active', 2048, 16)
+    assert router.loads['i0'].inflight_seqs == 0
+    assert router.loads['i0'].inflight_prefill_tokens == 2048
+    with pytest.raises(TimeoutError, match='did not drain'):
+        asyncio.run(controller._park('i0', 'off'))
+    assert 'stop' not in fleet['i0'].calls
+    assert 0 not in controller.gpus.clocks
+    assert not router.loads['i0'].accepting
+    assert any(row['kind'] == 'park_failed' for row in controller._log)
+    router.first_token(request)
+    asyncio.run(controller._park('i0', 'off'))
+    assert 'stop' in fleet['i0'].calls
+    router.finish(request, 16)

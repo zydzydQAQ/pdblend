@@ -1,0 +1,43 @@
+<section class="page" id="overview">
+  <div class="eyebrow">01 / OVERVIEW · SYSTEM METHOD</div>
+  <h1>PDblend</h1>
+  <div class="deck">选择性 P/D 分离：<br>只在值得时，把两阶段分开</div>
+  <div class="subtitle">Selective Disaggregation for Efficient LLM Serving</div>
+  <p class="lead">PDblend 不要求所有请求都分离。它先比较分离前后的延迟与能量开销，再将适合的请求交给 P/D，其余请求继续由 M 处理。规划决定“怎样分”，在线系统负责“按计划运行，并应对变化”。</p>
+  <p class="en">PDblend combines mixed serving with selective prefill–decode disaggregation. A planner compares their latency and energy costs, chooses the resource layout and routing threshold, and lets the runtime enact the plan. Online feedback protects service latency as demand changes.</p>
+  <table>
+    <thead><tr><th style="width:18%">名称</th><th>通俗含义 / Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><strong>P · Prefill</strong></td><td>读完输入，建立后续生成需要的 KV 缓存；本方案还由 P 产生首个输出 token。</td></tr>
+      <tr><td><strong>D · Decode</strong></td><td>使用已有 KV 缓存，逐步生成后续 token。token 是模型处理的文本片段，不一定等于一个汉字。</td></tr>
+      <tr><td><strong>M · Mixed</strong></td><td>同一个实例承担 P 和 D 两阶段，省去跨实例交接；并发执行时也可能互相影响。</td></tr>
+    </tbody>
+  </table>
+  <table>
+    <thead><tr><th style="width:22%">技术模块</th><th style="width:37%">输入 / Input</th><th>输出 / Output</th></tr></thead>
+    <tbody>
+      <tr><td><strong>离线建模</strong><br>Modeling</td><td>模型、硬件、并行配置、测量样本</td><td>时间、功率、交接与切换成本，以及模型适用范围</td></tr>
+      <tr><td><strong>选择性规划</strong><br>Planning</td><td>离线模型、负载估计、延迟要求、当前配置</td><td>Plan：P/D/M 数量、频率、停驻状态、长度阈值 τ</td></tr>
+      <tr><td><strong>在线协同</strong><br>Online</td><td>请求、Plan、运行状态及延迟观测</td><td>输出 token、有效配置、资源动作与反馈记录</td></tr>
+    </tbody>
+  </table>
+  <div class="note"><strong>阅读口径 / Design scope.</strong> 本文描述理想的选择性分离设计，并在各章末指出与当前实现的差异。图中数字用于说明机制，不构成实测性能结论。当前代码取证版本与文件校验值随文保存在 <code>evidence.json</code>。</div>
+</section>
+
+<section class="page">
+  <div class="eyebrow">01 / OVERVIEW · INTERACTION</div>
+  <h2>三个模块怎样连成一个闭环</h2>
+  <div class="subtitle">From offline measurements to coordinated online execution</div>
+  <img class="figure" src="figures/01-overview.svg" alt="离线建模向规划提供模型，规划向在线提供Plan，在线反馈负载与延迟并输出token。">
+  <p class="caption"><strong>图 1 / Figure 1.</strong> 离线模型供给、周期决策与在线反馈。实线为模型、请求或控制流，虚线为运行观测反馈。在线观测用于下一轮决策，不表示自动重训离线模型。</p>
+  <ol>
+    <li><strong>先测清成本。</strong> 离线模块回答：某个长度、batch 和频率下，执行大概多快、多耗电；哪些范围有测量支持。</li>
+    <li><strong>再比较方案。</strong> Planning 根据当前负载比较全 M 与选择性 PD，并一起选择实例分配、频率、停驻状态和分流阈值。</li>
+    <li><strong>按有效配置接请求。</strong> 在线系统准备好所需实例后启用配置；短请求与适合分离的长请求可以同时走不同路径。</li>
+    <li><strong>用实际运行纠偏。</strong> 到达率、输入输出长度、首 token 和完成时间回到控制循环；风险升高时快速保护，稳定后才逐步收缩。</li>
+  </ol>
+  <p class="en">Offline measurements provide the cost model. The planner uses this model and a demand estimate to select a complete configuration. The runtime routes requests through ready instances and reports observed demand and latency. Fast protection can trigger an earlier plan update; routing continues to follow the effective configuration.</p>
+  <div class="callout"><strong>贯穿实例。</strong> 使用 8 个 TP1 实例（每实例 1 张 GPU）：输入长度为 256、512、2048、4096 token，输出均为 128 token。示例阈值为 1024：前两类走 M，后两类走 P→D。该配置用于解释机制，是否采用它仍由成本与延迟检查决定。</div>
+  <p class="small"><strong>三个需要记住的量：</strong> TTFT 是提交请求到看到首个 token 的时间；TPOT 是首个 token 之后每个输出 token 的平均耗时；SLO 是对这些延迟提出的服务目标。本文的能量范围为指定 GPU 的板卡能量。</p>
+  <p class="tiny">阅读导航 / Reading map: 离线建模 pp. 3–5 · 选择性规划 pp. 6–8 · 在线协同 pp. 9–12。实例身份、频率与布局必须使用匹配的离线画像。</p>
+</section>

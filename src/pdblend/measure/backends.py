@@ -5,6 +5,7 @@ from __future__ import annotations
 import subprocess
 import math
 import time
+import os
 from typing import Dict, List, Optional, Protocol, Sequence
 
 
@@ -13,6 +14,18 @@ class BackendError(Exception):
 
 
 INSTANT_POWER_SOURCE_ID = 'nvml:field:186:scope:0:mW'
+
+
+def physical_gpu(gpu: int) -> str:
+    """Translate a container-local ordinal to its leased physical UUID."""
+    leased = os.environ.get('PDBLEND_GPU_UUIDS', '')
+    if not leased:
+        return str(int(gpu))
+    uuids = leased.split(',')
+    index = int(gpu)
+    if index < 0 or index >= len(uuids) or not uuids[index].startswith('GPU-'):
+        raise BackendError(f'GPU {gpu} is outside this process lease')
+    return uuids[index]
 
 
 class GpuBackend(Protocol):
@@ -120,7 +133,10 @@ class PynvmlBackend:
         if self._nvml is None:
             return None
         if gpu not in self._handles:
-            self._handles[gpu] = self._nvml.nvmlDeviceGetHandleByIndex(int(gpu))
+            device = physical_gpu(gpu)
+            self._handles[gpu] = (self._nvml.nvmlDeviceGetHandleByUUID(device)
+                                  if device.startswith('GPU-') else
+                                  self._nvml.nvmlDeviceGetHandleByIndex(int(device)))
         return self._handles[gpu]
 
     def current_freq(self, gpu: int) -> int:
@@ -149,7 +165,7 @@ class PynvmlBackend:
             except (AttributeError,self._nvml.NVMLError_NotSupported,
                     self._nvml.NVMLError_FunctionNotFound):
                 pass
-        _smi(["-i", str(int(gpu)), "-lgc", "%d,%d" % (f, f)])
+        _smi(["-i", physical_gpu(gpu), "-lgc", "%d,%d" % (f, f)])
 
     def reset_clock(self, gpu: int) -> None:
         if self._nvml is not None:
@@ -159,7 +175,7 @@ class PynvmlBackend:
             except (AttributeError,self._nvml.NVMLError_NotSupported,
                     self._nvml.NVMLError_FunctionNotFound):
                 pass
-        _smi(["-i", str(int(gpu)), "-rgc"])
+        _smi(["-i", physical_gpu(gpu), "-rgc"])
 
     def supported_freqs(self, gpu: int) -> List[int]:
         if self._nvml is not None:
@@ -284,7 +300,7 @@ def _smi(args: Sequence[str]) -> str:
 def _smi_query(field: str, gpu: int) -> str:
     out = _smi([
         "--query-gpu=%s" % field, "--format=csv,noheader,nounits",
-        "-i", str(int(gpu)),
+        "-i", physical_gpu(gpu),
     ])
     line = out.strip().splitlines()[0].strip() if out.strip() else ""
     if not line or line.upper() == "N/A":

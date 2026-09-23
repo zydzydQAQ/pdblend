@@ -12,9 +12,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from pdblend.bench.dominance import BASELINES, PAIR_FIELDS, load_evidence  # noqa: E402
-
-SINGLE_SEED = 701
-SEED_POLICY = "single_seed_701"
+from pdblend.seed_config import SINGLE_SEED, SEED_POLICY  # noqa: E402
 
 
 def finite(value):

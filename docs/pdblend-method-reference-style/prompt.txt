@@ -1,0 +1,108 @@
+Use case: scientific-educational
+Asset type: detailed computer-systems research-paper method figure.
+Primary request: Create one polished PDblend method diagram in the exact visual idiom of the user's attached runtime timing figure. This is a NEW diagram; the attached image is only a STYLE REFERENCE, not content to reproduce.
+Output: high-resolution landscape, approximately 3:2 aspect ratio, ideally 3072 x 2048 or higher, pure white background, generous margins, crisp typography and linework.
+
+STYLE
+Match the reference's classic LaTeX/Times serif typography, bold black row labels, thin black axes with arrowheads labeled Time, black-outlined flat rectangular segments, italic colored timing labels, dashed double-headed timing arrows, small yellow output-token rectangles and fine black diagonal arrows connecting execution to output. Prefill is muted green #9ecb7c; decode is medium blue #4478bf; tokens are soft yellow #ffdc68; KV transfer/wait is medium light gray #bfbfbf. Timing for TTFT can be red #d62d20. No gradients, shadows, icons, GPU clip art, rounded UI cards, modern dashboard style, 3D or decorative imagery. Use readable vector-like text. Uniform line weights. Avoid enormous heading. English labels, math in proper italic/subscript typography.
+
+TITLE
+"PDblend: Selective Prefill–Decode Disaggregation"
+
+STRUCTURE
+Make a coherent four-panel landscape figure. Compact top band (a) spans the width, the large middle area contains routing (b) at left and two execution timelines (c) at right; a shallow bottom band (d) shows online control. Shared legend and a single caption at the bottom. Panels should have ample whitespace and clear (a), (b), (c), (d) labels, with light or no outer panel frames.
+
+(a) TOP BAND: "Cost model and joint planning"
+Three rectangular black-outline white boxes connected from left to right.
+Box 1 heading "Offline profiling", then three short lines:
+"Input length, batch, context, clocks"
+"Prefill / Decode / Mixed interference"
+"Time, power, KV handoff, switching"
+Box 2 heading "Feasible-plan search", then:
+"Forecast: arrival rate and length mix"
+"Check model coverage, SLOs, KV capacity"
+"Compare M-only and P/D/M plans"
+Box 3 heading "Joint Plan", then:
+"Role counts + pool clocks + threshold τ"
+"Minimize total energy over horizon H"
+"Switch only with sufficient saving"
+Below the boxes one restrained equation line:
+"J = H · (P_active + P_parked) + E_extra,KV + E_switch"
+Beside or under the equation in smaller type:
+"Count incremental overhead once."
+This is a design objective; don't invent any energy savings or performance measurements.
+An arrow from Joint Plan leads down to the illustrative effective-plan area in (b).
+
+(b) MIDDLE LEFT: "Selective routing"
+Show a simple two-row grid of EIGHT small instance tiles, fully legible. Labels:
+"I0: P", "I1: D", "I2: D", "I3: M",
+"I4: M", "I5: M", "I6: M", "I7: L1".
+P tile green, D tiles blue, M tiles each half green half blue, L1 tile gray. Use white text in blue if necessary.
+Above the grid: "Example ready plan: P1 + D2 + M4 + L1"
+Below: "τ = 1024 tokens; output N = 128".
+Then a small request fork with two real branches:
+"R_s: L = 256 < τ" leads to "Least-loaded M: I4" and then to the upper timeline in (c).
+"R_l: L = 2048 ≥ τ" leads to "P: I0 → compatible D: I2" and then to the lower timeline in (c).
+Under the fork use two brief lines:
+"Choose P by pending input tokens"
+"Choose M / D by active sequences"
+All routing arrows must connect clearly, without crossing the timeline labels or text.
+
+(c) LARGE MIDDLE RIGHT: "Request execution and token timing"
+This is the most visually prominent part and should closely resemble the supplied timing figure.
+Two stacked timing examples, each with its own horizontal time axis and black arrival dot, all timelines move left to right.
+
+UPPER EXAMPLE subtitle: "Short request: local P + D on I4"
+Rows with bold labels at left: "I4 / M", "Client".
+Runtime row: black arrival dot, short unfilled queue interval, one medium-width GREEN segment labeled "P(256)", immediately followed by a run of BLUE individually outlined decode segments. First blue segment begins after green. Ellipsis indicates omitted middle tokens rather than drawing 128 segments.
+Client row: yellow narrow output rectangles corresponding to y₁, y₂, y₃, …, y₁₂₈. A fine diagonal arrow from the END of the green prefill segment to the first client token y₁. Fine diagonal arrows from the ends of successive blue steps to y₂, y₃, etc.
+Dashed red double-headed bracket from request arrival to first client token labeled "TTFT".
+Dashed blue double-headed bracket spanning two adjacent steady client tokens labeled "Inter-token gap".
+Brief note: "KV stays local".
+Do not draw a gray transfer segment on the mixed request.
+
+LOWER EXAMPLE subtitle: "Long request: P → D with first-token carry"
+Three aligned execution/output rows labeled "I0 / P", "I2 / D", "Client". Request arrival dot aligns with the beginning of the long-request timeline.
+On I0/P draw a green bar labeled "P(2048)", after an optional small empty queue interval. The end of this green bar creates y₁. Then I0's later interval may be empty: it is free for other work.
+Draw a fine arrow from the END of P(2048) directly down to the first yellow client token labeled "y₁".
+On I2/D, after P has completed, draw a GRAY handoff/setup block, labeled "KV handoff", then BLUE individually outlined decode steps generating y₂, y₃, …, y₁₂₈. Show a clear P-to-D arrow labeled "KV[2048]". This arrow must originate from the end of the green P bar and terminate at the D handoff block.
+Connect blue step ends diagonally to yellow client tokens as in the reference.
+Place the exact readable two-line protocol annotation beneath the D row but outside arrow paths:
+"D prompt = input ⊕ y₁  (2049 tokens)"
+"Reuse KV[2048]; remaining output = 127"
+The first yellow token y₁ appears before D's first generated token y₂. The next yellow token y₂ only appears at the end of the first blue D step.
+Dashed RED double-headed bracket from arrival to client y₁ labeled "TTFT". It MUST end at y₁, before the handoff/continuation is complete.
+Dashed GRAY or black double-headed bracket from client y₁ to client y₂ labeled "Continuation gap".
+Dashed BLUE double-headed bracket between y₂ and y₃ labeled "Inter-token gap".
+Do not label a full multi-token interval as a single TPOT. Put a small equation under this example:
+"TPOT = (t₁₂₈ − t₁) / 127"
+And a short line:
+"Client receives y₁ from P, then y₂ … y₁₂₈ from D."
+Keep annotations separated vertically with generous clearance. Do not let arrows run through protocol text. Omit literal Frontend Buffer/Render lanes from the reference: this figure shows actual client emission, not a buffering policy.
+
+(d) BOTTOM BAND: "Online protection and feedback"
+A compact horizontal control sequence in simple outline rectangles with arrows:
+"Observe TTFT / TPOT / inflight"
+→ "Risk: raise clocks"
+→ "Persistent risk: wake capacity"
+→ "Ready → admit"
+→ "Stable load → drain → park".
+Above the sequence, small annotations: "Fast protection" over the first two transitions, "Slower replanning" near a dashed feedback arrow leading from observations back to the feasible-plan search in (a). Route this dashed feedback arrow in the outer margin so it does not cross text.
+Below the control sequence:
+"New routing threshold takes effect with sufficient ready capacity."
+Show no numeric timing, energy saving, speedup, or measured scaling claims.
+
+BOTTOM LEGEND
+Four black-outlined swatches matching the reference:
+green "Prefill" | blue "Decode" | yellow "Output token" | gray "KV transfer / wait".
+M means both stages on one instance; L1 is a parked instance. Distinguish gray parked L1 via its label.
+Single caption:
+"Figure: PDblend method and request timing. Illustrative plan; schematic timelines, not measurements."
+
+CRITICAL ACCURACY
+This is the target method design described in the project, not a claim that every control guarantee is implemented.
+The short and long examples are separate requests, so do not imply measured equal arrival times or compare timeline durations as a benchmark.
+P produces and emits the long request's true first token. D does not duplicate y₁. Logical total output is exactly 128 tokens, despite displaying only a few with ellipsis.
+The long request has original input length 2048; only D's continuation prompt is 2049. Total user-facing input usage remains 2048.
+TTFT ends at client receipt of y₁. The continuation gap is not merely the pure KV-copy duration and includes handoff and first continuation work.
+Use enough space for readable details. Keep spelling and numerical labels exact. Output ONLY the completed diagram.

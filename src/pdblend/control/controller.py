@@ -112,16 +112,26 @@ class Controller:
         self.freqs[iid] = mhz
 
     async def _drain(self, iid: str) -> bool:
-        deadline = time.time() + self.drain_timeout_s
-        while self.router.loads[iid].inflight_seqs > 0 and time.time() < deadline:
-            await asyncio.sleep(0.2)
-        return self.router.loads[iid].inflight_seqs == 0
+        deadline = time.monotonic() + self.drain_timeout_s
+        def idle():
+            load = self.router.loads[iid]
+            return load.inflight_seqs == 0 and load.inflight_prefill_tokens == 0
+        while not idle() and time.monotonic() < deadline:
+            await asyncio.sleep(min(0.2, max(deadline - time.monotonic(), 0.0)))
+        return idle()
 
     async def _park(self, iid: str, level: str) -> None:
         started = time.time()
         self.router.set_accepting(iid, False)
         self.router.set_roles({iid: "parked"})
         drained = await self._drain(iid)
+        if not drained:
+            # A prefill source may have zero decode sequences while still
+            # serving a prompt/KV handoff. Never stop or reset its clocks on
+            # timeout, and keep new admission disabled until recovery.
+            self.log("park_failed", instance=iid, level=level, drained=False,
+                     drain_scope="proxy_requests_only", seconds=time.time() - started)
+            raise TimeoutError(f"{iid}: prefill/decode requests did not drain before parking")
         inst = self.fleet[iid]
         if level == "off":
             await asyncio.to_thread(inst.stop)
@@ -130,7 +140,8 @@ class Controller:
             for g in inst.spec.gpus:
                 self.gpus.park(g)
         self.roles[iid] = level
-        self.log("park", instance=iid, level=level, drained=drained, seconds=time.time() - started)
+        self.log("park", instance=iid, level=level, drained=drained,
+                 drain_scope="proxy_requests_only", seconds=time.time() - started)
 
     async def _wake(self, iid: str, role: str, mhz: int) -> None:
         started = time.time()

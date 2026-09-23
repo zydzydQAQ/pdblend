@@ -1,0 +1,58 @@
+<section class="page">
+  <div class="eyebrow">02 / OFFLINE MODELING</div>
+  <h2>离线性能与能耗建模</h2>
+  <div class="subtitle">Offline Performance and Energy Modeling</div>
+
+  <h3>Motivation · 为什么需要它</h3>
+  <p>同一个请求可以在 M 实例上完成全部计算，也可以先在 P 实例处理输入，再把 KV 交给 D 实例生成输出。两条路径的时延与能耗并不相同。规划器需要统一的成本模型，判断分离执行的收益能否抵消传输开销，并比较不同角色数量与频率。</p>
+  <p class="en">The same request can complete on one mixed instance or pass from a prefill instance to a decode instance through a KV transfer. These paths have different latency and energy costs. A common model lets the planner compare layouts and frequencies, and decide whether separation can justify its additional overhead.</p>
+
+  <h3>Challenge · 难点在哪里</h3>
+  <p>模型成本不仅取决于输入长度，还随输出长度、并发 batch（一起计算的请求）、已有上下文和 GPU 频率变化。M 实例中的 prefill 会干扰正在生成的请求；P→D 则新增传输与协调开销。因此，只测单次 prefill 的速度，不能判断完整路径是否更好。</p>
+  <p class="en">Cost depends on prompt and output lengths, concurrent batch size, accumulated context, and GPU frequency. Prefill work on a mixed instance can delay ongoing decode work, while a separated path adds transfer and coordination. Measuring isolated prefill speed is therefore insufficient to compare the complete execution paths.</p>
+
+  <h3>Insight · 核心观察</h3>
+  <p>无需为每个完整部署重新做一次实验。可以把成本拆成 prefill、decode、混合干扰、KV 交接与配置切换等组成项，离线测量后复用。模型提供有适用范围的预测；规划器再结合请求量与队列状态，完成配置比较和 SLO 判断。</p>
+  <p class="en">Each complete deployment does not need a separate experiment. Reusable measurements of prefill, decode, mixed interference, KV handoff, and configuration changes can describe its components. The model supplies predictions within a stated validity range; the planner combines them with demand and queueing estimates to compare configurations and check SLOs.</p>
+
+  <div class="callout">本章回答“一个候选方案会花多少时间、消耗多少能量”；下一章回答“此刻应该选哪个方案”。<br><span class="en">This chapter estimates a candidate’s cost. The next chapter selects a candidate.</span></div>
+</section>
+
+<section class="page">
+  <div class="eyebrow">02 / OFFLINE MODELING</div>
+  <h3>Approach · 从测量到可比较的成本</h3>
+  <ol>
+    <li><strong>选取代表性条件。</strong>固定模型与并行配置，覆盖不同输入长度、batch、上下文和频率。<br><span class="en">Choose representative prompt lengths, batches, contexts, and frequencies for a fixed model and parallel layout.</span></li>
+    <li><strong>测量组成项。</strong>分别测 prefill、decode、mixed 干扰、KV 交接及资源状态变化，统一功率口径。<br><span class="en">Measure execution components, mixed interference, KV handoff, and resource-state changes using a consistent power scope.</span></li>
+    <li><strong>建立并检查模型。</strong>拟合或插值后固定参数，用独立样本检查误差，并保留明确的适用范围。<br><span class="en">Fit or interpolate, freeze the model, then check independent samples and retain explicit validity ranges.</span></li>
+    <li><strong>向规划器提供查询。</strong>对同一请求与候选负载，返回 M 与 P→D 的服务时间、功率及额外成本。<br><span class="en">For the same request and candidate load, return service times, power, and additional costs for both paths.</span></li>
+  </ol>
+
+  <img class="figure" src="figures/02-model.svg" alt="离线采样建立成本模型，再比较同一长请求在 M 与 P→D 路径上的时间、功率和额外成本；集群示意为八个 TP1 实例。 Offline samples build a cost model that compares mixed and separated execution for the same long request in an illustrative eight-instance TP1 cluster.">
+  <p class="caption"><strong>图 2 / Figure 2.</strong> 以 2048 个输入 token、128 个输出 token 的请求为例：M 路径需要计入混合干扰，P→D 路径需要计入 KV 交接。全篇沿用八个 TP1 实例的说明场景，模型输出不直接决定路由。</p>
+  <p class="en">For a request with 2048 input and 128 output tokens, mixed execution includes interference and separated execution includes KV handoff. Eight TP1 instances provide a shared illustrative setting; the model supplies costs rather than making the routing decision.</p>
+</section>
+
+<section class="page">
+  <div class="eyebrow">02 / OFFLINE MODELING</div>
+  <h3>Approach · 模型与规划器的接口</h3>
+  <p>一次查询给出请求形状、候选负载、频率和实例配置。返回值使用同一单位与计量范围，让规划器可以组合成本，而不必了解模型内部的拟合形式。</p>
+  <p class="en">A query specifies the request shape, candidate load, frequency, and instance configuration. Consistent units and measurement scope let planning compose the returned costs without depending on the fitting method.</p>
+
+  <table>
+    <thead><tr><th>输入 / Input</th><th>输出 / Output</th><th>用途 / Use</th></tr></thead>
+    <tbody>
+      <tr><td>输入长度、batch、上下文、频率<br><span class="en">Length, batch, context, frequency</span></td><td>P/D 服务时间、M 干扰<br><span class="en">Service time, mixed interference</span></td><td>容量与时延估计<br><span class="en">Capacity and latency</span></td></tr>
+      <tr><td>角色、负载、频率、TP 配置<br><span class="en">Role, load, frequency, TP</span></td><td>P/D/M 平均功率<br><span class="en">Mean power by role</span></td><td>候选配置能耗<br><span class="en">Configuration energy</span></td></tr>
+      <tr><td>KV 大小、源和目标配置<br><span class="en">KV size, source and target</span></td><td>交接时间与增量能量<br><span class="en">Handoff time and added energy</span></td><td>M 与 P→D 比较<br><span class="en">Path comparison</span></td></tr>
+      <tr><td>当前状态、目标状态<br><span class="en">Current and target states</span></td><td>切换时间与增量能量<br><span class="en">Switching time and energy</span></td><td>是否值得切换<br><span class="en">Whether to reconfigure</span></td></tr>
+      <tr><td>候选请求与配置<br><span class="en">Candidate request and layout</span></td><td>KV 容量、预测有效性<br><span class="en">KV capacity and validity</span></td><td>排除不可行候选<br><span class="en">Reject invalid candidates</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="equation">能量 = 平均功率 × 时间<br><span class="en">Energy = average power × duration</span></div>
+  <p>例如，某个八实例配置的运行及停驻基础功率为 1200 W，持续 10 s，则基础能量为 12 kJ。这里不含另计的交接和切换增量；若基础测量已包含某项，就不再加一次。以上数字仅解释机制，不代表实测性能。</p>
+  <p class="en">Illustratively, base operating and standby power of 1200 W over 10 s gives 12 kJ. This base excludes separately charged handoff and switching increments; never add an item already included in the measurement. These are explanatory values, not measurements.</p>
+
+  <div class="note"><strong>实现对应 / Implementation note.</strong> 当前代码已有基础性能与功率模型、覆盖检查、KV 交接时间和部分切换成本；M 功率采用时间占比近似。统一、独立验证的增量交接能耗属于目标设计，不能视为已全部实测。<p class="en">Current code provides performance and power models, coverage checks, handoff timing, and partial switching costs; mixed power uses a time-share approximation. Uniformly validated incremental handoff energy remains a design target.</p></div>
+</section>

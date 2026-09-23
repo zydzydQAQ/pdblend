@@ -84,6 +84,14 @@ POLICIES["pdblend_dominance"] = replace(
     low_load_min_m_instances=2, shield_protect_s=60.0, transition_cooldown_s=45.0,
     description="experimental pressure routing and validated-region small-M search")
 
+# A separate, explicitly experimental boundary probe.  It is never selected
+# by the normal matrix and exists only for independent M3/M2 validation after
+# the conservative dominance screen has finished.
+POLICIES["pdblend_dominance_relaxed"] = replace(
+    POLICIES["pdblend_dominance"], name="pdblend_dominance_relaxed",
+    m_floor_pressure_enter=0.90, m_floor_pressure_exit=0.75,
+    description="boundary probe: relaxed small-M pressure reserve")
+
 
 def get_policy(name: str) -> Policy:
     if name not in POLICIES:

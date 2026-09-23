@@ -1,0 +1,21 @@
+\documentclass[tikz,border=0pt]{standalone}
+\usepackage{fontspec}
+\IfFontExistsTF{TeX Gyre Heros}{\setmainfont{TeX Gyre Heros}}{\setmainfont{Latin Modern Sans}}
+\usepackage{amsmath,amssymb,booktabs,array}
+\DeclareMathSizes{9}{9}{8.6}{8.6}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.17}
+\usetikzlibrary{arrows.meta,positioning,calc,fit,shapes.geometric,backgrounds}
+\definecolor{ink}{HTML}{183247}
+\definecolor{blue}{HTML}{286B91}
+\definecolor{teal}{HTML}{19796F}
+\definecolor{orange}{HTML}{AC671F}
+\definecolor{muted}{HTML}{596C78}
+\tikzset{
+  every node/.style={font=\fontsize{9}{11}\selectfont,text=ink},
+  arr/.style={-{Stealth[length=1.7mm]},line width=.55pt,draw=muted},
+  panel/.style={draw=muted!35,line width=.5pt,rounded corners=1mm,fill=white},
+  box/.style={draw=blue!70,line width=.55pt,rounded corners=.8mm,fill=blue!5,align=center,inner sep=2mm},
+  label/.style={font=\fontsize{9}{11}\selectfont,align=left,inner sep=0},
+  paneltitle/.style={font=\bfseries\fontsize{9.5}{12}\selectfont,anchor=west,inner sep=0}
+}

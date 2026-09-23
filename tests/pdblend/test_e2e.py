@@ -23,6 +23,7 @@ class FakeEngineServer:
         self.state = "ready"
         self.seen_kv_params = []
         self.seen_request_ids = []
+        self.seen_bodies = []
         self.app = web.Application(client_max_size=64 * 1024 * 1024)
         self.app.router.add_post("/v1/completions", self.completions)
         self.app.router.add_get("/health", self.health)
@@ -42,6 +43,7 @@ class FakeEngineServer:
 
     async def completions(self, request):
         body = await request.json()
+        self.seen_bodies.append(body)
         assert "request_id" not in body
         self.seen_request_ids.append(request.headers["X-Request-Id"])
         kv = body.get("kv_transfer_params")
@@ -49,7 +51,8 @@ class FakeEngineServer:
             self.seen_kv_params.append(kv)
         await asyncio.sleep(0.002 + len(body["prompt"]) * 2e-6)
         if not body.get("stream", True):
-            payload = dict(choices=[dict(text="x", index=0)],
+            payload = dict(choices=[dict(text="t0", index=0, finish_reason="length",
+                           logprobs=dict(tokens=["token_id:9000"]) if body.get("logprobs") is not None else None)],
                            usage=dict(prompt_tokens=len(body["prompt"]), completion_tokens=1))
             if kv and kv.get("do_remote_decode"):
                 payload["kv_transfer_params"] = dict(remote_engine_id=f"e{self.gpu}", remote_block_ids=[1, 2],
@@ -58,8 +61,12 @@ class FakeEngineServer:
         resp = web.StreamResponse(headers={"Content-Type": "text/event-stream"})
         await resp.prepare(request)
         n = int(body.get("max_tokens", 1))
+        first = 1 if body['prompt'][-1] == 9000 and (self.seen_request_ids[-1].startswith('___prefill_addr_') or
+                     (kv and kv.get('do_remote_prefill'))) else 0
         for i in range(n):
-            await resp.write(b"data: " + json.dumps(dict(choices=[dict(text=f"t{i}", index=0)])).encode() + b"\n\n")
+            choice=dict(text=f"t{first+i}",index=0)
+            if body.get('logprobs') is not None:choice['logprobs']=dict(tokens=[f'token_id:{9000+first+i}'])
+            await resp.write(b"data: " + json.dumps(dict(choices=[choice])).encode() + b"\n\n")
             await asyncio.sleep(self.tpot_s)
         await resp.write(b"data: " + json.dumps(dict(choices=[], usage=dict(prompt_tokens=len(body["prompt"]), completion_tokens=n))).encode() + b"\n\n")
         await resp.write(b"data: [DONE]\n\n")
@@ -309,3 +316,45 @@ def test_window_energy_and_offline_forecast():
     assert abs(e - (100 + 150)) < 1e-9 and abs(w - 125) < 1e-9
     fc = offline_forecast(make_trace(20, rate=10.0))
     assert abs(fc.rate_rps - 20 / 1.9) < 1e-6 and fc.input_mean == 300 and fc.output_mean == 8
+
+
+def test_resident_tp_uses_real_proxy_and_separate_pool_controllers(tmp_path):
+    """CPU HTTP integration proves wiring, never GPU rank/KV correctness."""
+    from pdblend.bench.tp_runtime import mechanism_pd_plan
+    from pdblend.control.planner import Plan
+    fleet = FakeFleet(3, base_port=19500)
+    small, large = synthetic_model(), synthetic_model()
+    large.tp = 2
+    for index, instance in enumerate(fleet.instances.values()):
+        instance.spec.tp = 1 if index == 0 else 2
+        instance.spec.pp = 1
+        instance.spec.pool_id = 'small' if index == 0 else 'large'
+        instance.spec.generation = 2
+        instance.spec.model = 'synthetic'
+        instance.spec.profile_key = f'test-pool-{instance.spec.pool_id}'
+        instance.spec.gpus = (0,) if index == 0 else ((1, 2) if index == 1 else (3, 4))
+    trace = [Request(i, i / 10, [7] * (512 if i % 2 == 0 else 2048), 8, 'resident-test') for i in range(8)]
+    fixed = {'small': Plan({'M': 1}, 2520, 2520, 2520, 1024, 0, 0, 0),
+             'large': mechanism_pd_plan(2)}
+
+    async def go():
+        for instance in fleet.instances.values():
+            await instance.serve()
+        try:
+            return await _point(fleet, FakeGpus(range(5)), small, get_policy('pdblend'), SLO(5, .15),
+                                trace, [], tmp_path, 19499, .5, 10, min_warm_s=0,
+                                sampling_seed=701, pool_models={'small': small, 'large': large},
+                                pool_fixed_plans=fixed)
+        finally:
+            for instance in fleet.instances.values():
+                await instance.runner.cleanup()
+    result = asyncio.run(go())
+    assert result['slo']['succeeded'] == 8
+    assert result['controller']['mode'] == 'resident_hetero_tp'
+    routes = [json.loads(line) for line in (tmp_path / 'routes.jsonl').read_text().splitlines()]
+    assert {row['tp'] for row in routes} == {1, 2}
+    assert {row['path'] for row in routes} == {'M', 'PD'}
+    assert all(row['generation'] == 2 and row['profile_key'] for row in routes)
+    assert not result['quarantined_instances']
+    assert (tmp_path / 'pools/small/controller.jsonl').is_file()
+    assert (tmp_path / 'pools/large/controller.jsonl').is_file()

@@ -1,0 +1,53 @@
+@font-face { font-family: DocSans; src: url('assets/NotoSansCJKsc-Regular.otf'); font-weight: 400; }
+@font-face { font-family: DocSans; src: url('assets/NotoSansCJKsc-Bold.otf'); font-weight: 700; }
+@page {
+  size: A4; margin: 15mm 18mm 16mm;
+  @bottom-left { content: 'PDblend · Selective Disaggregation'; font-family: DocSans; font-size: 8pt; color: #738491; }
+  @bottom-right { content: counter(page) ' / ' counter(pages); font-family: DocSans; font-size: 8pt; color: #738491; }
+}
+* { box-sizing: border-box; }
+html { color: #163047; font-family: DocSans, sans-serif; font-size: 10pt; line-height: 1.55; }
+body { margin: 0; }
+.page { break-after: page; }
+.page:last-child { break-after: auto; }
+h1 { font-size: 37pt; line-height: 1.12; margin: 5mm 0 3mm; letter-spacing: -.8pt; color: #163047; }
+h2 { font-size: 21pt; line-height: 1.32; margin: 4mm 0 2mm; color: #163047; }
+h3 { font-size: 12pt; line-height: 1.4; margin: 6mm 0 2mm; color: #167d7f; break-after: avoid; }
+h4 { font-size: 10.4pt; margin: 4mm 0 1.5mm; color: #23688d; }
+p { margin: 0 0 2mm; orphans: 2; widows: 2; }
+.eyebrow { font-size: 8pt; letter-spacing: 1pt; font-weight: 700; color: #167d7f; border-top: 2pt solid #167d7f; padding-top: 3mm; }
+.subtitle { font-size: 11.5pt; line-height: 1.4; color: #536878; margin: 0 0 5mm; }
+.deck { font-size: 20pt; line-height: 1.45; font-weight: 700; margin-bottom: 3mm; }
+.en { font-family: 'DejaVu Serif', DocSans, serif; font-size: 9.1pt; line-height: 1.43; color: #526573; margin: 1mm 0 2.4mm; }
+.lead { font-size: 11.3pt; line-height: 1.7; }
+.note { padding: 3mm 3.5mm; margin: 4mm 0 0; background: #f2f5f7; border-left: 2.5pt solid #8aa4b5; font-size: 8.8pt; line-height: 1.55; break-inside: avoid; }
+.note .en { font-size: 8.1pt; margin: 1.5mm 0 0; }
+.callout { padding: 3.5mm 4mm; margin: 4mm 0; background: #edf7f4; border-left: 3pt solid #167d7f; break-inside: avoid; }
+.equation { text-align: center; font-size: 12pt; font-weight: 700; padding: 3.5mm; margin: 3.5mm 0; background: #edf4f8; break-inside: avoid; }
+table { width: 100%; border-collapse: collapse; margin: 3mm 0 4mm; font-size: 9pt; line-height: 1.55; }
+th { background: #eaf1f5; font-weight: 700; color: #23688d; text-align: left; }
+th,td { padding: 2.7mm 2.5mm; vertical-align: top; border-bottom: .5pt solid #d6e1e7; }
+tr { break-inside: avoid; }
+thead { display: table-header-group; }
+table .en { font-size: 8pt; margin: .5mm 0 0; }
+table.algorithm { font-family: 'DejaVu Sans Mono', DocSans, monospace; font-size: 8pt; line-height: 1.4; background: #f5f7f8; margin: 2mm 0 3mm; }
+table.algorithm td { padding: .4mm 2.2mm; border: 0; }
+table.algorithm td:first-child { width: 8mm; color: #83929e; text-align: right; padding-right: 1mm; }
+table.algorithm td:last-child { white-space: pre-wrap; overflow-wrap: anywhere; }
+table.algorithm code { font-size: inherit; font-family: inherit; }
+table.algorithm caption { text-align: left; color: #23688d; font-family: DocSans; font-size: 9pt; font-weight: 700; margin: 2mm 0; }
+.algorithm-title { font-family: 'DejaVu Sans Mono', DocSans, monospace; font-size: 9pt; font-weight: 700; color: #23688d; margin: 3mm 0 1mm; }
+.indent { padding-left: 1.5em; }
+.figure { display: block; width: 100%; height: auto; margin: 3mm auto 2mm; }
+.page[data-page="10"] .figure, .page[data-page="11"] .figure { width: 94%; }
+.page[data-page="12"] .subtitle { margin-bottom: 3mm; }
+.page[data-page="12"] .note { margin-top: 2mm; padding-top: 2mm; padding-bottom: 2mm; }
+.caption { font-size: 8.5pt; color: #526573; line-height: 1.5; margin-bottom: 3.5mm; }
+.small { font-size: 8.4pt; line-height: 1.55; color: #536878; }
+.tiny { font-size: 7.7pt; line-height: 1.5; color: #6f8290; }
+strong { font-weight: 700; }
+code { font-family: 'DejaVu Sans Mono', DocSans, monospace; font-size: .86em; }
+ul,ol { margin: 2mm 0 3mm; padding-left: 5mm; }
+li { margin-bottom: 1.5mm; }
+a { color: #23688d; text-decoration: none; }
+.rule { height: .5pt; background: #d6e1e7; margin: 5mm 0; }

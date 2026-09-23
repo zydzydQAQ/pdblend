@@ -9,7 +9,7 @@ echo "[$(date -Is)] waiting for calibration container $CAL"
 while docker ps --format '{{.Names}}' | grep -qx "$CAL"; do sleep 30; done
 echo "[$(date -Is)] calibration ended; waiting for all GPU processes to exit"
 while [ -n "$(nvidia-smi --query-compute-apps=pid --format=csv,noheader | tr -d '[:space:]')" ]; do sleep 10; done
-for seed in 701 1701 2701; do
+for seed in 701; do
   name="fixed-m4-2100-seed-${seed}"
   echo "[$(date -Is)] starting $name"
   python3 "$ROOT/scripts/2026-09-21_optimization_experiment.py" bench \

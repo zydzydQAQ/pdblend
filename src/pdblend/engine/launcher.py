@@ -33,6 +33,18 @@ class InstanceSpec:
     kv_port: Optional[int] = None
     side_channel_port: Optional[int] = None
     extra_args: tuple[str, ...] = ()
+    # New identity fields are after the historical positional arguments so
+    # callers that constructed InstanceSpec positionally keep their meaning.
+    pp: int = 1
+    generation: int = 0
+    pool_id: str = ""
+    profile_key: str = ""
+
+    def __post_init__(self):
+        if self.tp < 1 or self.pp < 1 or len(self.gpus) != self.tp * self.pp:
+            raise ValueError(f"{self.instance_id}: gpus must contain exactly TP*PP devices")
+        if self.kv_connector == "P2pNcclConnector" and self.pp != 1:
+            raise ValueError("P2pNcclConnector currently supports symmetric PP1 handoff only")
 
     @property
     def model_path(self) -> Path:
@@ -46,6 +58,13 @@ class InstanceSpec:
     @property
     def zmq_address(self) -> str:
         return f"127.0.0.1:{self.kv_port or (self.port + 20000)}"
+
+    @property
+    def stage_map(self) -> dict[int, tuple[int, ...]]:
+        """Deterministic pipeline stage to local-rank mapping for manifests."""
+        if len(self.gpus) != self.tp * self.pp:
+            raise ValueError(f"{self.instance_id}: expected TP*PP={self.tp * self.pp} GPUs, got {len(self.gpus)}")
+        return {stage: tuple(self.gpus[stage * self.tp:(stage + 1) * self.tp]) for stage in range(self.pp)}
 
     def kv_transfer_config(self) -> Optional[dict]:
         if not self.kv_connector:
@@ -66,6 +85,7 @@ class InstanceSpec:
             "--host", "127.0.0.1", "--port", str(self.port),
             "--served-model-name", SERVED_NAME,
             "--tensor-parallel-size", str(self.tp),
+            "--pipeline-parallel-size", str(self.pp),
             "--max-model-len", str(self.max_model_len),
             "--gpu-memory-utilization", str(self.gpu_memory_utilization),
             "--max-num-seqs", str(self.max_num_seqs),
@@ -84,6 +104,12 @@ class InstanceSpec:
 
     def environment(self) -> dict[str, str]:
         env = dict(os.environ)
+        # Container ordinals and host NVML indices need not agree. Bind both
+        # CUDA and the meter to the UUIDs returned by the physical lease.
+        # A queue worker restricts the container to lease UUIDs and passes a
+        # UUID map for metering; inside that container the launcher receives
+        # local ordinals. On a host process (without the map), retain physical
+        # ordinals for backwards compatibility.
         env["CUDA_VISIBLE_DEVICES"] = ",".join(str(g) for g in self.gpus)
         env["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
         env["VLLM_SERVER_DEV_MODE"] = "1"      # exposes /sleep and /wake_up
@@ -136,6 +162,19 @@ class Instance:
         except (urllib.error.URLError, OSError):
             return False
 
+    def health_report(self) -> dict:
+        report = {"instance_id": self.spec.instance_id, "url": self.spec.base_url,
+                  "tp": self.spec.tp, "pp": self.spec.pp, "stage_map": self.spec.stage_map,
+                  "alive": self.alive(), "healthy": self.healthy()}
+        try:
+            rows = subprocess.check_output(
+                ["nvidia-smi", "--query-gpu=index,uuid,memory.used,memory.total,power.draw",
+                 "--format=csv,noheader,nounits"], text=True, timeout=5).splitlines()
+            report["gpu_report"] = [x.strip() for x in rows if x.strip()]
+        except (OSError, subprocess.SubprocessError):
+            report["gpu_report"] = []
+        return report
+
     def wait_ready(self, timeout_s: float = 600.0, poll_s: float = 1.0) -> float:
         started = time.time()
         while time.time() - started < timeout_s:
@@ -145,7 +184,7 @@ class Instance:
             if self.healthy():
                 self.state = "ready"
                 elapsed = time.time() - started
-                self._event("ready", elapsed_s=elapsed)
+                self._event("ready", elapsed_s=elapsed, health=self.health_report())
                 return elapsed
             time.sleep(poll_s)
         raise TimeoutError(f"{self.spec.instance_id} not ready after {timeout_s}s")
@@ -194,11 +233,15 @@ def tp_groups(gpus: Sequence[int], tp: int) -> list[tuple[int, ...]]:
 
 
 def make_specs(model: str, gpus: Sequence[int], tp: int = 1, base_port: int = 8100,
-               **overrides) -> list[InstanceSpec]:
-    # port keyed by first GPU so concurrent fleets on disjoint GPUs never share a port
+               *, pp: int = 1, **overrides) -> list[InstanceSpec]:
+    if tp < 1 or pp < 1:
+        raise ValueError("tp and pp must be positive")
+    # One vLLM process owns TP*PP devices.  The stage/rank mapping is kept in
+    # the spec; the V1 engine receives the same physical group through
+    # CUDA_VISIBLE_DEVICES and creates the pipeline ranks itself.
     return [InstanceSpec(instance_id=f"i{index}", gpus=group, port=base_port + group[0],
-                         model=model, tp=tp, **overrides)
-            for index, group in enumerate(tp_groups(gpus, tp))]
+                         model=model, tp=tp, pp=pp, **overrides)
+            for index, group in enumerate(tp_groups(gpus, tp * pp))]
 
 
 class Fleet:

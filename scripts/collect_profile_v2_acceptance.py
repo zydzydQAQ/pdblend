@@ -5,7 +5,8 @@ import json
 from pathlib import Path
 from pdblend.control.planner import PoolPlanner, PlannerConfig, SLO
 from pdblend.profile.model import PerfModel
-from pdblend.profile.acceptance import SEEDS, m2_gate, relative_error
+from pdblend.seed_config import SEEDS, seed_metadata
+from pdblend.profile.acceptance import m2_gate, relative_error
 from pdblend.profile.validation import benchmark_evidence, verify_audit_binding
 
 p=argparse.ArgumentParser()
@@ -17,7 +18,7 @@ a=p.parse_args()
 model=PerfModel.load(a.profile)
 verify_audit_binding(a.profile)
 planner=PoolPlanner(model,PlannerConfig(8,SLO(5,.15),freqs=model.freqs))
-result=dict(profile=str(a.profile.resolve()),m2_rows=[],fixed={},failures=[])
+result=dict(profile=str(a.profile.resolve()),m2_rows=[],fixed={},failures=[], **seed_metadata())
 for name,n,freq in [('m2-1800',2,1800),('m4-2100',4,2100),('m5-2100',5,2100),('m6-2100',6,2100),('m4-2520',4,2520)]:
  rows=[]
  for seed in SEEDS:
@@ -40,7 +41,10 @@ for name,n,freq in [('m2-1800',2,1800),('m4-2100',4,2100),('m5-2100',5,2100),('m
   if not row['passed']: result['failures'].append(dict(layout=name,**row))
  if name=='m2-1800': result['m2_rows']=rows
  else: result['fixed'][name]=rows
-result['m2_gate']=m2_gate(result['m2_rows'])
+result['m2_gate'] = m2_gate(result['m2_rows'])
+if any(not row.get('passed') for row in result['m2_rows']):
+ result['m2_gate'].update(passed=False, min_m_instances=4)
+ result['m2_gate']['reasons'].append('model feasibility or calibration checks failed')
 result['adaptive_eligible_layouts']=[name for name,rows in result['fixed'].items() if rows and all(r['passed'] for r in rows)]
 result['status']='calibration_experiment'
 a.out.parent.mkdir(parents=True,exist_ok=True);a.out.write_text(json.dumps(result,indent=1));print(json.dumps(result,indent=1))

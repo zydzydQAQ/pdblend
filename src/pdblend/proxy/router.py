@@ -25,6 +25,11 @@ class RequestRecord:
     error: Optional[str] = None
     route_pressure: float = 0.0
     route_reason: str = ""
+    tp: int = 1
+    pp: int = 1
+    pool_id: str = ""
+    generation: int = 0
+    profile_key: str = ""
 
     @property
     def ttft_s(self) -> Optional[float]:
@@ -43,6 +48,12 @@ class InstanceLoad:
     inflight_prefill_tokens: int = 0     # prompts dispatched, first token not yet seen
     inflight_seqs: int = 0               # sequences dispatched, not yet finished
     accepting: bool = True
+    tp: int = 1
+    pp: int = 1
+    pool_id: str = ""
+    generation: int = 0
+    profile_key: str = ""
+    model_id: str = ""
 
 
 class Router:
@@ -51,8 +62,8 @@ class Router:
     def __init__(self, instance_ids, pd_threshold_tokens: int = 0, history: int = 20000,
                  pd_pressure_enter: float = 0.75, pd_pressure_exit: float = 0.55,
                  pd_route_hold_s: float = 0.0, pd_route_stable_windows: int = 1,
-                 pd_min_input_tokens: int = 1024):
-        self.loads = {i: InstanceLoad() for i in instance_ids}
+                 pd_min_input_tokens: int = 1024, instance_metadata: Optional[dict] = None):
+        self.loads = {i: InstanceLoad(**(instance_metadata or {}).get(i, {})) for i in instance_ids}
         self.active: dict[str, list[RequestRecord]] = {i: [] for i in instance_ids}   # in flight, by decode instance
         self.pd_threshold_tokens = pd_threshold_tokens
         self.records: deque[RequestRecord] = deque(maxlen=history)
@@ -73,6 +84,19 @@ class Router:
         self._pd_last_window = None
         self._pd_route_reason = "disabled"
         self.pressure_gate_enabled = False
+
+    def set_instance_metadata(self, instance_id: str, *, tp: int, pp: int = 1, pool_id: str = "",
+                              generation: int = 0, profile_key: str = "", model_id: str = "") -> None:
+        if instance_id not in self.loads:
+            raise KeyError(instance_id)
+        if tp < 1 or pp < 1 or generation < 0:
+            raise ValueError("TP and PP must be positive")
+        if self.loads[instance_id].inflight_seqs or self.loads[instance_id].inflight_prefill_tokens:
+            raise RuntimeError("cannot change topology identity while requests are in flight")
+        self.loads[instance_id].tp, self.loads[instance_id].pp, self.loads[instance_id].pool_id = int(tp), int(pp), pool_id
+        self.loads[instance_id].generation = generation
+        self.loads[instance_id].profile_key = profile_key
+        self.loads[instance_id].model_id = model_id
 
     def configure_pressure_gate(self, *, enter: Optional[float] = None, exit: Optional[float] = None,
                                 hold_s: Optional[float] = None, stable_windows: Optional[int] = None,
@@ -162,10 +186,25 @@ class Router:
     def _least_seqs(self, ids) -> str:
         return min(ids, key=lambda i: (self.loads[i].inflight_seqs, self.loads[i].inflight_prefill_tokens))
 
+    def _compatible_pd(self, prefills, decodes) -> list[tuple[str, str]]:
+        # P2P KV currently has no shape remap. Pair only identical TP/PP and,
+        # when declared, the same resident pool generation.
+        def identity(iid):
+            load = self.loads[iid]
+            return load.tp, load.pp, load.pool_id, load.generation, load.model_id
+        return [(p, d) for p in prefills for d in decodes if p != d
+                and self.loads[p].pp == 1 and identity(p) == identity(d)]
+
+    def _least_pd(self, pairs: list[tuple[str, str]]) -> tuple[str, str]:
+        return min(pairs, key=lambda pair: (self.loads[pair[0]].inflight_prefill_tokens,
+                                           self.loads[pair[1]].inflight_seqs,
+                                           self.loads[pair[1]].inflight_prefill_tokens, pair))
+
     def choose(self, input_tokens: int) -> Optional[tuple[str, str, str]]:
         """Returns (path, prefill_id, decode_id) or None if nothing accepts requests."""
         mixed, prefill, decode = self._pool("M"), self._pool("P"), self._pool("D")
-        pd_possible = bool(prefill and decode)
+        pairs = self._compatible_pd(prefill, decode)
+        pd_possible = bool(pairs)
         if self.pressure_gate_enabled:
             # Commit the evaluated split, even while waiting for a mode change.
             pressure_pd = input_tokens >= max(self.pd_min_input_tokens, self.pd_threshold_tokens)
@@ -173,26 +212,33 @@ class Router:
             pressure_pd = input_tokens >= self.pd_threshold_tokens
         prefer_pd = pd_possible and (not mixed or pressure_pd)
         if prefer_pd:
-            return "PD", self._least_prefill(prefill), self._least_seqs(decode)
+            return ("PD", *self._least_pd(pairs))
         if mixed:
             m = self._least_seqs(mixed)
             return "M", m, m
         if pd_possible:
-            return "PD", self._least_prefill(prefill), self._least_seqs(decode)
+            return ("PD", *self._least_pd(pairs))
         return None
 
-    def dispatch(self, request_id: str, input_tokens: int, max_tokens: int) -> Optional[RequestRecord]:
-        choice = self.choose(input_tokens)
+    def dispatch(self, request_id: str, input_tokens: int, max_tokens: int, *,
+                 choice: Optional[tuple[str, str, str]] = None) -> Optional[RequestRecord]:
+        choice = choice if choice is not None else self.choose(input_tokens)
         if choice is None:
             self.rejected += 1
             return None
         path, p, d = choice
+        if (path == "PD" and (p, d) not in self._compatible_pd(self._pool("P"), self._pool("D"))):
+            raise ValueError("P/D route does not match current topology/generation")
+        if path == "M" and (p != d or p not in self._pool("M")):
+            raise ValueError("mixed route is not accepting")
         self.loads[p].inflight_prefill_tokens += input_tokens
         self.loads[d].inflight_seqs += 1
         record = RequestRecord(request_id, path, p, d, input_tokens, max_tokens, time.time(),
                                route_pressure=self._m_pressure,
                                route_reason=("pressure_pd" if self.pressure_gate_enabled and path == "PD"
-                                             else ("threshold_pd" if path == "PD" else "m_capacity")))
+                                             else ("threshold_pd" if path == "PD" else "m_capacity")),
+                               tp=self.loads[d].tp, pp=self.loads[d].pp, pool_id=self.loads[d].pool_id,
+                               generation=self.loads[d].generation, profile_key=self.loads[d].profile_key)
         self.records.append(record)
         self.active[d].append(record)
         for l in self.listeners:
@@ -219,3 +265,103 @@ class Router:
     def recent(self, window_s: float, now: Optional[float] = None) -> list[RequestRecord]:
         now = now or time.time()
         return [r for r in self.records if r.submitted_s >= now - window_s]
+
+
+class ResidentRouter(Router):
+    """Compose independent per-TP controllers behind one real proxy.
+
+    Each child retains its own model, role plan, clocks and observations. The
+    admission layer compares its current offered path with other resident pools
+    using their own measured costs and available KV capacity.
+    """
+    def __init__(self, pools: dict[str, Router], models: dict[str, object]):
+        from ..control.tp_modes import PoolMember, ResidentTPRouter
+        self.pools, self.models = dict(pools), dict(models)
+        ids = [iid for router in pools.values() for iid in router.loads]
+        if len(ids) != len(set(ids)) or set(pools) != set(models):
+            raise ValueError("resident pools require unique instances and one model per pool")
+        super().__init__(ids)
+        self.loads = {iid: load for router in pools.values() for iid, load in router.loads.items()}
+        self.active = {iid: active for router in pools.values() for iid, active in router.active.items()}
+        self._owners = {iid: pool for pool, router in pools.items() for iid in router.loads}
+        self.quarantined: set[str] = set()
+        self.frequency_provider = lambda iid: max(models[self._owners[iid]].freqs)
+        self._output_tokens = 1
+        members = []
+        for iid, load in self.loads.items():
+            model = models[self._owners[iid]]
+            if model.kv_capacity_tokens <= 0:
+                raise ValueError("resident routing requires measured per-instance KV capacity")
+            members.append(PoolMember(iid, load.model_id, load.tp, load.pp, load.pool_id,
+                                      load.generation, profile_key=load.profile_key,
+                                      capacity_tokens=model.kv_capacity_tokens))
+        self.selector = ResidentTPRouter(members, score=self._score)
+
+    def _score(self, member, input_tokens, tokens, requests):
+        model = self.models[self._owners[member.instance_id]]
+        frequency = self.frequency_provider(member.instance_id) or max(model.freqs)
+        batch = requests + 1
+        context = max(input_tokens, tokens / max(requests, 1))
+        prefill = model.prefill_seconds(input_tokens, frequency) if member.role in ('P', 'M') else 0.0
+        decode = (model.step_seconds(batch, context, frequency) * self._output_tokens
+                  if member.role in ('D', 'M') else 0.0)
+        return prefill + decode
+
+    def set_roles(self, roles, pd_threshold_tokens=None):
+        for pool, router in self.pools.items():
+            router.set_roles({iid: role for iid, role in roles.items() if self._owners[iid] == pool},
+                             pd_threshold_tokens)
+        if pd_threshold_tokens is not None:
+            self.pd_threshold_tokens = pd_threshold_tokens
+
+    def dispatch(self, request_id, input_tokens, max_tokens, **kwargs):
+        from dataclasses import replace
+        self._output_tokens = max_tokens
+        offers = {}
+        allowed = set()
+        for pool, router in self.pools.items():
+            choice = router.choose(input_tokens)
+            if choice is not None:
+                offers[pool] = choice
+                allowed.update(choice[1:])
+        for iid, member in tuple(self.selector.members.items()):
+            load = self.loads[iid]
+            active = (iid in allowed and load.accepting and iid not in self.quarantined
+                      and input_tokens + max_tokens <= 8192)
+            updated = replace(member, accepting=active,
+                              role=load.role if load.role in ('P', 'D', 'M') else member.role)
+            if active:
+                try:
+                    self._score(updated, input_tokens, self.selector._tokens[iid], self.selector._requests[iid])
+                except ValueError as exc:
+                    if 'outside measured coverage' not in str(exc):
+                        raise
+                    updated = replace(updated, accepting=False)
+            self.selector.members[iid] = updated
+        has_mixed = any(choice[0] == 'M' for choice in offers.values())
+        prefer_pd = any(choice[0] == 'PD' and
+                        (not has_mixed or input_tokens >= self.pools[pool].pd_threshold_tokens)
+                        for pool, choice in offers.items())
+        receipt = self.selector.route(request_id, input_tokens, max_tokens=max_tokens, prefer_pd=prefer_pd)
+        if receipt is None:
+            self.rejected += 1
+            return None
+        pool = self._owners[receipt['decode_instance']]
+        choice = (receipt['path'], receipt['prefill_instance'], receipt['decode_instance'])
+        record = self.pools[pool].dispatch(request_id, input_tokens, max_tokens, choice=choice)
+        self.records.append(record)
+        return record
+
+    def first_token(self, record, at_s=None):
+        self.pools[self._owners[record.decode_instance]].first_token(record, at_s)
+
+    def finish(self, record, completion_tokens, error=None):
+        self.pools[self._owners[record.decode_instance]].finish(record, completion_tokens, error)
+        if error is None:
+            self.selector.release(record.request_id, generation=record.generation, terminal_ack=True)
+        else:
+            # An HTTP error alone does not prove native KV/cancel completion.
+            # Keep ownership and prohibit new work until the fleet is cleaned up.
+            for iid in {record.prefill_instance, record.decode_instance}:
+                self.quarantined.add(iid)
+                self.loads[iid].accepting = False

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#536878"/></marker></defs>
+<rect width="960" height="100%" fill="#ffffff"/>
+<text x="480" y="29.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="700" fill="#163047" text-anchor="middle">同一负载、同一窗口、同一延迟要求 / SAME WORKLOAD, WINDOW AND SLO</text>
+<rect x="28" y="61" width="354" height="131" rx="12" fill="#eaf6f3" stroke="#167d7f" stroke-width="1.8"/>
+<text x="205.0" y="96.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="25" font-weight="700" fill="#167d7f" text-anchor="middle">全 M / M-only</text>
+<text x="205.0" y="130.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">全部请求 → M</text>
+<text x="205.0" y="158.12" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">归一化成本 / cost = 100</text>
+<rect x="464" y="61" width="468" height="131" rx="12" fill="#edf4f8" stroke="#23688d" stroke-width="1.8"/>
+<text x="698.0" y="96.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="25" font-weight="700" fill="#23688d" text-anchor="middle">选择性 PD / Selective PD</text>
+<text x="698.0" y="130.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">256 / 512 → M; 2048 / 4096 → P → D</text>
+<text x="698.0" y="158.12" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">阈值 / τ = 1024 tokens</text>
+<path d="M 698,192 L 698,223" fill="none" stroke="#536878" stroke-width="2.4" marker-end="url(#arrow)"/>
+<rect x="464" y="223" width="468" height="116" rx="12" fill="#fff6e9" stroke="#bd7631" stroke-width="1.8"/>
+<text x="698.0" y="258.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#bd7631" text-anchor="middle">只计算一次每项成本</text>
+<text x="698.0" y="292.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">运行及停驻 78 + 交接 8 + 切换 4 = 90</text>
+<text x="698.0" y="320.12" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">交接仅计增量；不是实测结果</text>
+<path d="M 205,192 L 205,362 L 480,362 L 480,397" fill="none" stroke="#167d7f" stroke-width="2.4" marker-end="url(#arrow)"/>
+<path d="M 698,339 L 698,362 L 480,362" fill="none" stroke="#23688d" stroke-width="2.4" marker-end="url(#arrow)"/>
+<rect x="113" y="397" width="734" height="97" rx="12" fill="#edf4f8" stroke="#23688d" stroke-width="1.8"/>
+<text x="480.0" y="432.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#23688d" text-anchor="middle">先检查可行，再检查收益 / Feasibility before savings</text>
+<text x="480.0" y="466.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">在预测达标且切换值得时选 90；若成本为 103 或违反 SLO，则拒绝</text>
+<path d="M 480,494 L 480,526" fill="none" stroke="#536878" stroke-width="2.4" marker-end="url(#arrow)"/>
+<text x="480" y="551.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="21" font-weight="700" fill="#163047" text-anchor="middle">Plan: {P/D/M counts, clocks, parking, τ} → 在线执行 / Online execution</text>
+</svg>

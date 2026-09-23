@@ -1,0 +1,66 @@
+\documentclass[10pt,a4paper,twocolumn]{article}
+\usepackage[fontset=fandol,heading=true]{ctex}
+\usepackage{fontspec}
+\IfFontExistsTF{TeX Gyre Termes}{\setmainfont{TeX Gyre Termes}}{\setmainfont[SmallCapsFont={Latin Modern Roman Caps}]{Latin Modern Roman}}
+\IfFontExistsTF{TeX Gyre Heros}{\setsansfont{TeX Gyre Heros}}{}
+\setmonofont{Latin Modern Mono}
+\usepackage[left=16mm,right=16mm,top=18mm,bottom=19mm,columnsep=6mm]{geometry}
+\usepackage{amsmath,amssymb,booktabs,tabularx,array,multirow}
+\usepackage{graphicx,xcolor,caption,subcaption}
+\usepackage{algorithm,algpseudocode}
+\usepackage{enumitem,microtype,placeins,dblfloatfix,needspace}
+\usepackage[unicode,colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue!55!black]{hyperref}
+\definecolor{ink}{HTML}{183247}
+\definecolor{blue}{HTML}{286B91}
+\definecolor{teal}{HTML}{19796F}
+\definecolor{orange}{HTML}{AC671F}
+\definecolor{muted}{HTML}{596C78}
+\newcommand{\sectionen}[1]{\noindent{\small\itshape #1}\par\nobreak\vspace{3pt}\nobreak}
+\newcommand{\EN}[1]{\par\vspace{2pt}{\small\color{black!78}\noindent #1\par}\vspace{4pt}}
+\newcommand{\implnote}[2]{\par\vspace{4pt}\noindent\textbf{实现对应 / Implementation note.} #1\EN{#2}}
+\newcommand{\role}[1]{\textsf{#1}}
+\newcommand{\proc}[1]{\textsc{#1}}
+\newcommand{\kw}[1]{\textbf{#1}}
+\newcommand{\figref}[1]{图~\ref{#1}}
+\newcommand{\tabref}[1]{表~\ref{#1}}
+\newcommand{\tightlist}{\setlength{\itemsep}{2pt}\setlength{\parsep}{0pt}}
+\algrenewcommand\algorithmicrequire{\textbf{Input:}}
+\algrenewcommand\algorithmicensure{\textbf{Output:}}
+\algrenewcommand\algorithmiccomment[1]{\hfill\(\triangleright\)~#1}
+\captionsetup{font=small,labelfont=bf,labelsep=period,skip=5pt}
+\captionsetup[figure]{name=Figure}
+\captionsetup[table]{name=Table}
+\setlist{leftmargin=1.3em,itemsep=2pt,topsep=3pt}
+\setlength{\parindent}{1em}
+\setlength{\parskip}{2pt}
+\setlength{\textfloatsep}{10pt plus 2pt minus 2pt}
+\setlength{\dbltextfloatsep}{10pt plus 2pt minus 2pt}
+\renewcommand{\topfraction}{.95}
+\renewcommand{\dbltopfraction}{.95}
+\renewcommand{\textfraction}{.05}
+\renewcommand{\floatpagefraction}{.78}
+\renewcommand{\dblfloatpagefraction}{.78}
+\setcounter{topnumber}{3}
+\setcounter{dbltopnumber}{2}
+\emergencystretch=1.5em
+\ctexset{section={format=\large\bfseries,beforeskip=9pt,afterskip=4pt},subsection={format=\normalsize\bfseries,beforeskip=7pt,afterskip=3pt}}
+\title{\vspace{-6mm}\textbf{PDblend：选择性 P/D 分离的方法说明}\\[3pt]
+\large Selective Disaggregation: Models, Planning, and Online Coordination}
+\author{\small 双语方法说明 / Bilingual Method Note}
+\date{}
+\hypersetup{pdftitle={PDblend: Selective Disaggregation},pdfauthor={PDblend method documentation},pdfsubject={A bilingual target-design note with reproducible synthetic examples}}
+\begin{document}
+\pagestyle{plain}
+\maketitle
+\input{sections/01-overview}
+\FloatBarrier
+\Needspace{10\baselineskip}
+\input{sections/02-model}
+\FloatBarrier
+\Needspace{10\baselineskip}
+\input{sections/03-planning}
+\FloatBarrier
+\Needspace{10\baselineskip}
+\input{sections/04-online}
+\FloatBarrier
+\end{document}

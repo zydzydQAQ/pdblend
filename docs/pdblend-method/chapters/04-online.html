@@ -1,0 +1,102 @@
+<section class="page" data-page="9">
+  <div class="eyebrow">04 / ONLINE COORDINATION</div>
+  <h2>在线协同与选择性分流</h2>
+  <p class="subtitle">Online Coordination and Selective Routing</p>
+
+  <h3>Motivation · 为什么需要在线协同</h3>
+  <p>离线模型描述的是测量条件下的服务能力，规划器给出的则是下一阶段的资源安排。真实请求仍会突发到达，长度和排队时间也会变化。因此，系统需要一层持续运行的在线协同机制，把计划落实到引擎，并在预测偏差扩大前保护正在服务的请求。</p>
+  <p class="en">Offline models describe service capacity under measured conditions, while the planner proposes a resource allocation for the next interval. Real arrivals remain bursty, and request lengths and queues keep changing. An online coordinator must turn plans into engine actions and protect requests before prediction errors cause substantial latency violations.</p>
+
+  <h3>Challenge · 不同速度的决策如何配合</h3>
+  <p>请求需要立即选择去向，延迟风险需要秒级响应，而资源规划和实例唤醒耗时更长。同时，旧请求不能因角色改变而失去执行位置，P与D之间还要保持KV和输出的一致性。难点是让这些操作并行推进，又始终清楚哪些资源和配置已经可用。</p>
+  <p class="en">Routing needs an immediate decision, protection needs a rapid reaction, and planning or waking an instance takes longer. Meanwhile, ongoing requests must retain their execution ownership, and a P-to-D handoff must preserve both KV state and output continuity. Coordination must therefore track what is ready while allowing these operations to progress concurrently.</p>
+
+  <h3>Insight · 用有效配置连接快慢循环</h3>
+  <p>将慢速规划、快速保护和逐请求执行连接到同一份有效配置：规划器决定资源组合，保护机制及时提高服务能力，路由器只使用已就绪的实例。每条请求固定自己的执行路径，完成结果再回到观测端；降频和缩容则等待稳定窗口，而非跟随短暂波动反复切换。</p>
+  <p class="en">Connect planning, protection, and request execution through one effective configuration. Planning chooses resources, protection raises capacity when needed, and routing uses ready instances. Each request keeps its selected execution path and reports its outcome. Reducing capacity requires stable observations, preventing brief fluctuations from repeatedly reversing resource decisions.</p>
+
+  <div class="callout"><strong>模块接口 / Module interface</strong><br>输入：请求、性能模型、候选计划、在途负载与延迟。输出：token流、有效配置、资源动作与完成反馈。<span class="en">Inputs: requests, models, proposed plans, load, and latency. Outputs: token streams, effective configurations, resource actions, and completion feedback.</span></div>
+</section>
+
+<section class="page" data-page="10">
+  <div class="eyebrow">04 / ONLINE COORDINATION</div>
+  <h2>Approach · 一条请求如何执行</h2>
+  <p class="subtitle">From selective routing to a continuous output stream</p>
+  <p>沿用8个TP1实例的示例配置：P×1、D×2、M×4、L1×1，路由阈值为1024。短输入256进入可用的M实例；长输入2048在存在兼容P/D组合时进入分离路径。图中仅展开一个P、一个D和一个M，L1表示权重保留、降低频率的停驻实例。输出预算均为128，数值用于解释机制。</p>
+  <p class="en">The example uses eight TP1 instances: one P, two D, four M, and one L1 instance, with a threshold of 1024. A 256-token prompt takes an available M path; a 2048-token prompt takes a compatible PD path. Only the selected P, D, and M are expanded below. L1 retains weights at low clocks. The output budget is 128; values are illustrative.</p>
+
+  <img class="figure" src="figures/04-routing.svg" alt="八实例配置中的选择性路由示例：256-token短请求由M完整执行；2048-token长请求由P生成首token并传输原始prompt的KV，D接收2049-token扩展prompt后继续生成127个token。">
+  <p class="caption">图4 · 首token接力保留P的真实输出，D继续同一序列。图示逻辑依赖，不规定KV传输与计算的精确重叠时序。<span class="en">Figure 4. First-token carry preserves one logical sequence. Arrows show dependencies, not exact compute–transfer overlap.</span></p>
+
+  <p>P先处理2048个输入token，产生首token <em>y1</em>，并交接原始输入的KV。代理立即发出<em>y1</em>，随后把“原prompt + <em>y1</em>”交给D：其prompt长度为2049，剩余输出预算为127。D复用前2048个位置的KV，继续生成<em>y2</em>至<em>y128</em>；合并后的usage仍为输入2048、输出128，首token不会重复计数。</p>
+  <p class="en">P computes the original prompt, produces <em>y1</em>, and provides its KV. The proxy emits <em>y1</em> and sends D the extended 2049-token prompt with a remaining budget of 127. D reuses the original 2048 positions and produces <em>y2</em> through <em>y128</em>. Combined usage remains 2048 input tokens and 128 output tokens.</p>
+
+  <div class="note"><strong>如何理解延迟 / Reading latency.</strong> 客户端收到P产生的首token时，TTFT结束；<em>y1→y2</em>的续接间隙单独观察，可能包含KV传输、HTTP和调度等待。它不等于纯KV拷贝时间。若输出预算仅为1，直接在选定实例生成，不建立远程KV接力。<span class="en">TTFT ends when the client receives P's first token. Observe continuation separately; it includes more than KV copy time. A one-token output bypasses remote handoff.</span></div>
+</section>
+
+<section class="page" data-page="11">
+  <div class="eyebrow">04 / ONLINE COORDINATION</div>
+  <h2>Approach · 压力出现时如何调整</h2>
+  <p class="subtitle">Fast protection, slower planning, and safe transitions</p>
+  <p>在线层汇总到达、首token和完成事件，平滑估计到达率，统计长度与在途负载，判断SLO风险。当前代码的示例周期为1秒检查保护、10秒执行规划；风险变化也可提前触发规划。快速保护作用于候选配置的最终安全约束，压力不会绕过有效配置直接改变某条请求的分流规则。</p>
+  <p class="en">Arrival, first-token, and completion events update demand estimates and SLO risk. Current example periods are one second for protection and ten seconds for planning, with earlier replanning when risk changes. Protection constrains the resulting configuration; pressure does not silently alter an individual request's routing rule.</p>
+
+  <img class="figure" src="figures/05-control.svg" alt="观测驱动1秒快速保护与10秒规划，两者经配置执行影响路由和引擎；时间轴展示突发、保护升级、重新规划、稳定确认后缩容。">
+  <p class="caption">图5 · 快循环应对突发，慢循环重新配置资源；动作完成反馈决定哪些变更可以生效。<span class="en">Figure 5. Protection handles bursts, planning revises resources, and action feedback determines which changes become effective.</span></p>
+
+  <p>扩容时，实例完成唤醒、频率设置和就绪检查后才接收新请求。缩容时，先停止准入，再等待旧请求排空；请求已经选定的P/D或M路径保持不变。角色重标记影响后续请求；复用前需排空旧角色工作，或检查新旧负载重叠是否可行。每次变更保留目标、进度和有效版本，不假设所有实例同时切换。</p>
+  <p class="en">Admit work only after wake-up, clock changes, and readiness checks complete. Before shrinking, stop admission and drain existing work. Requests keep their paths. Before role reuse, drain previous work or validate overlapping load. Track the target, progress, and effective version rather than assuming a simultaneous fleet-wide switch.</p>
+
+
+</section>
+
+<section class="page" data-page="12">
+  <div class="eyebrow">04 / ONLINE COORDINATION</div>
+  <h2>Approach · 在线协同算法</h2>
+  <p class="subtitle">Event-driven coordination with asynchronous request execution</p>
+  <p class="small">下列算法概括目标在线设计，e表示事件。PLAN使用上一章的方法；后台任务完成后返回事件。只接收当前版本的回执；新阈值须与足够的就绪路径容量一起发布。过渡时保留旧配置或检查中间配置，必要时限制准入。</p>
+  <p class="en small">This algorithm expresses the target design. PLAN uses the previous chapter. Background work reports completion events. Accept current-version acknowledgements only. Publish a new threshold with sufficient ready path capacity; retain the old configuration or validate intermediate states, limiting admission if needed.</p>
+
+  <table class="algorithm" aria-label="Algorithm 2 Online coordinate">
+    <caption>Algorithm 2 · ONLINE-COORDINATE</caption>
+    <tbody>
+      <tr><td>1</td><td><code><strong>procedure</strong> ONLINE-COORDINATE()</code></td></tr>
+      <tr><td>2</td><td><code>&nbsp;&nbsp;config ← READY-SAFE-START(); candidate ← config; pending ← ∅</code></td></tr>
+      <tr><td>3</td><td><code>&nbsp;&nbsp;<strong>while</strong> the service is running</code></td></tr>
+      <tr><td>4</td><td><code>&nbsp;&nbsp;&nbsp;&nbsp;e ← NEXT-EVENT-OR-TIMER()</code></td></tr>
+      <tr><td>5</td><td><code>&nbsp;&nbsp;&nbsp;&nbsp;state ← OBSERVE-AND-UPDATE(e)</code></td></tr>
+      <tr><td>6</td><td><code>&nbsp;&nbsp;&nbsp;&nbsp;<strong>if</strong> REQUEST-RESULT(e) <strong>then</strong> RECORD-OUTCOME(e)</code></td></tr>
+      <tr><td>7</td><td><code>&nbsp;&nbsp;&nbsp;&nbsp;<strong>if</strong> ACTION-ACK(e) <strong>then</strong> config ← PUBLISH-ADMISSIBLE(e, pending, config)</code></td></tr>
+      <tr><td>8</td><td><code>&nbsp;&nbsp;&nbsp;&nbsp;<strong>if</strong> NEW-REQUEST(e) <strong>then SPAWN</strong> SERVE(e.request, config)</code></td></tr>
+      <tr><td>9</td><td><code>&nbsp;&nbsp;&nbsp;&nbsp;risk ← UPDATE-PROTECTION(state)</code></td></tr>
+      <tr><td>10</td><td><code>&nbsp;&nbsp;&nbsp;&nbsp;<strong>if</strong> SLOW-TICK(e) <strong>or</strong> RISK-CHANGED(risk) <strong>then</strong></code></td></tr>
+      <tr><td>11</td><td><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SPAWN-OR-COALESCE-PLAN(FORECAST(state), config)</code></td></tr>
+      <tr><td>12</td><td><code>&nbsp;&nbsp;&nbsp;&nbsp;<strong>if</strong> PLAN-READY(e) <strong>and</strong> STILL-VALID(e, state) <strong>then</strong></code></td></tr>
+      <tr><td>13</td><td><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;candidate ← e.plan</code></td></tr>
+      <tr><td>14</td><td><code>&nbsp;&nbsp;&nbsp;&nbsp;target ← STABILITY-FILTER(candidate, config, state)</code></td></tr>
+      <tr><td>15</td><td><code>&nbsp;&nbsp;&nbsp;&nbsp;target ← PROTECT(target, risk)</code></td></tr>
+      <tr><td>16</td><td><code>&nbsp;&nbsp;&nbsp;&nbsp;<strong>if</strong> NEW-VALID-TARGET(target, config, pending) <strong>then</strong></code></td></tr>
+      <tr><td>17</td><td><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;pending ← START-ASYNC-TRANSITION(config, target)</code></td></tr>
+      <tr><td>18</td><td><code>&nbsp;&nbsp;&nbsp;&nbsp;HANDLE-FAILED-ACTIONS(e, pending)</code></td></tr>
+    </tbody>
+  </table>
+
+  <table class="algorithm" aria-label="Algorithm 3 Async serve">
+    <caption>Algorithm 3 · SERVE — asynchronous helper</caption>
+    <tbody>
+      <tr><td>1</td><td><code><strong>procedure async</strong> SERVE(request, config)</code></td></tr>
+      <tr><td>2</td><td><code>&nbsp;&nbsp;path ← NONE; <strong>try</strong></code></td></tr>
+      <tr><td>3</td><td><code>&nbsp;&nbsp;&nbsp;&nbsp;path ← VALIDATE-AND-RESERVE(request, SNAPSHOT(config))</code></td></tr>
+      <tr><td>4</td><td><code>&nbsp;&nbsp;&nbsp;&nbsp;<strong>if</strong> path = NONE <strong>then raise</strong> UNAVAILABLE</code></td></tr>
+      <tr><td>5</td><td><code>&nbsp;&nbsp;&nbsp;&nbsp;<strong>if</strong> path = M <strong>or</strong> request.output = 1: result ← <strong>await</strong> SINGLE(path, request)</code></td></tr>
+      <tr><td>6</td><td><code>&nbsp;&nbsp;&nbsp;&nbsp;<strong>else</strong>: result ← <strong>await</strong> CARRY-FIRST-THEN-DECODE(path, request)</code></td></tr>
+      <tr><td>7</td><td><code>&nbsp;&nbsp;<strong>catch</strong> failure: result ← FAILED(failure)</code></td></tr>
+      <tr><td>8</td><td><code>&nbsp;&nbsp;<strong>finally</strong>: REPORT-ONCE-AND-RESOLVE-OWNERSHIP(request, result, path)</code></td></tr>
+    </tbody>
+  </table>
+
+  <p class="small">定时器独立触发，规划任务合并去重，过期结果丢弃。PROTECT只在覆盖内对已有角色增容或升频，保持阈值与保护容量下界；改分流需重新评估。预算为1时不占用D；成功、失败及取消均上报一次，资源释放未确认时隔离。</p>
+  <p class="en small">Timers fire independently; coalesce planning jobs and discard stale results. PROTECT preserves the threshold and capacity floor, adding covered capacity or clocks to existing roles. Re-evaluate routing changes. One-token outputs reserve no D. Report each outcome once; quarantine uncertain releases.</p>
+
+  <div class="note small"><strong>实现边界 / Implementation boundary.</strong> 主控制器当前排空依据为代理计数；目标设计进一步确认原生KV与传输完成。当前PD支持token-ID输入、greedy、固定输出预算和同TP/PP1接力。以上异步回执算法是目标组织方式，不声称当前主控已完整实现。<span class="en">Current drain uses proxy counts; the target also confirms native KV and transfer completion. PD currently requires token IDs, greedy sampling, a fixed output budget, and matching TP with PP1. The acknowledgement-driven algorithm is a target design.</span></div>
+</section>

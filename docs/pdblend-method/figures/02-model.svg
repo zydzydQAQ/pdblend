@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="525" viewBox="0 0 960 525">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#536878"/></marker></defs>
+<rect width="960" height="100%" fill="#ffffff"/>
+<text x="480" y="29.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="21" font-weight="700" fill="#163047" text-anchor="middle">同一请求 / SAME REQUEST: 2048 input tokens → 128 output tokens</text>
+<rect x="20" y="56" width="218" height="101" rx="12" fill="#fff6e9" stroke="#bd7631" stroke-width="1.8"/>
+<text x="129.0" y="91.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="21" font-weight="700" fill="#bd7631" text-anchor="middle">Prefill</text>
+<text x="129.0" y="125.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">输入长度 × 频率</text>
+<path d="M 129,157 L 129,184 L 480,184 L 480,210" fill="none" stroke="#bd7631" stroke-width="2.4" marker-end="url(#arrow)"/>
+<rect x="257" y="56" width="218" height="101" rx="12" fill="#fff6e9" stroke="#bd7631" stroke-width="1.8"/>
+<text x="366.0" y="91.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="21" font-weight="700" fill="#bd7631" text-anchor="middle">Decode</text>
+<text x="366.0" y="125.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">batch × context × 频率</text>
+<path d="M 366,157 L 366,184 L 480,184 L 480,210" fill="none" stroke="#bd7631" stroke-width="2.4" marker-end="url(#arrow)"/>
+<rect x="494" y="56" width="218" height="101" rx="12" fill="#fff6e9" stroke="#bd7631" stroke-width="1.8"/>
+<text x="603.0" y="91.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="21" font-weight="700" fill="#bd7631" text-anchor="middle">Mixed</text>
+<text x="603.0" y="125.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">阶段干扰与功率</text>
+<path d="M 603,157 L 603,184 L 480,184 L 480,210" fill="none" stroke="#bd7631" stroke-width="2.4" marker-end="url(#arrow)"/>
+<rect x="731" y="56" width="218" height="101" rx="12" fill="#fff6e9" stroke="#bd7631" stroke-width="1.8"/>
+<text x="840.0" y="91.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="21" font-weight="700" fill="#bd7631" text-anchor="middle">Handoff / Switch</text>
+<text x="840.0" y="125.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">交接与配置切换</text>
+<path d="M 840,157 L 840,184 L 480,184 L 480,210" fill="none" stroke="#bd7631" stroke-width="2.4" marker-end="url(#arrow)"/>
+<rect x="215" y="210" width="530" height="99" rx="12" fill="#edf4f8" stroke="#23688d" stroke-width="1.8"/>
+<text x="480.0" y="245.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="24" font-weight="700" fill="#23688d" text-anchor="middle">统一模型 / Cost model</text>
+<text x="480.0" y="279.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">shape + layout → time, power, cost, coverage</text>
+<path d="M 330,309 L 330,348" fill="none" stroke="#536878" stroke-width="2.4" marker-end="url(#arrow)"/>
+<path d="M 672,309 L 672,348" fill="none" stroke="#536878" stroke-width="2.4" marker-end="url(#arrow)"/>
+<rect x="40" y="348" width="412" height="109" rx="12" fill="#eaf6f3" stroke="#167d7f" stroke-width="1.8"/>
+<text x="246.0" y="383.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#167d7f" text-anchor="middle">路径 A / Mixed</text>
+<text x="246.0" y="417.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">同一实例读输入并生成输出</text>
+<text x="246.0" y="445.12" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">计入 mixed 干扰，无跨实例 KV 交接</text>
+<rect x="508" y="348" width="412" height="109" rx="12" fill="#edf4f8" stroke="#23688d" stroke-width="1.8"/>
+<text x="714.0" y="383.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#23688d" text-anchor="middle">路径 B / Selective PD</text>
+<text x="714.0" y="417.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">P → KV handoff → D</text>
+<text x="714.0" y="445.12" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">分别配置频率，计入额外交接成本</text>
+<path d="M 246,457 L 246,480 L 480,480" fill="none" stroke="#536878" stroke-width="2.4" marker-end="url(#arrow)"/>
+<path d="M 714,457 L 714,480 L 480,480" fill="none" stroke="#536878" stroke-width="2.4" marker-end="url(#arrow)"/>
+<text x="480" y="513.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="700" fill="#163047" text-anchor="middle">向 Planning 提供同口径预测 / Comparable predictions for planning</text>
+</svg>

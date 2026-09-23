@@ -1,0 +1,7 @@
+Make a minimal localized correction to this research figure. Preserve its style, layout, title and all other text.
+
+Focus ONLY on the LOWER long-request timing example. The client row accidentally has a duplicated y₂. Redraw that lower client row cleanly with exactly FOUR yellow token boxes, labeled left to right: y₁, y₂, y₃, …, y₁₂₈. Delete the erroneous extra yellow token at the gray/blue boundary. Keep y₁ under the end of green P(2048). Put y₂ slightly to the right of the END of the FIRST blue D cell. Put y₃ slightly to the right of the END of the SECOND blue D cell. Draw arrows from those two blue cell ENDS to y₂ and y₃ respectively. There must be only ONE y₂. Put the dashed Continuation gap bracket between y₁ and y₂. Put the blue dashed Inter-token gap bracket exactly between y₂ and y₃, with its label underneath. Keep the red TTFT bracket ending at y₁. Keep all protocol numbers and the TPOT formula.
+
+Also delete the misleading solid DOWN arrow below "Offline profiling" and delete the short right-pointing arrow protruding from the "P: I0 → compatible D: I2" routing box. These two arrows should simply be absent. Keep all other arrows and content.
+
+Do not add any new yellow token boxes, labels or other changes. Output the corrected complete figure.

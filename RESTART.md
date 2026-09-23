@@ -1,85 +1,107 @@
-# RESTART — PDblend eval-7b-v2 矩阵实验重启手册
+# RESTART — 三模型 seed701 队列恢复手册
 
-## 0. 一句话
+本手册用于当前三模型队列的平滑恢复。当前状态入口是
+[`results/2026-09-23/status/current.md`](results/2026-09-23/status/current.md)。
+运行 `python3 scripts/2026-09-23_live_status.py` 可按实际队列和验收凭据刷新。
 
-矩阵 runner 幂等续跑：`results/v2/eval-7b-v2/<点名>/summary.json` 存在即跳过。任何时候停掉、用 §3 原命令重拉，都会从第一个未完成点继续。**改代码或改 spec 必须重启 runner 才生效**（进程只在启动时读一次）；`scripts/build_compare_csv.py` 是离线脚本，随改随用。
+当前调度状态是 `results/2026-09-22/three-model/queue.json`。它是会被 worker heartbeat、lease
+claim 和完成 receipt 更新的**可变调度状态**，不是 immutable receipt；需要保留的 immutable
+证据在各 attempt、raw、manifest 和冻结源码目录中。
 
-## 1. 停机时状态（2026-09-21 15:00）
+当前运行约束固定为：Qwen2.5-7B-Instruct、Qwen2.5-14B-Instruct、Qwen2.5-32B-Instruct，
+`pdblend:l20-cu128-vllm-v1`（vLLM 0.10.1.1）、Torch 2.7.1、CUDA 12.8.1、8×L20，
+功能工作负载使用 seed 701。三模型的权重、tokenizer、model verification receipt 和独立
+profile/predictor 必须逐一存在并通过 identity 校验。
 
-- 工作区 `/home/pdblend4`：代码、语料（`datasets/prepared/2026-09-21-7b-v2-half`）、profile（`results/v2/profile-7b/profile.json`）、spec（`results/v2/eval-7b-v2/spec.json`）、结果全部在此。唯一外部依赖：`/home/models` 模型权重挂载 + 镜像 `pdblend:l20-cu128-vllm-v1`。
-- 进度 **16/156**。点顺序：sharegpt-x0.5 五策略快速组 ✓ → alpaca x0.1–x0.9 mixed ✓ → sharegpt x0.1–x0.2 mixed ✓；`sharegpt-x0.3-mixed` 曾发生引擎退出，已归档并会从原 spec 重跑。其余点按 spec 顺序继续。
-- 主判定指标：**j_per_token（全程能耗÷输出 token）**，门槛 joint_slo_rate≥0.9；对比表 = `results/v2/eval-7b-v2/compare.csv`。
-- **冻结纪律**：baseline（mixed/distserve_static/dynamollm/ecoserve）测完即冻结。禁止改动共享规划模型参数（`control/planner.py` 的 safety/rho_decode/dwell_s 及 decode/prefill 模型、`profile.json`）——否则已测 baseline 与 static_best 全部失效。pdblend 独占路径可改：`control/policies/__init__.py` 的 pdblend 条目、`control/controller.py`、`control/shield.py`。
-- 每个新点落盘：summary.json / outcomes.jsonl / power.jsonl / **util.jsonl（SM 利用率）/ freq.jsonl（频率）** / controller.jsonl / logs/。前 13 个点（重启前测的）没有 util/freq，compare.csv 里对应列为空。
+旧版 7B `results/v2` 手册仅作历史证据，原文归档为
+[`RESTART-legacy.md`](results/archive/docs-2026-09-23/RESTART-legacy.md)，SHA256 为
+`a44591dda529a9066cde9105e75793458bc26eeb9d45ebbe7f5a79483188645b`。
 
-## 2. 停止
-
-```bash
-docker stop pdb2-matrix-v2
-# 清理残点（无 summary.json 的目录 = 被中断的点，重启后自动重跑）：
-for d in /home/pdblend4/results/v2/eval-7b-v2/*/; do [ -f "$d/summary.json" ] || rm -rf "$d"; done
-# 必须确认 8 卡显存全部归零再重启：
-nvidia-smi --query-gpu=index,memory.used --format=csv,noheader
-```
-
-## 3. 重启（逐字命令）
+## 1. 先读取当前状态
 
 ```bash
 cd /home/pdblend4
-setsid nohup docker run --rm --name pdb2-matrix-v2 \
-  --ulimit nofile=65536:65536 --gpus all --cap-add SYS_ADMIN --ipc=host --shm-size=16g \
-  --network host \
-  -v /home/pdblend4:/home/pdblend4 -v /home/models:/models \
-  -e PYTHONPATH=/home/pdblend4/src -e PDBLEND_MODELS_DIR=/models \
-  -w /home/pdblend4 \
-  pdblend:l20-cu128-vllm-v1 \
-  python -m pdblend.cli matrix results/v2/eval-7b-v2/spec.json \
-  >> /home/pdblend4/results/v2/logs/eval-7b-v2-matrix.log 2>&1 &
+cat results/2026-09-23/status/current.md 2>/dev/null || true
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src \
+  /home/pdblend/.venv/bin/python scripts/2026-09-22_gpu_campaign_queue.py \
+  --db results/2026-09-22/three-model/queue.json status
+ps -eo pid,stat,etime,args | rg '[2]026-09-22_gpu_campaign_queue.py'
+nvidia-smi --query-gpu=index,uuid,memory.used,utilization.gpu --format=csv,noheader
 ```
 
-## 4. 验证重启成功
+worker PID 会变化；以进程参数和当前 worker receipt 为准。确认 queue 中的 active lease、attempt
+目录和 worker 日志，不能只根据进程是否存在判断可以重启。
 
-2 分钟内：
-```bash
-docker ps --format '{{.Names}} {{.Status}}' | grep pdb2-matrix-v2   # Up
-tail -5 /home/pdblend4/results/v2/logs/eval-7b-v2-matrix.log
-# 日志应打印 [HH:MM:SS] <点名>: {...}，且是 spec 中第一个无 summary.json 的点
-```
-首个新点完成（约 6–8 分钟）后：
-```bash
-ls /home/pdblend4/results/v2/eval-7b-v2/<点名>/
-# 应有 summary.json + util.jsonl + freq.jsonl（缺后两者说明跑的是旧代码）
-```
+## 2. 平滑 drain
 
-## 5. 看进度 / 出对比表
+如果 worker 仍在运行，创建 stop 文件只会阻止领取新任务，不会中断当前租约：
 
 ```bash
-# 一次性快照（容器状态 + 完成数 + 最近点 + 错误行）：
-bash /home/pdblend4/scripts/matrix-watch-v2.sh
-
-# 重建 compare.csv（幂等；CPU-only，容器内跑，几秒）：
-docker run --rm --ulimit nofile=65536:65536 --network none \
-  -v /home/pdblend4:/home/pdblend4 -e PYTHONPATH=/home/pdblend4/src -w /home/pdblend4 \
-  pdblend:l20-cu128-vllm-v1 \
-  python scripts/build_compare_csv.py results/v2/eval-7b-v2
-# stdout 末尾打印 pdblend PASS/LOSE 计数与失利点名单；全表在 results/v2/eval-7b-v2/compare.csv
+touch results/2026-09-23/remaining-parallel-execution-v1/worker-v3.stop
 ```
 
-## 6. 注意事项
+随后反复读取 queue status、active lease、worker 日志和 GPU 状态，等待当前任务自然结束，
+并确认 owned process/clock cleanup receipt 已清空。不要删除 attempt 目录、raw、manifest 或
+queue 条目；失败和未完成 attempt 由恢复流程保留以供审计。
 
-- **残点/错点**：runner 遇异常会在点目录写 error.txt 并继续下一点。要重测某点：删该点整个目录，再按 §3 重启（或直接等 matrix 自然跑到它——只会跑缺失点）。
-- **pdblend 无需二次重启**：暖启动代码（warm_start + hold_initial + margin=0.08）已在当前镜像代码里，且只触达 pdblend 路径；baseline 有 summary.json 不会被重测。只有当你又改了 pdblend 侧代码时，才按 §2/§3 再重启一次。
-- **判定口径**：compare.csv 一律从 outcomes.jsonl 原始记录重算（ttft/tpot 百分位、joint、goodput、j/token），跨点口径一致，**判定以 compare.csv 为准**；summary.json 的 slo 块由 runner 进程内代码计算，新旧点可能有细微口径差（nearest_rank 改造），不影响 compare.csv。
-- **单点 smoke**（优化循环用；需 GPU 空闲，先停矩阵）：
-  ```bash
-  docker run --rm --ulimit nofile=65536:65536 --gpus all --cap-add SYS_ADMIN --ipc=host --shm-size=16g \
-    --network host -v /home/pdblend4:/home/pdblend4 -v /home/models:/models \
-    -e PYTHONPATH=/home/pdblend4/src -e PDBLEND_MODELS_DIR=/models -w /home/pdblend4 \
-    pdblend:l20-cu128-vllm-v1 \
-    python -m pdblend.cli bench --policy pdblend --profile results/v2/profile-7b/profile.json \
-      --corpus datasets/prepared/2026-09-21-7b-v2-half --dataset sharegpt --rate 8.11 --scale 0.5 \
-      --duration 300 --seed 701 --out results/v2/smoke/<自定义名>
-  ```
-- **测试**：改码后跑 `docker run --rm --ulimit nofile=65536:65536 --network none -v /home/pdblend4:/home/pdblend4 -e PYTHONPATH=/home/pdblend4/src -w /home/pdblend4 pdblend:l20-cu128-vllm-v1 python -m pytest tests/pdblend/ -q`，要求 67 passed + 1 skipped。
-- 别动无关容器（如其他终端的 focused_joliot）。git 提交用 `git -c user.name=pdblend -c user.email=noreply@local commit ...`。
-- 战役文档：`results/v2/eval-7b-v2/OPTIMIZATION-LOG.md`（判定标准 + 优化迭代记录）；baseline 全量完成后补 `BASELINES-FROZEN.md` 快照。
+只有在确认没有 owned active lease、GPU 已释放且 worker 已退出后，才可移除这个单一 stop 文件：
+
+```bash
+python3 - <<'PY'
+from pathlib import Path
+p = Path("results/2026-09-23/remaining-parallel-execution-v1/worker-v3.stop")
+if p.exists():
+    p.unlink()
+PY
+```
+
+禁止使用旧手册中的 `rm -rf` 批量清理；当前恢复必须依靠 queue lease 和 attempt 幂等性。
+
+## 3. 使用当前 worker 恢复
+
+先查看当前 CLI 帮助，确认部署中的 worker 参数，再从仓库根目录启动；不要复用旧 7B
+matrix runner：
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src \
+  /home/pdblend/.venv/bin/python scripts/2026-09-22_gpu_campaign_queue.py \
+  --db results/2026-09-22/three-model/queue.json worker --help
+```
+
+当前配置为八个 worker。六成员 profile 波次需要至少六个可领取任务的 worker，少于六个会使
+已启动成员等待尚未启动的成员。当前进程信息保存在
+`results/2026-09-23/remaining-parallel-execution-v1/worker-v3.json`；恢复时保留相同 stop-file：
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src \
+  /home/pdblend/.venv/bin/python scripts/2026-09-22_gpu_campaign_queue.py \
+  --db results/2026-09-22/three-model/queue.json worker --workers 8 \
+  --stop-file results/2026-09-23/remaining-parallel-execution-v1/worker-v3.stop \
+  >> results/2026-09-23/remaining-parallel-execution-v1/worker-v3.log 2>&1
+```
+
+worker 必须使用 lease 提供的 GPU UUID、local index、端口和 concurrency-environment；不要在
+命令行手写物理 GPU，也不要复用旧容器名或旧 attempt 输出目录。
+
+## 4. 重启后核验
+
+```bash
+cat results/2026-09-23/status/current.md 2>/dev/null || true
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src \
+  /home/pdblend/.venv/bin/python scripts/2026-09-22_gpu_campaign_queue.py \
+  --db results/2026-09-22/three-model/queue.json status
+nvidia-smi --query-gpu=index,uuid,memory.used,utilization.gpu --format=csv,noheader
+tail -50 results/2026-09-23/remaining-parallel-execution-v1/worker-v3.log
+```
+
+接受新任务前，确认三模型 identity、source/image hash、seed701、profile/predictor 路径和
+lease port window 均来自当前 queue payload。development smoke、CPU replay 或普通请求
+不能提升为 formal 或 energy qualification；相应的 `formal_eligible` 和
+`energy_comparable` 必须由 acceptance receipt 明确证明。
+
+## 5. 不可删除的恢复证据
+
+保留所有 raw samples、model/tokenizer manifests、verification receipts、predictor artifacts、
+冻结源码、attempt receipts、concurrency-environment snapshots 和 queue lease history。历史
+整理只能使用 `results/archive/` 中带 hash 的 cleanup tombstone，并逐项递归核对引用；不要
+移动或改写绝对路径、原始数据或 immutable manifest。

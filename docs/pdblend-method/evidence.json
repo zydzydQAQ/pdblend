@@ -1,0 +1,80 @@
+{
+  "captured_utc": "2026-09-23T06:49:51.842107+00:00",
+  "git_head": "388c791f9d9a1ebde1a8b78a6a99315fd190b272",
+  "working_tree_status": [
+    " M src/pdblend/bench/run.py",
+    " M src/pdblend/control/controller.py",
+    " M src/pdblend/control/planner.py",
+    " M src/pdblend/control/policies/__init__.py",
+    " M src/pdblend/engine/client.py",
+    " M src/pdblend/profile/model.py",
+    " M src/pdblend/profile/profiler.py",
+    " M src/pdblend/proxy/router.py",
+    " M src/pdblend/proxy/server.py",
+    "?? src/pdblend/engine/carry.py",
+    "?? src/pdblend/engine/handoff_timing.py",
+    "?? src/pdblend/profile/calibration.py",
+    "?? src/pdblend/profile/power_calibration.md",
+    "?? src/pdblend/profile/power_table.py",
+    "?? tests/pdblend/test_carry_protocol.py"
+  ],
+  "source_groups": {
+    "modeling": [
+      "src/pdblend/profile/model.py",
+      "src/pdblend/profile/profiler.py",
+      "src/pdblend/profile/calibration.py",
+      "src/pdblend/profile/power_table.py",
+      "src/pdblend/profile/power_calibration.md"
+    ],
+    "planning": [
+      "src/pdblend/control/planner.py",
+      "src/pdblend/control/forecast.py",
+      "src/pdblend/control/policies/__init__.py"
+    ],
+    "online": [
+      "src/pdblend/control/controller.py",
+      "src/pdblend/control/shield.py",
+      "src/pdblend/proxy/router.py",
+      "src/pdblend/proxy/server.py",
+      "src/pdblend/engine/carry.py",
+      "src/pdblend/engine/client.py",
+      "src/pdblend/engine/handoff_timing.py",
+      "src/pdblend/bench/run.py",
+      "src/pdblend/bench/metering.py"
+    ],
+    "examples": [
+      "tests/pdblend/synthetic.py",
+      "tests/pdblend/test_model.py",
+      "tests/pdblend/test_carry_protocol.py"
+    ]
+  },
+  "sha256": {
+    "src/pdblend/profile/model.py": "565c2ad14de6fff5f23e886bd175dee7ac0c3f9dce87e5e008ee50439d3daf40",
+    "src/pdblend/profile/profiler.py": "dff4d743917a7b447289de3d71ee466a70c35d08260c593be5d3fb9cab4f1a95",
+    "src/pdblend/profile/calibration.py": "0c70dd3779bf92c57adbd0961ed5769f02c06920c80211e13299002b7af9d821",
+    "src/pdblend/profile/power_table.py": "fa2613897eca3890fb2fe3d9e1ec7f0647d5ee4525a7603990e5ff83675b97fe",
+    "src/pdblend/profile/power_calibration.md": "038f07180cf6e8232bd0db4df5e5337780956848f84ba78b119449083c68b80c",
+    "src/pdblend/control/planner.py": "1f87843a13362de69cbc585f928df1969180ac0604a684952ca545cce3b5f230",
+    "src/pdblend/control/forecast.py": "06a254a1b45da446c97b0708b88be75c99fb66f6fe5aa3ca20a7c84de85db29c",
+    "src/pdblend/control/policies/__init__.py": "5a25e784c8b1760f7e7957f0ffb68d76c1bc1cdb99aa9af11fa0f3c65a337e9e",
+    "src/pdblend/control/controller.py": "3e445979db3d1d7ebcc4250d92c4c42346b092a0f8fc4abb80412dc764ee5048",
+    "src/pdblend/control/shield.py": "acc67472392eabac28eedb3372dafb1e4a094bf490d9d0c9f7ef4b7284a5ca24",
+    "src/pdblend/proxy/router.py": "41ef9e3db4bc078cba5f017d3c84b0ff858899ee420877f3b8de078753fae340",
+    "src/pdblend/proxy/server.py": "af3b696d4cd201a6fb1fa49946fc34ca2578514186f5eb1364ceb3f227643621",
+    "src/pdblend/engine/carry.py": "91287f9be146488d706d17f293e020aed40967a3ef765085912c0190e3a0503e",
+    "src/pdblend/engine/client.py": "e35b5d213d7412577cb028ce831d27fb3f8f9db1796046fe3d13aff7b230f139",
+    "src/pdblend/engine/handoff_timing.py": "013b47fcfdc1999ec1466143d0e39826e29225a305374baaefa31b6bed77e714",
+    "src/pdblend/bench/run.py": "6dc9932f54d5f52352a8e2c012b3e53e11a5e8849a114fffcb86c22c99e98ab2",
+    "src/pdblend/bench/metering.py": "9ed5bc82f2430279d50a5d469a1afedc0152fd4d5e905020b037af827d21a72f",
+    "tests/pdblend/synthetic.py": "9b2fbf398d493dbcb996819b761ebb03e39284250a21a5c361bec02a3de062f0",
+    "tests/pdblend/test_model.py": "7b6f8d32f82099c78178c0602258f4bedd8b0d698486a644cf9d5627b71d9ba9",
+    "tests/pdblend/test_carry_protocol.py": "4d6368f7a490a1ccd587bccde8004ad03fd7872bd1225b91b5bbb92c06ec04b6"
+  },
+  "document_scope": "Target selective-disaggregation design, with chapter-end implementation notes.",
+  "example_status": "Illustrative, not measured GPU performance or an accepted energy comparison.",
+  "current_vs_target": {
+    "modeling": "Current code has performance/power queries, bounded overrides, handoff timing and partial switch costs. Uniform incremental handoff energy remains a design target.",
+    "planning": "Current default search retains min(4, slots) M instances. Target planning removes the fixed floor and separately models visible TTFT and continuation cost.",
+    "online": "Current main controller drains proxy request counts. Full native KV/transfer acknowledgement and the asynchronous transaction presentation are target design."
+  }
+}

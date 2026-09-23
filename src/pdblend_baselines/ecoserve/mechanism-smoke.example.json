@@ -1,0 +1,14 @@
+{
+  "instances": [
+    {"id": "eco0", "gpus": [0]},
+    {"id": "eco1", "gpus": [1]}
+  ],
+  "eco_prefill_csv": "/absolute/path/ecoserve-prefill.csv",
+  "slo_ttft_s": 2.0,
+  "slo_tpot_s": 0.1,
+  "eco_initial_instances": 2,
+  "eco_active_frequency_mhz": 2520,
+  "eco_state_poll_s": 0.05,
+  "eco_scale_period_s": 60,
+  "request_timeout_s": 120
+}

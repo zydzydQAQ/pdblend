@@ -202,7 +202,7 @@ def _paper_profiles(model: PerfModel):
                 for b in batches:
                     rows.append(dict(role="mixed", tp=1, frequency_mhz=f, input_tokens=n, context_tokens=c, batch=b,
                                      prefill_s=model.prefill_seconds(n, f), iteration_s=model.step_seconds(b, c, f),
-                                     prefill_power_w=model.prefill_power_w(n, f), decode_power_w=model.decode_power_w(b, f),
+                                     prefill_power_w=model.prefill_power_w(n, f), decode_power_w=model.decode_power_w(b, f, ctx=c),
                                      samples=1, source_sha256="perfmodel"))
     return PaperProfiles(rows)
 
@@ -225,11 +225,11 @@ def dynamo_freq(model: PerfModel, slo: SLO, trials: int, seed: int) -> dict:
 
         ctx = n + max(o, emitted + 1)
         remaining = max(1, o - emitted)
-        feasible = [f for f in model.freqs if model.step_seconds(B, ctx, f) <= slo.tpot_s]
+        feasible = [f for f in model.freqs if model.decode_supported(B, ctx, f) and model.decode_power_supported(B, ctx, f) and model.step_seconds(B, ctx, f) <= slo.tpot_s]
         legacy_feasible = [f for f in model.freqs if policy.feasible(replica, reqs, now, f) is not None]
         feasible_agree += feasible == legacy_feasible
         if feasible:
-            new = min(feasible, key=lambda f: (remaining * model.step_seconds(B, ctx, f) * model.decode_power_w(B, f), f))
+            new = min(feasible, key=lambda f: (remaining * model.step_seconds(B, ctx, f) * model.decode_power_w(B, f, ctx=ctx), f))
         else:
             new = max(model.freqs)
         agree += legacy == new

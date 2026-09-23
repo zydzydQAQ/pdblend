@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
 from pdblend.experimentation.lease import GPULeaseQueue, LeaseConflict, LeaseExpired
+from pdblend.experimentation.worker import run_one
 
 
 class FakeClock:
@@ -124,3 +128,139 @@ def test_exclusive_job_waits_for_all_gpus_and_then_claims_them(tmp_path):
     q.complete(group.lease_id, group.token)
     whole = q.claim(owner_pid=os.getpid())
     assert whole is not None and set(whole.gpu_uuids) == {"GPU-a", "GPU-b"}
+
+
+def test_workers_execute_disjoint_subprocesses_concurrently(tmp_path):
+    q = GPULeaseQueue(tmp_path / "queue.json", gpu_probe=probe)
+    code = (
+        "import json, pathlib, sys, time; "
+        "start=time.time(); time.sleep(0.35); end=time.time(); "
+        "p=pathlib.Path(sys.argv[1]); "
+        "(p/'completion.json').write_text(json.dumps({'status':'passed','complete':True,'gpu_uuids':sys.argv[2],'local':sys.argv[3],'start':start,'end':end}))"
+    )
+    for name in ("a", "b"):
+        q.enqueue(name, {
+            "gpu_count": 1,
+            "argv": [sys.executable, "-c", code, "{attempt_dir}", "{lease_gpu_uuids}", "{lease_local_indices}"],
+            "required_receipts": ["completion.json"],
+    })
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: run_one(GPULeaseQueue(q.path, gpu_probe=probe),
+            lock_path=str(tmp_path/'worker.lock')), range(2)))
+    assert results == [True, True]
+    receipts = [json.loads(path.read_text()) for path in tmp_path.glob("queue-attempts/*/*/completion.json")]
+    assert len(receipts) == 2
+    assert min(item["end"] for item in receipts) > max(item["start"] for item in receipts)
+    assert {job.status for job in q.list_jobs()} == {"succeeded"}
+
+
+def test_ready_formal_reservation_drains_groups_without_preemption(tmp_path):
+    q = GPULeaseQueue(tmp_path / 'queue.json', gpu_probe=probe)
+    q.enqueue('existing', {'gpu_count': 1})
+    running = q.claim(owner_pid=os.getpid(), lock_mode=False)
+    q.enqueue('formal', {'gpu_count': 2, 'exclusive': True, 'reserve_host': True})
+    q.enqueue('new-group', {'gpu_count': 1}, priority=999)
+    assert q.claim(owner_pid=os.getpid(), lock_mode=False) is None
+    assert q.snapshot()['jobs']['existing']['status'] == 'running'
+    assert q.claim(owner_pid=os.getpid(), lock_mode=True) is None
+    q.complete(running.lease_id, running.token)
+    formal = q.claim(owner_pid=os.getpid(), lock_mode=True)
+    assert formal.job_id == 'formal'
+    q.complete(formal.lease_id, formal.token)
+    assert q.claim(owner_pid=os.getpid(), lock_mode=False).job_id == 'new-group'
+
+
+def test_unready_formal_reservation_does_not_idle_independent_work(tmp_path):
+    q = GPULeaseQueue(tmp_path / 'queue.json', gpu_probe=probe)
+    q.enqueue('formal', {'gpu_count': 2, 'exclusive': True, 'reserve_host': True},
+              depends_on=['missing-profile'])
+    q.enqueue('independent', {'gpu_count': 1})
+    assert q.claim(owner_pid=os.getpid(), lock_mode=False).job_id == 'independent'
+
+
+def test_sampling_cohort_rejects_unknown_peer_but_admits_barrier_members(tmp_path):
+    q = GPULeaseQueue(tmp_path/'queue.json', gpu_probe=probe)
+    q.enqueue('profile-a', {'gpu_count':1, 'sampling_cohort':'wave'})
+    a = q.claim(owner_pid=os.getpid(), lock_mode=False)
+    q.enqueue('formal', {'gpu_count':2, 'exclusive':True, 'reserve_host':True}, priority=999)
+    q.enqueue('unknown-peer', {'gpu_count':1}, priority=1000)
+    q.enqueue('profile-b', {'gpu_count':1, 'sampling_cohort':'wave'})
+    b = q.claim(owner_pid=os.getpid(), lock_mode=False)
+    assert b.job_id == 'profile-b'
+    q.complete(a.lease_id, a.token)
+    assert q.claim(owner_pid=os.getpid(), lock_mode=False) is None
+    q.complete(b.lease_id, b.token)
+    assert q.claim(owner_pid=os.getpid(), lock_mode=True).job_id == 'formal'
+
+
+def test_profile_cohort_cannot_start_while_unqualified_functional_job_runs(tmp_path):
+    q = GPULeaseQueue(tmp_path/'queue.json', gpu_probe=probe)
+    q.enqueue('functional', {'gpu_count':1})
+    run = q.claim(owner_pid=os.getpid())
+    q.enqueue('profile', {'gpu_count':1, 'sampling_cohort':'wave'})
+    assert q.claim(owner_pid=os.getpid()) is None
+    q.complete(run.lease_id, run.token)
+    assert q.claim(owner_pid=os.getpid()).job_id == 'profile'
+
+
+@pytest.mark.parametrize('terminal', ['succeeded', 'failed', 'cancelled'])
+def test_after_terminal_waits_for_release_but_not_success(tmp_path, terminal):
+    q = GPULeaseQueue(tmp_path / 'queue.json', gpu_probe=probe)
+    q.enqueue('before', {'gpu_count': 1})
+    q.enqueue('after', {'gpu_count': 1}, after_terminal=['before'])
+    first = q.claim(owner_pid=os.getpid())
+    assert first.job_id == 'before'
+    assert q.claim(owner_pid=os.getpid()) is None
+    q.complete(first.lease_id, first.token, status=terminal)
+    assert q.claim(owner_pid=os.getpid()).job_id == 'after'
+
+
+def test_after_terminal_does_not_override_required_success(tmp_path):
+    q = GPULeaseQueue(tmp_path / 'queue.json', gpu_probe=probe)
+    q.enqueue('before')
+    lease = q.claim(owner_pid=os.getpid())
+    q.complete(lease.lease_id, lease.token, status='failed')
+    q.enqueue('after', depends_on=['before'], after_terminal=['before'])
+    q.enqueue('unknown', after_terminal=['missing'])
+    assert q.claim(owner_pid=os.getpid()) is None
+
+
+def test_terminal_status_with_live_lease_is_not_ready(tmp_path):
+    q = GPULeaseQueue(tmp_path / 'queue.json', gpu_probe=probe)
+    state = {'jobs': {'before': {'status': 'failed', 'lease_id': None}},
+             'leases': {'lease': {'job_id': 'before', 'status': 'active'}}}
+    assert not q._deps_ready(state, {'payload': {'after_terminal': ['before']}})
+
+
+def test_supersede_preserves_payload_and_rejects_executed_job(tmp_path):
+    q = GPULeaseQueue(tmp_path / 'queue.json', gpu_probe=probe)
+    q.enqueue('old', {'gpu_count': 1, 'depends_on': ['missing']})
+    q.enqueue('new')
+    old_payload = q.snapshot()['jobs']['old']['payload']
+    assert q.supersede_queued('old', 'new').status == 'cancelled'
+    assert q.snapshot()['jobs']['old']['payload'] == old_payload
+    assert q.supersede_queued('old', 'new').status == 'cancelled'
+    q.claim(owner_pid=os.getpid())
+    with pytest.raises(LeaseConflict):
+        q.supersede_queued('new', 'old')
+
+
+def test_atomic_reschedule_keeps_running_job_and_rolls_back_failed_batch(tmp_path):
+    q = GPULeaseQueue(tmp_path / 'queue.json', gpu_probe=probe)
+    q.enqueue('running')
+    lease = q.claim(owner_pid=os.getpid())
+    q.enqueue('pending', after_terminal=['running'])
+    before = q.snapshot()
+    with pytest.raises(LeaseConflict):
+        q.enqueue_replacements([
+            {'job_id': 'new-pending', 'payload': {'supersedes_job_id': 'pending'}},
+            {'job_id': 'bad', 'payload': {'supersedes_job_id': 'running'}}])
+    assert q.snapshot() == before
+    specs = [{'job_id': 'retry', 'payload': {'after_terminal': ['running']}},
+             {'job_id': 'new-pending', 'payload': {
+                 'after_terminal': ['retry'], 'supersedes_job_id': 'pending'}}]
+    q.enqueue_replacements(specs)
+    q.enqueue_replacements(specs)
+    assert q.snapshot()['jobs']['pending']['status'] == 'cancelled'
+    assert q.active_leases()[0].lease_id == lease.lease_id
+    assert q.claim(owner_pid=os.getpid()) is None

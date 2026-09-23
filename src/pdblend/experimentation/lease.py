@@ -256,9 +256,11 @@ class GPULeaseQueue:
     def _lease_obj(lease: Mapping) -> Lease:
         return Lease(str(lease["lease_id"]), str(lease["token"]), str(lease["job_id"]), str(lease["owner"]), int(lease["owner_pid"]), tuple(lease.get("gpu_uuids", lease.get("gpus", ()))), int(lease["attempt"]), str(lease["attempt_dir"]), float(lease["claimed_at"]), float(lease["expires_at"]), float(lease.get("heartbeat_interval_s", DEFAULT_HEARTBEAT_S)), tuple(str(x) for x in lease.get("gpu_indices", ())))
 
-    def enqueue(self, job_id: str, payload: Mapping | None = None, *, priority: int = 0, max_attempts: int = 3, depends_on: Sequence[str] = ()) -> Job:
+    def enqueue(self, job_id: str, payload: Mapping | None = None, *, priority: int = 0, max_attempts: int = 3, depends_on: Sequence[str] = (), after_terminal: Sequence[str] = ()) -> Job:
         if not job_id or max_attempts < 1: raise ValueError("job_id and max_attempts >= 1 required")
         now, spec = self.clock(), dict(payload or {}); spec.setdefault("depends_on", list(depends_on))
+        if after_terminal:
+            spec.setdefault("after_terminal", list(after_terminal))
         with self._lock():
             state = self._read(); self._reclaim(state, now); old = state["jobs"].get(job_id)
             if old:
@@ -268,7 +270,81 @@ class GPULeaseQueue:
             self._write(state); return self._job_obj(state["jobs"][job_id])
 
     def _deps_ready(self, state: dict, job: Mapping) -> bool:
-        return all(state["jobs"].get(dep, {}).get("status") == "succeeded" for dep in job.get("payload", {}).get("depends_on", ()))
+        payload = job.get("payload", {})
+        if not all(state["jobs"].get(dep, {}).get("status") == "succeeded"
+                   for dep in payload.get("depends_on", ())):
+            return False
+        for dep in payload.get("after_terminal", ()):
+            predecessor = state["jobs"].get(dep, {})
+            if (predecessor.get("status") not in {"succeeded", "failed", "cancelled"}
+                    or predecessor.get("lease_id") is not None
+                    or any(lease.get("job_id") == dep and lease.get("status") == "active"
+                           for lease in state["leases"].values())):
+                return False
+        return True
+
+    def supersede_queued(self, job_id: str, replacement_id: str) -> Job:
+        """Cancel an unexecuted spec without modifying its immutable payload."""
+        with self._lock():
+            state = self._read()
+            job = state["jobs"][job_id]
+            if replacement_id == job_id or replacement_id not in state["jobs"]:
+                raise ValueError("a distinct, enqueued replacement is required")
+            if job.get("status") == "cancelled" and job.get("superseded_by") == replacement_id:
+                return self._job_obj(job)
+            if (job.get("status") != "queued" or job.get("attempts", 0)
+                    or job.get("lease_id") is not None
+                    or any(x.get("job_id") == job_id and x.get("status") == "active"
+                           for x in state["leases"].values())):
+                raise LeaseConflict("only unexecuted queued jobs may be superseded")
+            job.update(status="cancelled", superseded_by=replacement_id,
+                       last_error=f"superseded by {replacement_id}", updated_at=self.clock())
+            self._write(state)
+            return self._job_obj(job)
+
+    def enqueue_replacements(self, specs: Sequence[Mapping]) -> list[Job]:
+        """Publish a scheduling revision atomically while other jobs run.
+
+        A payload's ``supersedes_job_id`` may refer only to an unexecuted job.
+        Other specs in the batch can introduce the new ordering prerequisite.
+        """
+        with self._lock():
+            state, now = self._read(), self.clock()
+            ids = [spec['job_id'] for spec in specs]
+            if len(ids) != len(set(ids)):
+                raise ValueError('duplicate replacement job IDs')
+            for spec in specs:
+                job_id = spec['job_id']
+                payload = dict(spec.get('payload', {}))
+                payload.setdefault('depends_on', list(spec.get('depends_on', ())))
+                max_attempts = int(spec.get('max_attempts', 3))
+                if not job_id or max_attempts < 1:
+                    raise ValueError('job ID and positive max_attempts required')
+                existing = state['jobs'].get(job_id)
+                if existing:
+                    if existing['payload'] != payload or existing['max_attempts'] != max_attempts:
+                        raise LeaseConflict(f'job {job_id} immutable spec differs')
+                else:
+                    state['jobs'][job_id] = dict(job_id=job_id, payload=payload,
+                        priority=int(spec.get('priority', 0)), max_attempts=max_attempts,
+                        attempts=0, status='queued', created_at=now, updated_at=now,
+                        lease_id=None, last_error=None)
+                old_id = payload.get('supersedes_job_id')
+                if old_id:
+                    if old_id == job_id or old_id in ids:
+                        raise ValueError('replacement must supersede a distinct preexisting job')
+                    old = state['jobs'][old_id]
+                    if old.get('status') == 'cancelled' and old.get('superseded_by') == job_id:
+                        continue
+                    if (old['status'] != 'queued' or old.get('attempts', 0)
+                            or old.get('lease_id') is not None
+                            or any(x.get('job_id') == old_id and x.get('status') == 'active'
+                                   for x in state['leases'].values())):
+                        raise LeaseConflict(f'cannot supersede executed job {old_id}')
+                    old.update(status='cancelled', superseded_by=job_id,
+                        last_error=f'superseded by {job_id}', updated_at=now)
+            self._write(state)
+            return [self._job_obj(state['jobs'][job_id]) for job_id in ids]
 
     def claim(self, *, owner: str | None = None, owner_pid: int | None = None,
               gpu_uuids: Sequence[str] | None = None, gpu_count: int | None = None,
@@ -295,6 +371,25 @@ class GPULeaseQueue:
                 raise LeaseConflict("GPU inventory is unavailable; refusing an unverifiable lease")
             jobs = [j for j in state["jobs"].values() if j.get("status") == "queued" and self._deps_ready(state, j)]
             jobs.sort(key=lambda j: (-int(j.get("priority", 0)), float(j.get("created_at", 0)), j["job_id"]))
+            active_payloads = [state['jobs'][lease['job_id']]['payload']
+                for lease in state['leases'].values() if lease.get('status') == 'active']
+            cohorts = {p['sampling_cohort'] for p in active_payloads if p.get('sampling_cohort')}
+            if cohorts:
+                # A fresh peer load invalidates profile qualification even on
+                # disjoint GPUs. Finish admitting the frozen cohort before a
+                # whole-host reservation; otherwise its ready barrier deadlocks.
+                jobs = [j for j in jobs if len(cohorts) == 1
+                    and j['payload'].get('sampling_cohort') in cohorts]
+            elif active_payloads:
+                jobs = [j for j in jobs if not j['payload'].get('sampling_cohort')]
+            # An eligible whole-host measurement may reserve the next empty
+            # host. Existing leases finish normally, while fresh group jobs
+            # stop backfilling its GPUs. Unready data dependencies never reserve.
+            reservations = [j for j in jobs if not cohorts and j.get('payload', {}).get('reserve_host') is True
+                and (j['payload'].get('exclusive') or j['payload'].get('global_lock'))
+                and int(j['payload'].get('gpu_count', 0)) == len(visible)]
+            if reservations:
+                jobs = reservations[:1]
             if lock_mode is not None:
                 jobs = [j for j in jobs if bool(j.get("payload", {}).get("global_lock", j.get("payload", {}).get("exclusive", False))) == lock_mode]
             available = tuple(g.uuid for g in visible.values() if g.uuid not in used)

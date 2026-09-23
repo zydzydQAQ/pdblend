@@ -1,0 +1,147 @@
+Use case: scientific-educational.
+Create a NEW, detailed research-paper figure about ONLY the PDblend PLANNER, its request queues, GPU-pool routing, and one concrete replanning episode. This is a close-up mechanism diagram, not another generic system overview.
+The attached picture is a STYLE REFERENCE ONLY: white background, Times/LaTeX serif lettering, bold black labels, straight black arrows, flat green Prefill blocks, blue Decode blocks, yellow request/token blocks, gray waiting/parked blocks. No rounded dashboard cards, 3D, shadows, icons, decorative textures, or marketing illustrations.
+Large landscape canvas, around 3:2 aspect ratio, as high-resolution as available. Use generous spacing and legible precise text. Four connected horizontal areas comprise ONE planner-detail figure. Prioritize concrete arrows, queues, GPU internals, exact numbers and arithmetic. Do not invent results.
+
+TITLE:
+"Inside PDblend's Planner: A Numerical Worked Example"
+
+SMALL VISIBLE SUBTITLE:
+"CPU synthetic model • 8 GPUs, TP=1, PP=1 • Example constraint: at least 2 Mixed GPUs"
+This constraint is essential: these are not default-policy settings or real GPU measurements.
+
+TOP AREA — "1. Observe queues and choose a plan"
+At the LEFT, a compact "Incoming requests" queue: four yellow rectangular tickets labeled "256", "512", "2048", "4096", with the common line "input tokens; output = 128".
+Below it write "12 requests/s; 25% at each length".
+Draw a solid arrow from this arrival stream DOWN toward Router in the middle area. Draw a separate dashed arrow into Planner labeled "arrival + first-token + finish records".
+A small data box below the tickets reads:
+"Proxy counters"
+"pending prompt tokens"
+"reserved sequences"
+Do not pretend there is a global FIFO consumed by the planner; the yellow queue is a schematic arrival stream.
+
+At the CENTER/RIGHT place ONE large sharp-cornered black-outline box titled "Planner".
+A small external box "Performance / power model" points into it. Inside Planner put:
+"Search: pool sizes, clocks, threshold τ"
+"SLO = 1 s / 20 ms; guard = 850 ms / 17 ms"
+"H = 60 s; switching margin = 5%"
+Then a neatly typeset table, NOT fake graphical text. Headers:
+"Plan | P / D / M / L1 | τ | Power (W) | Latency proxy (ms) | TPOT (ms)"
+Exact four table rows:
+"A: current | 0 / 0 / 5 / 3 | — | 772.14 | 214.19 | 16.03"
+"B: reject | 0 / 0 / 4 / 4 | — | 713.55 | 218.07 | 17.50 ×"
+"C: choose | 2 / 1 / 2 / 3 | 1024 | 711.28 | 319.17 | 15.54 ✓"
+"E: reject | 2 / 1 / 2 / 3 | 4096 | 721.73 | 312.21 | 17.30 ×"
+Subtly outline/highlight row C with green; use small red × for rejected TPOT values. Table has selected candidates; the full search in this configured example chooses C.
+Below the table:
+"Model score: E = 60P + E_switch"
+"A: 46.328 kJ; C: 42.677 + 0.034 = 42.711 kJ"
+"Saving = 7.81% > 5% → install C"
+Then one short threshold explanation:
+"τ=1024: M=6/s, PD=6/s; τ=4096: M=9/s, PD=3/s"
+An output arrow from Planner is labeled "roles + clocks + τ" and connects to the Router AND the GPU role strip in the next area. This is a control arrow; the planner never takes ownership of requests itself.
+
+NARROW ROLE STRIP:
+"Chosen plan C: P=2100 MHz; D=M=2520 MHz; τ=1024"
+Draw EXACTLY EIGHT small GPU tiles in this order, with labels:
+"G0 M", "G1 M", "G2 P", "G3 P", "G4 D", "G5 L1", "G6 L1", "G7 L1".
+M tiles contain adjacent green and blue halves; P tiles green; D blue; L1 gray.
+Do not create a ninth GPU. The larger boxes below EXPAND these same instances.
+
+MIDDLE AREA — "2. Route requests; update reservations; execute on GPUs"
+This should occupy the most usable diagram space and contain visible mechanisms, not paragraphs.
+On the LEFT draw the Router with two example request tickets:
+"R_s: 256 in / 128 out"
+"R_l: 2048 in / 128 out"
+The router has two clearly separated outgoing routes:
+"256 < 1024 → Mixed"
+"2048 ≥ 1024 → P then D"
+Below router, tiny clear text: "Pool by τ; instance by current load".
+
+To the right show THREE grouped execution blocks, spatially arranged to make the long P→D path adjacent and the local Mixed path separate:
+
+P POOL, green accent:
+Header "P pool: G2, G3".
+Small snapshot "pending: G2=4096; G3=1024".
+Point the long-request arrow to G3, explicitly label "1024 < 4096 → G3".
+Show a short request queue outside the GPU device box, labeled "engine queue". Arrow into an expanded "G3" device box with a green "Prefill(2048)" compute rectangle and a separate storage rectangle "HBM: weights + KV".
+Counter note immediately near the request dispatch:
+"pending G3: 1024 → 3072 → 1024"
+The last decrease happens on the first-token event.
+From Prefill output, branch one thin arrow labeled "y₁" to the shared Proxy/Client output rail. It MUST be P that produces the true first token.
+Another clear black arrow from G3's KV storage to the adjacent G4 KV storage reads:
+"KV[2048] = 112 MiB (model)"
+This is GPU-to-GPU KV transfer, not a request routed to Mixed.
+
+D POOL, blue accent:
+Header "D pool: G4".
+Expanded "G4" with an outside "engine queue", a blue "Decode" compute rectangle, and separate "HBM: weights + KV" rectangle receiving the P-to-D KV arrow.
+Proxy supplies D with an independent small arrow/annotation:
+"prompt = 2049; remaining = 127"
+This extended prompt carries y₁; do not merge the proxy control payload into the KV storage arrow.
+Counter note:
+"reserved G4: 8 → 9 → 8"
+Label the increments/decrements "dispatch / finish", NOT "decode batch"; reservation exists while P is still processing.
+Output arrow from G4 into the Proxy/Client rail labeled "y₂ … y₁₂₈".
+No individual token timeline is needed; do not accidentally duplicate numbered token boxes.
+
+MIXED POOL, adjacent green/blue:
+Header "Mixed pool: G0, G1".
+Small snapshot "reserved: G0=2; G1=0".
+Short-request branch enters G1, explicitly "0 < 2 → G1".
+Show "engine queue" outside expanded G1 device; inside, adjacent green "Prefill(256)" and blue "Decode" compute blocks and "HBM: local KV".
+A short local connector indicates KV reuse within G1. No inter-GPU handoff for this request.
+Counter:
+"reserved G1: 0 → 1 → 0"
+Output to the shared Proxy/Client rail labeled "128 tokens".
+
+Use a SHARED "Proxy → Client" output rail beneath these blocks with separate labelled P-first-token, D-continuation and M-output incoming arrows. Draw a dashed feedback arrow from PROXY RECORDS, not GPU HBM or engine queue, back to the same Planner:
+"arrivals / first tokens / completions / reservations"
+Keep feedback in an outer margin so it crosses no table or annotation.
+Queue stages are schematic. Pending means prompt tokens not yet past the first-token event; reserved sequences are proxy accounting, not measured engine batch occupancy.
+
+BOTTOM AREA — "3. Replan when output length grows"
+A short event timeline with five simple connected boxes and one side recovery note. These are conditional steps, not a benchmark of fixed recovery times.
+
+Box 1 "New forecast"
+"completed outputs: 128 → 256"
+"arrival rate stays 12/s"
+
+Box 2 "Re-evaluate C"
+"TPOT: 22.43 ms > 17 ms"
+"current plan infeasible"
+
+Box 3 "Choose D"
+"P2 + D2 + M2 + L1×2"
+"TPOT: 15.57 ms"
+"819.76 W; wake cost 3.4 J"
+
+Box 4 "Activate G7"
+"L1 → unpark + set clock → D"
+"accepting: 0 → 1"
+
+Box 5 "Route new work"
+"new long requests → G7"
+"old requests stay on G4"
+"τ remains 1024"
+
+Under Boxes 2–3, one short prominent explanatory line:
+"Restore feasibility even when model energy rises: 46.850 → 49.189 kJ"
+The increase is essential; don't falsely claim energy savings during this scale-up.
+A small curved dashed arrow from the new forecast to the SAME top Planner emphasizes replanning; avoid drawing a second standalone planner.
+Below the timeline:
+"Planning: every 10 s or risk change; protection: every 1 s"
+Recovery note, modest size:
+"After load recovers: quiet + hold ≥30 s + 2 stable planning votes → close G7 → drain proxy counters → L1"
+Do not promise a 20-second recovery, automatic native KV release, migration of old requests, versioned ACKs or atomic fleet switching.
+
+LEGEND / CAPTION:
+Green square "Prefill"; blue square "Decode"; yellow square "Request / token"; gray square "Parked / wait".
+Solid arrow "execution / KV"; dashed arrow "observations".
+Caption:
+"Planner detail with reproducible synthetic numbers. Model score is not measured energy; timings and queue snapshots are illustrative."
+
+IMPORTANT:
+Keep all arithmetic, comparisons, GPU IDs and pool counts EXACT. P=D disaggregation pools have their own engine queues. Both model and SLO constraints influence the joint threshold and capacity choice; this is not simply static length routing.
+Show distinct request, KV, first-token, counter-feedback and resource-control paths.
+This is one close-up planner figure, not a generic offline/online overview. Avoid excessive prose inside the figure; hierarchy, tables, queue tickets and arrows should explain the example. No duplicate token labels. Output only the complete diagram.

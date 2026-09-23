@@ -7,10 +7,9 @@ import math
 import statistics
 from pathlib import Path
 
+from ..seed_config import SEEDS, SEED_POLICY, SINGLE_SEED, has_active_seeds
+
 BASELINES = ('mixed', 'distserve_static', 'dynamollm', 'ecoserve')
-SINGLE_SEED = 701
-SEEDS = (SINGLE_SEED,)
-SEED_POLICY = "single_seed_701"
 PAIR_FIELDS = ('dataset', 'rate', 'seed', 'duration', 'model', 'tp', 'gpus',
                'trace_sha256', 'corpus_sha256', 'image', 'hardware', 'clock_protocol', 'energy_protocol')
 METRICS = ('j_per_token', 'mean_power_w', 'window_mean_power_w', 'joint_slo_rate',
@@ -79,6 +78,9 @@ def compare_seed(candidate, baselines, previous=None):
     if candidate is None:
         return dict(status='inconclusive', reasons=['candidate_missing_or_stale'])
     c, identity = candidate['metrics'], candidate['identity']
+    if identity.get('seed') != SINGLE_SEED:
+        return dict(status='inconclusive', reasons=['unsupported_seed:' + str(identity.get('seed'))],
+                    seed=identity.get('seed'), single_seed=True, seed_policy=SEED_POLICY)
     if any(c.get(k) is None or not math.isfinite(c[k]) for k in METRICS):
         return dict(status='inconclusive', reasons=['invalid_metrics'])
     if c['joint_slo_rate'] < .9:
@@ -123,7 +125,7 @@ def compare_seed(candidate, baselines, previous=None):
 
 def aggregate(rows):
     seeds = [r.get('seed') for r in rows]
-    complete = len(seeds) == len(SEEDS) and set(seeds) == set(SEEDS)
+    complete = has_active_seeds(seeds)
     stats = {}
     for key in METRICS:
         values = [r.get('metrics', {}).get(key) for r in rows]

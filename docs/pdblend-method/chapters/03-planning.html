@@ -1,0 +1,74 @@
+<section class="page">
+  <div class="eyebrow">03 / SELECTIVE DISAGGREGATION PLANNING</div>
+  <h2>成本感知的选择性分离规划</h2>
+  <p class="subtitle">Cost-Aware Planning for Selective Disaggregation</p>
+
+  <h3>Motivation · 为什么需要选择</h3>
+  <p>同一批请求并不适合相同的执行方式。长提示词可能受益于预填充与解码分离，短提示词却可能为交接付出更多代价。规划器因此同时决定哪些请求走混合实例、哪些请求走 P→D，以及每条路径使用多少实例和什么频率，让分离带来的收益真正留下来。</p>
+  <p class="en">Requests do not all benefit from the same execution path. Long prompts may benefit from separating prefill and decode, while short prompts can pay more for the handoff than they save. The planner jointly chooses the routing threshold, replica counts, and clock speeds so that disaggregation delivers a net benefit.</p>
+
+  <h3>Challenge · 为什么不能只看单项成本</h3>
+  <p>分流阈值会改变两条路径的请求比例，资源配置又会改变排队、延迟和能耗。只看某个阶段的计算速度，容易漏掉 KV 交接、停驻实例和切换配置的开销；只看平均负载，也可能低估长请求造成的容量压力。因此，候选方案必须在相同条件下整体比较。</p>
+  <p class="en">Changing the threshold moves work between the two paths. Changing replica counts or clocks then affects queueing, latency, and energy. A faster stage alone does not imply a better deployment: KV handoff, standby power, and reconfiguration also cost energy. Candidate plans need a common workload, time window, and set of constraints.</p>
+
+  <h3>Insight · 先比较，再分流</h3>
+  <p>先用同一份负载估计比较完整方案，再将选定阈值交给在线路由器。只有模型覆盖充分、容量与延迟约束均满足，而且节省的运行能量足以覆盖额外交接及切换成本时，才采用选择性分离。每个请求仍会单独分流，但不必在每次到达时重新求解资源配置。</p>
+  <p class="en">Compare complete plans using the same workload estimate, then pass the chosen threshold to the online router. Selective disaggregation is useful only when the models cover the candidate, predicted constraints hold, and operating savings cover the added costs. Requests are routed individually, while resource planning runs periodically.</p>
+
+  <div class="callout">请求级分流，周期级规划。阈值属于规划结果；在线快环不独立改写已评估的分流比例。<br><span class="en">Route each request; plan periodically. The fast loop preserves the evaluated routing threshold.</span></div>
+</section>
+
+<section class="page">
+  <div class="eyebrow">03 / SELECTIVE DISAGGREGATION PLANNING</div>
+  <h2>方法：在同一窗口内比较完整成本</h2>
+  <p class="subtitle">Approach: Compare Complete Costs over the Same Window</p>
+
+  <p><strong>输入：</strong>到达率和长度分布、离线模型、SLO、GPU 预算、当前配置及规划窗口 H。<strong>输出：</strong>Plan，即角色数量、频率、停驻状态与长度阈值 τ。</p>
+  <p class="en"><strong>Input:</strong> workload estimates, offline models, SLOs, GPU budget, current plan, and horizon H. <strong>Output:</strong> one Plan containing role counts, clocks, parking states, and threshold τ.</p>
+
+  <ol>
+    <li><strong>列出候选。</strong>同时考虑全混合与选择性 P/D，按阈值估计两条路径的负载。<br><span class="en">Enumerate mixed-only and selective-PD plans; estimate each path’s load.</span></li>
+    <li><strong>过滤不可行方案。</strong>检查模型覆盖、预测 TTFT 与续接表现、吞吐及 KV 容量。<br><span class="en">Check model coverage, predicted latency and continuation behavior, throughput, and KV capacity.</span></li>
+    <li><strong>比较能量。</strong>使用相同窗口核算运行、停驻、额外交接和配置切换成本。<br><span class="en">Compare operating, standby, extra handoff, and switching energy over the same window.</span></li>
+    <li><strong>输出稳定决策。</strong>重新评估当前方案；收益不足时保持配置，将新 Plan 交给执行器。<br><span class="en">Re-evaluate the current plan; keep it when savings are too small.</span></li>
+  </ol>
+
+  <div class="equation">窗口能量 = 运行及停驻能量 + 未计入的交接增量 + 切换能量</div>
+  <img class="figure" src="figures/03-planning.svg" alt="8 个 TP1 实例的规划示例：短请求 256 或 512 tokens，长请求 2048 或 4096 tokens，输出 128 tokens；阈值 1024。全混合归一化能量 100，选择性分离为运行 78、交接 8、切换 4，共 90。" />
+  <p class="caption">图 3｜8 个 TP1 实例的归一化示例：输出均为 128 tokens，τ=1024。目标可为 P1+D2+M4+L1；90 优于 100，但若总量为 103 或预测不达标，则拒绝该候选。此配置与数值仅解释方法，不是实测最优结果。</p>
+  <p class="caption en">Figure 3. Illustrative normalized energy on eight TP1 instances. The example plan is P1+D2+M4+L1. Reject the candidate if its cost rises to 103 or predicted constraints fail; these are not measured optima.</p>
+</section>
+
+<section class="page">
+  <div class="eyebrow">03 / SELECTIVE DISAGGREGATION PLANNING</div>
+  <h2>方法：从候选比较到一个 Plan</h2>
+  <p class="subtitle">Approach: Turn Candidate Comparisons into One Plan</p>
+  <p>下面是目标设计的规划算法。F 表示负载估计；H 为统一窗口；ε 为收益门槛。Current 是在线层已就绪的初始或当前配置；候选包含它，但必须重新检查其可行性。</p>
+  <p class="en">F is workload, H the horizon, and ε the savings margin. Current must be a ready initial or active configuration; re-evaluate it alongside new candidates.</p>
+
+  <table class="algorithm">
+    <caption>Algorithm 1 · SELECTIVE-PD-PLAN</caption>
+    <tr><td>1</td><td><strong>SELECTIVE-PD-PLAN</strong>(F, Models, SLO, Budget, Current, H)</td></tr>
+    <tr><td>2</td><td>A ← ENUMERATE-M-AND-PD-PLANS(Budget) ∪ {Current}</td></tr>
+    <tr><td>3</td><td>Feasible ← ∅</td></tr>
+    <tr><td>4</td><td><strong>for each</strong> plan x ∈ A</td></tr>
+    <tr><td>5</td><td><span class="indent">&nbsp;&nbsp;load ← SPLIT-WORKLOAD(F, x.threshold, x.layout)</span></td></tr>
+    <tr><td>6</td><td><span class="indent">&nbsp;&nbsp;<strong>if not</strong> COVERED(Models, x, load): <strong>continue</strong></span></td></tr>
+    <tr><td>7</td><td><span class="indent">&nbsp;&nbsp;y ← PREDICT(Models, x, load)</span></td></tr>
+    <tr><td>8</td><td><span class="indent">&nbsp;&nbsp;<strong>if not</strong> SLO-AND-CAPACITY-OK(y, SLO): <strong>continue</strong></span></td></tr>
+    <tr><td>9</td><td><span class="indent">&nbsp;&nbsp;score[x] ← WINDOW-ENERGY(y, H)</span></td></tr>
+    <tr><td>10</td><td><span class="indent">&nbsp;&nbsp;&nbsp;&nbsp;+ EXTRA-HANDOFF-ENERGY(y, H)</span></td></tr>
+    <tr><td>11</td><td><span class="indent">&nbsp;&nbsp;&nbsp;&nbsp;+ SWITCH-ENERGY(Current, x)</span></td></tr>
+    <tr><td>12</td><td><span class="indent">&nbsp;&nbsp;Feasible ← Feasible ∪ {x}</span></td></tr>
+    <tr><td>13</td><td><strong>if</strong> Feasible = ∅: <strong>return</strong> CONSERVATIVE-FALLBACK(Current, Models, Budget)</td></tr>
+    <tr><td>14</td><td>best ← MIN-SCORE(Feasible, score) &nbsp; ▹ ties prefer M-only</td></tr>
+    <tr><td>15</td><td><strong>if</strong> Current ∈ Feasible <strong>and</strong> score[Current] − score[best] ≤ ε·score[Current]</td></tr>
+    <tr><td>16</td><td><span class="indent">&nbsp;&nbsp;<strong>return</strong> Current</span></td></tr>
+    <tr><td>17</td><td><strong>return</strong> PLAN(best.layout, best.clocks, best.parking, best.threshold)</td></tr>
+  </table>
+
+  <p class="small">窗口能量含停驻实例；只计未来增量成本，切换到自身为零。覆盖不足时不编造预测。保守回退优先恢复容量，并可限制准入，不保证过载下达标。Plan 由在线执行器落实。</p>
+  <p class="en small">Include standby and future incremental costs; switching to self costs zero. Missing coverage yields no invented estimate. Fallback may limit admission and does not guarantee SLOs under overload.</p>
+
+  <div class="note"><strong>实现对应 / Implementation boundary.</strong> 当前默认候选枚举保留 M≥min(4,槽位数)，这是保守策略限制。理想版取消固定 M 下界，由覆盖、容量和 SLO 约束决定配置；显式交接增量能耗，以及分别预测用户可见 TTFT 与 P→D 续接表现，是目标改进。<br><span class="en">Today’s search reserves min(4, slots) mixed replicas. The target removes that fixed floor and adds incremental handoff energy plus separate TTFT and continuation predictions, subject to feasibility.</span></div>
+</section>

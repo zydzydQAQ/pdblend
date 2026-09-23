@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="615" viewBox="0 0 960 615">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#536878"/></marker></defs>
+<rect width="960" height="100%" fill="#ffffff"/>
+<rect x="310" y="17" width="340" height="91" rx="12" fill="#eaf6f3" stroke="#167d7f" stroke-width="1.8"/>
+<text x="480.0" y="52.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="24" font-weight="700" fill="#167d7f" text-anchor="middle">观测与预测 / Observe</text>
+<text x="480.0" y="86.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">到达、首 token、完成、队列状态</text>
+<path d="M 365,108 L 365,137 L 225,137 L 225,164" fill="none" stroke="#167d7f" stroke-width="2.4" marker-end="url(#arrow)"/>
+<path d="M 595,108 L 595,137 L 735,137 L 735,164" fill="none" stroke="#23688d" stroke-width="2.4" marker-end="url(#arrow)"/>
+<rect x="30" y="164" width="390" height="108" rx="12" fill="#eaf6f3" stroke="#167d7f" stroke-width="1.8"/>
+<text x="225.0" y="199.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="24" font-weight="700" fill="#167d7f" text-anchor="middle">快速保护 / Fast protection</text>
+<text x="225.0" y="233.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">秒级风险检查；升频或增加容量</text>
+<text x="225.0" y="261.12" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">也可提前请求重新规划</text>
+<rect x="540" y="164" width="390" height="108" rx="12" fill="#edf4f8" stroke="#23688d" stroke-width="1.8"/>
+<text x="735.0" y="199.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="24" font-weight="700" fill="#23688d" text-anchor="middle">周期规划 / Periodic planning</text>
+<text x="735.0" y="233.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">比较配置与阈值的完整成本</text>
+<text x="735.0" y="261.12" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">当前默认周期约 10 s</text>
+<path d="M 225,272 L 225,301 L 480,301 L 480,331" fill="none" stroke="#167d7f" stroke-width="2.4" marker-end="url(#arrow)"/>
+<path d="M 735,272 L 735,301 L 480,301" fill="none" stroke="#23688d" stroke-width="2.4" marker-end="url(#arrow)"/>
+<rect x="227" y="331" width="506" height="91" rx="12" fill="#edf4f8" stroke="#23688d" stroke-width="1.8"/>
+<text x="480.0" y="366.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="24" font-weight="700" fill="#23688d" text-anchor="middle">安全执行 → 有效配置</text>
+<text x="480.0" y="400.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#163047" text-anchor="middle">路径容量就绪后发布；复用或停驻前排空</text>
+<path d="M 480,422 L 480,455" fill="none" stroke="#536878" stroke-width="2.4" marker-end="url(#arrow)"/>
+<text x="480" y="481.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="21" font-weight="700" fill="#163047" text-anchor="middle">路由 M / PD + 频率与资源动作 → 引擎执行 → 新观测</text>
+<path d="M 733,374 L 950,374 L 950,62 L 650,62" fill="none" stroke="#167d7f" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#arrow)"/>
+<line x1="82" y1="534" x2="878" y2="534" stroke="#23688d" stroke-width="2"/>
+<circle cx="82" cy="534" r="6" fill="#167d7f"/>
+<text x="82" y="568.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#163047" text-anchor="middle">正常</text>
+<text x="82" y="597.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="18" font-weight="400" fill="#536878" text-anchor="middle">stable</text>
+<circle cx="281" cy="534" r="6" fill="#bd7631"/>
+<text x="281" y="568.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#163047" text-anchor="middle">突发</text>
+<text x="281" y="597.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="18" font-weight="400" fill="#536878" text-anchor="middle">burst</text>
+<circle cx="480" cy="534" r="6" fill="#167d7f"/>
+<text x="480" y="568.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#163047" text-anchor="middle">快速保护</text>
+<text x="480" y="597.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="18" font-weight="400" fill="#536878" text-anchor="middle">protect</text>
+<circle cx="679" cy="534" r="6" fill="#167d7f"/>
+<text x="679" y="568.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#163047" text-anchor="middle">重新规划</text>
+<text x="679" y="597.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="18" font-weight="400" fill="#536878" text-anchor="middle">replan</text>
+<circle cx="878" cy="534" r="6" fill="#167d7f"/>
+<text x="878" y="568.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#163047" text-anchor="middle">稳定后收缩</text>
+<text x="878" y="597.0" font-family="DocSans, Noto Sans CJK SC, sans-serif" font-size="18" font-weight="400" fill="#536878" text-anchor="middle">recover</text>
+</svg>

@@ -1,0 +1,14 @@
+{
+  "source_root": "/home/pdblend/src/pdblend_baselines/dynamollm",
+  "engine_adapter": "vllm-0.10.1.1",
+  "copied_then_adapted": {
+    "runtime.py": "2e2eb2d61c955102ed98eb0810b38a222b69cb67e8960a722f166b36148e7f6f",
+    "cluster.py": "3f4d90ce4aab5c99b4c18eac12ee7e5a08e3e046cb14e3c36a22b43b6c97ac36",
+    "history_mapping.py": "6ab7183a6e7579a09c5bc6dca62cd734044335f6e4c3a4c6ec96e9f877fab419",
+    "history_adapter.py": "a8f644bcfe99606822af5af53a02f095b04175be422678d94d829eb6aaaab699",
+    "gpu_weights.py": "948a7da40153290e9d1e83d4ce9d78a89bac66bd241e25fe9e24b7667329c13e",
+    "gpu_topology.py": "fa8d81cd5f866116d8510d2e757871716e2a50f854249a83f582530096bb2d2d",
+    "relay.py": "02c75510a2c2d989ba5d31d86602a96a548cfd3b271e70c24c4d5a17116e1bd3"
+  },
+  "formal_eligible": false
+}
