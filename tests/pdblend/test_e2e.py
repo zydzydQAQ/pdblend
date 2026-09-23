@@ -24,11 +24,58 @@ class FakeEngineServer:
         self.seen_kv_params = []
         self.seen_request_ids = []
         self.seen_bodies = []
+        self.native_active = set()
+        self.native_cancelled = set()
+        self.native_accepting = True
+        self.native_tp, self.native_pp, self.native_generation = 1, 1, 0
         self.app = web.Application(client_max_size=64 * 1024 * 1024)
         self.app.router.add_post("/v1/completions", self.completions)
         self.app.router.add_get("/health", self.health)
         self.app.router.add_post("/sleep", self.sleep)
         self.app.router.add_post("/wake_up", self.wake)
+        # CPU contract fixtures only; none of these receipts qualify hardware.
+        self.app.router.add_get('/baseline/state', self.native_state)
+        self.app.router.add_post('/baseline/drain', self.native_drain)
+        self.app.router.add_post('/baseline/control', self.native_control)
+        self.app.router.add_post('/baseline/cancel', self.native_cancel)
+
+    def native_snapshot(self):
+        return dict(generation=self.native_generation, tp=self.native_tp, pp=self.native_pp,
+                    native_at_s=time.time(), native_evidence_complete=True, transport_healthy=True,
+                    healthy=True, accepting=self.native_accepting, all_queue=sorted(self.native_active),
+                    running=sorted(self.native_active), waiting=[], retained_kv_requests=[],
+                    kv_allocations={rid: [1] for rid in self.native_active},
+                    pending_transfers=0, transfer_allocations={}, total_blocks=4096,
+                    free_blocks=4096-len(self.native_active), reserved_blocks=0,
+                    ranks=[dict(rank=rank, generation=self.native_generation, native_evidence_complete=True,
+                                healthy=True, at_s=time.time(), pending_transfers=0, transfer_allocations={})
+                           for rank in range(self.native_tp * self.native_pp)])
+
+    async def native_state(self, request):
+        return web.json_response(self.native_snapshot())
+
+    async def native_drain(self, request):
+        payload = await request.json()
+        self.native_accepting = False
+        deadline = time.monotonic() + payload.get('timeout_s', 10)
+        while self.native_active and time.monotonic() < deadline:
+            await asyncio.sleep(.005)
+        return web.json_response(dict(self.native_snapshot(), acknowledged=not self.native_active,
+                                      drained=not self.native_active))
+
+    async def native_control(self, request):
+        payload = await request.json()
+        self.native_accepting = payload.get('accepting', self.native_accepting)
+        self.native_generation = payload.get('generation', self.native_generation)
+        return web.json_response(dict(self.native_snapshot(), acknowledged=True))
+
+    async def native_cancel(self, request):
+        payload = await request.json()
+        rid = payload['request_id']
+        self.native_cancelled.add(rid)
+        self.native_active.discard(rid)
+        return web.json_response(dict(acknowledged=True, cancelled=True, request_id=rid,
+                                      generation=self.native_generation, native_state=self.native_snapshot()))
 
     async def health(self, request):
         return web.json_response({})
@@ -42,6 +89,14 @@ class FakeEngineServer:
         return web.json_response({})
 
     async def completions(self, request):
+        rid = request.headers['X-Request-Id']
+        self.native_active.add(rid)
+        try:
+            return await self._completion(request)
+        finally:
+            self.native_active.discard(rid)
+
+    async def _completion(self, request):
         body = await request.json()
         self.seen_bodies.append(body)
         assert "request_id" not in body
@@ -64,6 +119,8 @@ class FakeEngineServer:
         first = 1 if body['prompt'][-1] == 9000 and (self.seen_request_ids[-1].startswith('___prefill_addr_') or
                      (kv and kv.get('do_remote_prefill'))) else 0
         for i in range(n):
+            if request.headers['X-Request-Id'] in self.native_cancelled:
+                return resp
             choice=dict(text=f"t{first+i}",index=0)
             if body.get('logprobs') is not None:choice['logprobs']=dict(tokens=[f'token_id:{9000+first+i}'])
             await resp.write(b"data: " + json.dumps(dict(choices=[choice])).encode() + b"\n\n")
@@ -77,11 +134,14 @@ class FakeEngineServer:
 class FakeInstance:
     def __init__(self, iid, gpu, port, kv_connector="NixlConnector"):
         self.spec = SimpleNamespace(instance_id=iid, gpus=(gpu,), base_url=f"http://127.0.0.1:{port}",
-                                    kv_connector=kv_connector, zmq_address=f"127.0.0.1:{port + 20000}")
+                                    kv_connector=kv_connector, zmq_address=f"127.0.0.1:{port + 20000}",
+                                    tp=1, pp=1, generation=0)
         self.server = FakeEngineServer(gpu)
         self.runner = None
 
     async def serve(self):
+        self.server.native_tp, self.server.native_pp = self.spec.tp, self.spec.pp
+        self.server.native_generation = self.spec.generation
         self.runner = web.AppRunner(self.server.app)
         await self.runner.setup()
         await web.TCPSite(self.runner, "127.0.0.1", int(self.spec.base_url.rsplit(":", 1)[1])).start()

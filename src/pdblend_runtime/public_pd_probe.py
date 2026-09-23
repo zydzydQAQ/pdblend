@@ -16,6 +16,7 @@ from pdblend.bench.gates import random_prompt
 from pdblend.engine.client import EngineClient, PDTransfer, pd_complete
 from pdblend.proxy.router import Router
 from pdblend.proxy.server import Proxy
+from pdblend.results.receipts import request_record_receipt as record_receipt
 
 
 def check_completion(value, expected, *, prompt_tokens, output_tokens):
@@ -85,7 +86,7 @@ async def run(specs, out: Path):
                     checks['route_matches']=record is not None and record.path==mode
                     checks['router_accounting']=(record is not None and record.error is None and
                                                 record.completion_tokens==16 and record.input_tokens==length)
-                    row['proxy_'+mode]=dict(completion=asdict(value),record=asdict(record) if record else None,checks=checks)
+                    row['proxy_'+mode]=dict(completion=asdict(value),record=record_receipt(record),checks=checks)
                     save()
                     if not all(checks.values()):
                         raise RuntimeError('public proxy '+mode+' token/usage/route golden failed')
@@ -116,7 +117,7 @@ async def run(specs, out: Path):
                 all(load.inflight_seqs==load.inflight_prefill_tokens==0 for load in router.loads.values()) and
                 not any(router.active.values()))
             result['single_token']['proxy']=dict(completion=asdict(single_proxy),
-                record=asdict(record) if record else None,checks=proxy_checks)
+                record=record_receipt(record),checks=proxy_checks)
             save()
             if not all(proxy_checks.values()):
                 raise RuntimeError('single-token proxy P_ONLY path failed')
@@ -125,6 +126,6 @@ async def run(specs, out: Path):
         result.update(status='failed',error=repr(exc))
     finally:
         await runner.cleanup()
-        result.update(finished_s=time.time(),router_records=[asdict(r) for r in router.records])
+        result.update(finished_s=time.time(),router_records=[record_receipt(r) for r in router.records])
         save()
     return result

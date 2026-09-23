@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Mapping, Optional, Sequence
 
@@ -20,17 +20,25 @@ from ..control.topology import ResidentPool
 from ..engine.client import PDTransfer
 from ..engine.launcher import Fleet, make_specs
 from ..profile.model import PerfModel
+from pdblend.profile.query.versions import load_profile
+from pdblend.model_registry import ModelRegistry
 from ..proxy.router import ResidentRouter, Router
 from ..proxy.server import Proxy
 from .client import LoadClient, Request, dump_outcomes, nearest_rank, poisson_trace, slo_attainment, trace_summary
 from .metering import Gpus
 from .tp_runtime import UnsupportedTPMode, _covers, prepare_tp_runtime
+from pdblend.online.native_control import NativeControl
+from pdblend.online.transition_measurement import measure_transitions
+from pdblend.online.observations import backlog_snapshot
+from pdblend.online.resident_control import ResidentCoordinator
+from pdblend.planner.topology import ResidentAllocationPlanner
 
 
 def offline_forecast(trace: list[Request]) -> Forecast:
     s = trace_summary(trace)
     return Forecast(s["mean_rps"], 0.0, s["input_mean"], s["input_p95"], s["output_mean"], 0,
-                    tuple(r.input_tokens for r in trace), tuple(r.max_tokens for r in trace))
+                    tuple(r.input_tokens for r in trace), tuple(r.max_tokens for r in trace),
+                    length_pairs=tuple((r.input_tokens, r.max_tokens) for r in trace))
 
 
 def window_energy(samples, start: float, end: float) -> tuple[float, float]:
@@ -68,9 +76,20 @@ async def _serve_proxy(proxy: Proxy, port: int) -> web.AppRunner:
 
 
 def _make_controller(fleet, router, gpus, model, policy, slo, trace, out_dir, period_s,
-                     fixed_plan=None, min_warm_s=20.0, initial_plan=None):
+                     fixed_plan=None, min_warm_s=20.0, initial_plan=None, native_control=None,
+                     transition_catalog_path=None, capacity_floor_path=None, transition_qualified_only=False):
     cfg = policy.planner_config(PlannerConfig(slots=len(fleet.instances), slo=slo, freqs=model.freqs))
     cfg.pressure_controls = policy.dynamic_m_floor
+    if transition_catalog_path is not None or capacity_floor_path is not None:
+        if not policy.name.startswith('pdblend'):
+            raise ValueError('optimization artifacts require the PDBlend policy')
+        from pdblend.planner.capacity import load_capacity_floors, select_artifact
+        from pdblend.planner.transitions import TransitionCatalog
+        if capacity_floor_path is not None:
+            cfg.capacity_floors = load_capacity_floors(capacity_floor_path, model=model)
+        if transition_catalog_path is not None:
+            cfg.transition_estimator = TransitionCatalog.load(select_artifact(transition_catalog_path, model),
+                model=model, qualified_only=transition_qualified_only)
     planner = PoolPlanner(model, cfg)
     freeze = policy.freeze or fixed_plan is not None
     prior = offline_forecast(trace) if policy.bootstrap_forecast else None
@@ -104,19 +123,23 @@ def _make_controller(fleet, router, gpus, model, policy, slo, trace, out_dir, pe
                      pd_route_hold_s=policy.pd_route_hold_s,
                      pd_route_stable_windows=policy.pd_route_stable_windows,
                      shield_protect_s=policy.shield_protect_s,
-                     transition_cooldown_s=policy.transition_cooldown_s)
+                     transition_cooldown_s=policy.transition_cooldown_s,
+                     native_control=native_control)
     return ctl
 
 
 class _PoolControllers:
-    def __init__(self, controllers):
+    def __init__(self, controllers, *, coordinator=None, forecaster=None, period_s=10.):
         self.controllers = controllers
+        self.coordinator, self.forecaster, self.period_s = coordinator, forecaster, period_s
 
     @property
     def roles(self):
         return {iid: role for controller in self.controllers.values() for iid, role in controller.roles.items()}
 
     async def run(self, stop):
+        if self.coordinator is not None:
+            return await self._run_joint(stop)
         tasks = [asyncio.create_task(controller.run(stop)) for controller in self.controllers.values()]
         try:
             await asyncio.gather(*tasks)
@@ -124,8 +147,38 @@ class _PoolControllers:
             stop.set()
             await asyncio.gather(*tasks, return_exceptions=True)
 
+    async def _run_joint(self, stop):
+        # One sequencer owns child transitions and joint publication. Shield
+        # actions cannot race a plan that was evaluated against old roles.
+        await asyncio.gather(*(c.execute(c.initial_plan or c._fail_open_plan())
+                               for c in self.controllers.values()))
+        next_plan = time.time() + self.period_s
+        while not stop.is_set():
+            await asyncio.sleep(min(c.tick_s for c in self.controllers.values()))
+            now = time.time()
+            for c in self.controllers.values():
+                c.forecaster.set_backlog(backlog_snapshot(c.router))
+                if c.shield is not None:
+                    pressure = c.shield.observe(c.router.observation_records(60., now), now)
+                    level = c.shield.update(pressure, now)
+                    if level or c.shield.floor_active:
+                        safe = c.shield.apply(c.plan_now, pressure, c.max_freq)
+                        if safe.key() != c.plan_now.key():
+                            await c.execute(safe)
+            if now >= next_plan:
+                self.forecaster.set_backlog(backlog_snapshot(self.coordinator.router))
+                await self.coordinator.step(self.forecaster.forecast(now))
+                next_plan = time.time() + self.period_s
+
     def summary(self):
-        return {'mode': 'resident_hetero_tp', 'pools': {pool: ctl.summary() for pool, ctl in self.controllers.items()}}
+        return {'mode': 'resident_hetero_tp', 'pools': {pool: ctl.summary() for pool, ctl in self.controllers.items()},
+                'joint_optimization': self.coordinator is not None,
+                'joint_events': self.coordinator.events if self.coordinator else []}
+
+    @property
+    def transition_events(self):
+        return [dict(row, pool_id=pool) for pool, controller in self.controllers.items()
+                for row in controller.transition_events]
 
 
 async def _point(fleet: Fleet, gpus: Gpus, model: PerfModel, policy: Policy, slo: SLO, trace: list[Request],
@@ -135,7 +188,13 @@ async def _point(fleet: Fleet, gpus: Gpus, model: PerfModel, policy: Policy, slo
                  pool_models: Optional[dict[str, PerfModel]] = None,
                  pool_fixed_plans: Optional[dict[str, Plan]] = None,
                  planning_trace: Optional[list[Request]] = None,
-                 observation_duration_s: Optional[float] = None) -> dict:
+                 observation_duration_s: Optional[float] = None,
+                 joint_resident: bool = False,
+                 resident_pools: Sequence[ResidentPool] = (),
+                 incremental_energy_path: Optional[Path] = None,
+                 transition_catalog_path: Optional[Path] = None,
+                 capacity_floor_path: Optional[Path] = None,
+                 transition_qualified_only: bool = False) -> dict:
     selection_trace = trace if planning_trace is None else planning_trace
     if not selection_trace:
         raise ValueError('nonempty calibration/tuning bootstrap trace required')
@@ -144,6 +203,7 @@ async def _point(fleet: Fleet, gpus: Gpus, model: PerfModel, policy: Policy, slo
         raise ValueError('observation duration must contain all evaluation arrivals')
     urls = {iid: inst.spec.base_url for iid, inst in fleet.instances.items()}
     specs = [inst.spec for inst in fleet.instances.values()]
+    native = NativeControl({s.instance_id: s for s in specs}) if policy.name.startswith('pdblend') else None
     transfer = PDTransfer(specs[0].kv_connector, {s.instance_id: s.zmq_address for s in specs})
     metadata = {s.instance_id: dict(tp=getattr(s, 'tp', 1), pp=getattr(s, 'pp', 1),
                                    pool_id=getattr(s, 'pool_id', ''), generation=getattr(s, 'generation', 0),
@@ -165,48 +225,89 @@ async def _point(fleet: Fleet, gpus: Gpus, model: PerfModel, policy: Policy, slo
                 raise ValueError(f'missing_profile: resident pool {pool_id} covers no workload requests')
             controllers[pool_id] = _make_controller(
                 sub_fleet, sub_router, gpus, pool_model, policy, slo, pool_trace, pool_dir, period_s,
-                (pool_fixed_plans or {}).get(pool_id), min_warm_s)
+                (pool_fixed_plans or {}).get(pool_id), min_warm_s, native_control=native,
+                transition_catalog_path=transition_catalog_path, capacity_floor_path=capacity_floor_path,
+                transition_qualified_only=transition_qualified_only)
             pool_routers[pool_id] = sub_router
         router = ResidentRouter(pool_routers, pool_models)
         router.frequency_provider = lambda iid: controllers[router._owners[iid]].freqs.get(iid)
         ctl = _PoolControllers(controllers)
+        if incremental_energy_path is not None:
+            from pdblend.online.energy_routing import load_energy_estimator
+            router.configure_energy_routing(slo=slo, estimator=load_energy_estimator(incremental_energy_path, router=router))
+        if joint_resident:
+            if pool_fixed_plans or policy.dynamic_m_floor:
+                raise ValueError('joint resident optimization requires ordinary periodic inner plans')
+            if set(fleet.instances) != set(router.loads) or sum(p.gpu_count for p in resident_pools) != len(gpus.gpus):
+                raise ValueError('joint resident optimization must account for every metered GPU')
+            cfg = policy.planner_config(PlannerConfig(slots=len(specs), slo=slo, freqs=model.freqs))
+            outer = ResidentAllocationPlanner(tuple(resident_pools), pool_models, cfg)
+            for pool_id, inner in outer.planners.items():
+                inner.cfg.capacity_floors = controllers[pool_id].planner.cfg.capacity_floors
+                inner.cfg.transition_estimator = controllers[pool_id].planner.cfg.transition_estimator
+            coordinator = ResidentCoordinator(controllers, router, outer)
+            forecaster = Forecaster(initial=offline_forecast(selection_trace))
+            for child in pool_routers.values():
+                child.listeners.append(forecaster)
+            ctl = _PoolControllers(controllers, coordinator=coordinator, forecaster=forecaster, period_s=period_s)
     else:
+        if joint_resident or incremental_energy_path is not None:
+            raise ValueError('joint/energy routing requires explicit resident pools')
         router = (EcoRouter(list(urls), model, slo) if policy.name == 'ecoserve'
                   else Router(list(urls), instance_metadata=metadata))
         ctl = _make_controller(fleet, router, gpus, model, policy, slo, selection_trace, out_dir, period_s,
-                               fixed_plan, min_warm_s, initial_plan)
-    proxy = Proxy(urls, router, transfer=transfer)
+                               fixed_plan, min_warm_s, initial_plan, native_control=native,
+                               transition_catalog_path=transition_catalog_path, capacity_floor_path=capacity_floor_path,
+                               transition_qualified_only=transition_qualified_only)
+    proxy = Proxy(urls, router, transfer=transfer, native_cancel=native.cancel if native else None,
+                  cancel_timeout_s=native.timeout_s + 5 if native else 15)
     runner = await _serve_proxy(proxy, proxy_port)
-    stop = asyncio.Event()
-    ctl_task = asyncio.create_task(ctl.run(stop))
-    await asyncio.sleep(2.0)
-    load = LoadClient(f"http://127.0.0.1:{proxy_port}", sampling_seed=sampling_seed)
-    if warmup:
-        await load.replay(warmup, progress_every_s=1e9)
-        while any(l.inflight_seqs for l in router.loads.values()):
-            await asyncio.sleep(0.2)
-    await asyncio.sleep(1.0)
+    # Start the common sampler before initial controller actions; evaluation
+    # energy remains restricted to t_start below, setup costs stay separate.
     sampler = gpus.sampler(interval_s=0.1)
     sampler.start()
-    t_start = time.time()
-    outcomes = await load.replay_detached(trace)
-    t_load_end = (t_start + observation_duration_s if observation_duration_s is not None
-                  else t_start + trace[-1].arrival_s if trace else time.time())
-    if observation_duration_s is not None:
-        await asyncio.sleep(max(0., t_load_end-time.time()))
-    t_done = time.time()
-    # Requests are all finished (replay awaits them); keep sampling briefly so the tail is captured.
-    await asyncio.sleep(1.0)
-    sampler.stop()
-    stop.set()
-    await ctl_task
-    await runner.cleanup()
+    stop = asyncio.Event()
+    ctl_task = asyncio.create_task(ctl.run(stop))
+    try:
+        await asyncio.sleep(2.0)
+        load = LoadClient(f"http://127.0.0.1:{proxy_port}", sampling_seed=sampling_seed)
+        if warmup:
+            await load.replay(warmup, progress_every_s=1e9)
+            while any(l.inflight_seqs for l in router.loads.values()):
+                await asyncio.sleep(0.2)
+        await asyncio.sleep(1.0)
+        t_start = time.time()
+        outcomes = await load.replay_detached(trace)
+        t_load_end = (t_start + observation_duration_s if observation_duration_s is not None
+                      else t_start + trace[-1].arrival_s if trace else time.time())
+        if observation_duration_s is not None:
+            await asyncio.sleep(max(0., t_load_end-time.time()))
+        t_requests_done = time.time()
+        # Requests are all finished (replay awaits them); keep sampling briefly so the tail is captured.
+        await asyncio.sleep(1.0)
+        stop.set()
+        await ctl_task
+        terminal_native = {}
+        if native:
+            for iid, role in ctl.roles.items():
+                if role != 'off':
+                    terminal_native[iid] = await native.drain(iid, tail_timeout_s)
+            (out_dir / 'native-cleanup.json').write_text(json.dumps(terminal_native, indent=2) + '\n')
+        t_done = time.time()
+    finally:
+        stop.set()
+        if not ctl_task.done():
+            ctl_task.cancel()
+        await asyncio.gather(ctl_task, return_exceptions=True)
+        sampler.stop()
+        await runner.cleanup()
     dump_outcomes(outcomes, out_dir / "outcomes.jsonl")
     (out_dir / 'routes.jsonl').write_text(''.join(json.dumps(dict(
         request_id=r.request_id, input_tokens=r.input_tokens, path=r.path,
         submitted_s=r.submitted_s, m_pressure=r.route_pressure, reason=r.route_reason,
         prefill_instance=r.prefill_instance, decode_instance=r.decode_instance,
-        tp=r.tp, pp=r.pp, pool_id=r.pool_id, generation=r.generation, profile_key=r.profile_key)) + '\n'
+        tp=r.tp, pp=r.pp, pool_id=r.pool_id, generation=r.generation, profile_key=r.profile_key,
+        terminal_state=r.terminal_state, last_token_s=r.last_token_s, route_estimate=r.route_estimate)) + '\n'
         for r in router.records))
     if isinstance(router, ResidentRouter):
         (out_dir / 'resident-routes.jsonl').write_text(''.join(json.dumps(row) + '\n' for row in router.selector.routes))
@@ -236,11 +337,15 @@ async def _point(fleet: Fleet, gpus: Gpus, model: PerfModel, policy: Policy, slo
                 "power_samples": len(sampler.samples), "utilization_samples": len(sampler.utilization_samples),
                 "frequency_samples": len(sampler.frequency_samples)}
     (out_dir / "metering.json").write_text(json.dumps(metering, indent=2, default=str))
+    transitions = measure_transitions(ctl.transition_events, sampler.samples, gpus.gpus,
+                                     sampler_error=getattr(sampler, 'error', None),
+                                     power_source=getattr(sampler, 'power_source', 'unknown'))
+    (out_dir / 'transition-measurements.json').write_text(json.dumps(transitions, indent=2) + '\n')
     metering_summary = {k: v for k, v in metering.items() if k != "metadata"}
     return dict(slo=att, energy_j=total_j, mean_power_w=total_w, peak_power_w=power_stats["max"],
                 power=power_stats, duration_s=t_done - t_start,
                 window_energy_j=win_j, window_mean_power_w=win_w, window_s=t_load_end - t_start,
-                tail_s=t_done - t_load_end, per_gpu_mean_w=per_gpu,
+                tail_s=t_done - t_load_end, request_tail_s=t_requests_done - t_load_end, per_gpu_mean_w=per_gpu,
                 j_per_request=total_j / max(att["succeeded"], 1), j_per_token=total_j / max(att["output_tokens"], 1),
                 j_per_goodput_request=total_j / max(att["joint_slo_requests"], 1),
                 j_per_goodput_token=total_j / max(att["joint_output_tokens"], 1),
@@ -248,7 +353,9 @@ async def _point(fleet: Fleet, gpus: Gpus, model: PerfModel, policy: Policy, slo
                 success_request_s=att["succeeded"] / window_s,
                 utilization=util_stats, frequency=freq_stats, metering=metering_summary,
                 controller=ctl.summary(), final_roles=dict(ctl.roles), power_samples=len(sampler.samples),
-                quarantined_instances=sorted(getattr(router, 'quarantined', ())))
+                quarantined_instances=sorted(getattr(router, 'quarantined', ())),
+                transition_measurements='transition-measurements.json',
+                native_cleanup_complete=bool(native and terminal_native))
 
 
 def run_point(model_name: str, gpus: Sequence[int], tp: int, policy_name: str, profile_path: Path,
@@ -260,10 +367,19 @@ def run_point(model_name: str, gpus: Sequence[int], tp: int, policy_name: str, p
               tp_mode: Optional[str] = None,
               topology_profiles: Optional[Mapping[tuple[int, int], Path]] = None,
               resident_pools: Sequence[ResidentPool] = (),
-              pool_fixed_plans: Optional[dict[str, Plan]] = None) -> dict:
+              pool_fixed_plans: Optional[dict[str, Plan]] = None,
+              joint_resident: bool = False,
+              incremental_energy_path: Optional[Path] = None,
+                 transition_catalog_path: Optional[Path] = None,
+                 capacity_floor_path: Optional[Path] = None,
+                 transition_qualified_only: bool = False) -> dict:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     policy = get_policy(policy_name)
+    if (joint_resident or incremental_energy_path or transition_catalog_path or capacity_floor_path) and not policy.name.startswith('pdblend'):
+        raise ValueError('progressive optimization controls require the PDBlend policy')
+    if transition_qualified_only and transition_catalog_path is None:
+        raise ValueError('qualified-only transitions require an explicit catalog')
     runtime = None
     if tp_mode is not None:
         try:
@@ -285,9 +401,35 @@ def run_point(model_name: str, gpus: Sequence[int], tp: int, policy_name: str, p
     else:
         if topology_profiles or resident_pools or pool_fixed_plans:
             raise ValueError('topology profiles/pools require an explicit TP mode')
-        model = PerfModel.load(profile_path)
+        loaded = load_profile(profile_path, system='pdblend',
+                              model_id=ModelRegistry().get(model_name).model_id, tp=tp, pp=1)
+        model = loaded.model
+        (out_dir / 'profile-selection.json').write_text(json.dumps(loaded.manifest_fields(), indent=2) + '\n')
         specs = make_specs(model_name, gpus, tp=tp, base_port=base_port,
                            kv_connector=kv_connector if policy.allow_pd else None)
+    if (joint_resident or incremental_energy_path is not None) and not (runtime and runtime.pool_models):
+        raise ValueError('joint/energy routing requires explicit resident pools')
+    if joint_resident and (pool_fixed_plans or policy.dynamic_m_floor):
+        raise ValueError('joint resident optimization requires ordinary periodic inner plans')
+    if policy.name.startswith('pdblend'):
+        specs = [replace(spec, native_control=True) for spec in specs]
+        if runtime is not None:
+            runtime.specs = specs
+            runtime.metadata.update(native_control=True, engine_entrypoint='pdblend_runtime.serve')
+            (out_dir / 'tp-runtime.json').write_text(json.dumps(runtime.metadata, indent=2) + '\n')
+    # Reject missing runtime components and unbound optimization artifacts before
+    # acquiring/resetting GPUs or starting any engine process.
+    from pdblend.profile.query.runtime import require_planner_components
+    from pdblend.planner.capacity import load_capacity_floors, select_artifact
+    from pdblend.planner.transitions import TransitionCatalog
+    preflight_models = runtime.pool_models.values() if runtime and runtime.pool_models else (model,)
+    for checked in preflight_models:
+        require_planner_components(checked, allow_pd=policy.allow_pd, allow_dvfs=policy.allow_dvfs)
+        if capacity_floor_path is not None:
+            load_capacity_floors(capacity_floor_path, model=checked)
+        if transition_catalog_path is not None:
+            TransitionCatalog.load(select_artifact(transition_catalog_path, checked), model=checked,
+                                   qualified_only=transition_qualified_only)
     meter = Gpus(list(gpus))
     meter.reset_all()
     proxy_port = proxy_port or 8000 + min(gpus)  # concurrent fleets on disjoint GPUs share the host network
@@ -307,11 +449,18 @@ def run_point(model_name: str, gpus: Sequence[int], tp: int, policy_name: str, p
                                         period_s, tail_timeout_s, fixed_plan, min_warm_s, sampling_seed,
                                         initial_plan=runtime.selected_plan if runtime else None,
                                         pool_models=runtime.pool_models if runtime else None,
-                                        pool_fixed_plans=pool_fixed_plans))
+                                        pool_fixed_plans=pool_fixed_plans, joint_resident=joint_resident,
+                                        resident_pools=resident_pools, incremental_energy_path=incremental_energy_path,
+                                        transition_catalog_path=transition_catalog_path, capacity_floor_path=capacity_floor_path,
+                                        transition_qualified_only=transition_qualified_only))
             result.update(fleet_events=fleet.events(), startup_s=startup)
     finally:
         meter.reset_all()
     result.update(model=model_name, gpus=list(gpus), tp=tp, policy=asdict(policy), profile=str(profile_path),
+                  profile_key=model.profile_key,
+                  calibration_identity=getattr(model, 'calibration_identity', {}),
+                  calibration_coverage=getattr(model, 'calibration_coverage', {}),
+                  calibration_qualification=getattr(model, 'calibration_qualification', {}),
                   fixed_plan=None if fixed_plan is None else dict(counts=fixed_plan.counts, f_P=fixed_plan.f_P,
                                                                   f_D=fixed_plan.f_D, f_M=fixed_plan.f_M, tau=fixed_plan.tau,
                                                                   detail=fixed_plan.detail),

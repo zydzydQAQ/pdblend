@@ -154,6 +154,7 @@ def trace_summary(reqs: list[Request]) -> dict:
     q = nearest_rank
     return dict(requests=len(reqs), duration_s=reqs[-1].arrival_s, mean_rps=len(reqs) / max(reqs[-1].arrival_s, 1e-9),
                 input_mean=sum(ins) / len(ins), input_p50=q(ins, 0.5), input_p95=q(ins, 0.95),
+                input_min=min(ins), input_max=max(ins), output_min=min(outs), output_max=max(outs),
                 output_mean=sum(outs) / len(outs), output_p50=q(outs, 0.5), output_p95=q(outs, 0.95))
 
 

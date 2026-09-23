@@ -277,9 +277,31 @@ def bench_point(args: dict) -> dict:
         history = bc.poisson_trace(records, float(a["rate"]), policy.history_s,
                                    seed=int(a["seed"]) + 90001, source="history")
         warmup = sorted(history + warmup, key=lambda r: r.arrival_s)
+    optimization = {}
+    optional = ("tp_mode", "joint_resident", "incremental_energy_path", "transition_catalog_path",
+                "capacity_floor_path", "transition_qualified_only")
+    if any(a.get(key) for key in (*optional, "topology_profiles", "resident_pools")):
+        if not a["policy"].startswith("pdblend"):
+            raise ValueError("PDBlend optimization/TP options cannot alter an independent baseline")
+        optimization = {key: a[key] for key in optional if a.get(key) is not None}
+        def json_option(value):
+            if isinstance(value, (str, Path)):
+                path = Path(value)
+                return json.loads(path.read_text()), path.parent
+            return value, Path.cwd()
+        if a.get("topology_profiles"):
+            profiles, root = json_option(a["topology_profiles"])
+            optimization["topology_profiles"] = {tuple(int(n) for n in key.replace("tp", "").replace("pp", "").split("-")):
+                                                   root / value for key, value in profiles.items()}
+        if a.get("resident_pools"):
+            from pdblend.planner.topology import ResidentPool, Topology
+            pools, _ = json_option(a["resident_pools"])
+            optimization["resident_pools"] = tuple(ResidentPool(**dict(pool, topology=Topology(**pool["topology"])))
+                                                    for pool in pools)
     result = run_point(a["model"], gpus, int(a["tp"]), a["policy"], Path(a["profile"]), trace,
                        SLO(*bc.SLOS[a["dataset"]]), Path(a["out"]), warmup, a["connector"],
-                       period_s=float(a["period"]), fixed_plan=fixed, trace_meta=meta)
+                       period_s=float(a["period"]), fixed_plan=fixed, trace_meta=meta,
+                       sampling_seed=int(a["seed"]), **optimization)
     # Kept in memory for the attestation writer; run_point has already written
     # the public summary without serialising request objects.
     result["_evidence_trace"] = trace

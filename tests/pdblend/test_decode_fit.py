@@ -16,9 +16,9 @@ def test_segmented_candidate_is_continuous_and_monotone_at_all_knots():
  assert all(abs(predict(spec,b-1e-6,2048)-predict(spec,b+1e-6,2048))<1e-4 for b in (4,64,80,96))
 
 def test_override_round_trip_and_old_profile_equivalence(tmp_path):
- old=PerfModel.load(Path('results/v2/profile-7b/profile.json'));path=tmp_path/'old.json';old.save(path);loaded=PerfModel.load(path)
+ old=PerfModel.load(Path(__file__).parent / 'fixtures/legacy_profile.json');path=tmp_path/'old.json';old.save(path);loaded=PerfModel.load(path)
  for b in (1,4,32,128):assert loaded.step_seconds(b,1024,900)==pytest.approx(old.step_seconds(b,1024,900))
  assert loaded.decode_overrides=={}
 
 def test_unsupported_override_is_explicit():
- p=PerfModel.load(Path('results/2026-09-22/decode900/round1/profile.json'));assert p.decode_supported(160,1024,900);assert p.decode_supported(160,20000,900) is False
+ p=PerfModel.load(Path(__file__).parent / 'fixtures/legacy_override_profile.json');assert p.decode_supported(160,1024,900);assert p.decode_supported(160,20000,900) is False

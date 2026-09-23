@@ -208,3 +208,35 @@ def test_verifier_recomputes_common_windows_instead_of_trusting_flag(tmp_path):
     result = validate_parallel_interference(profiler.raw, profiler.out_dir)
     assert not result['passed']
     assert any('common windows' in failure for failure in result['failures'])
+
+
+@pytest.mark.parametrize('seconds', [4.9, 0, True, float('nan'), float('inf')])
+def test_qualification_duration_cannot_weaken_measurement_minimum(tmp_path, seconds):
+    (tmp_path/'wave.json').write_text(json.dumps(dict(members=['a'], qualification_measure_s=seconds)))
+    with pytest.raises(ValueError, match='at least 5 seconds'):
+        ProfileWave(tmp_path, 'a')
+
+
+def test_longer_probe_keeps_ordinary_measurement_duration(tmp_path, monkeypatch):
+    import pdblend.profile.wave as module
+
+    class Client:
+        def __init__(self, *_args): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *_args): pass
+
+    class Profiler:
+        decode_measure_s = 5.
+        specs = [SimpleNamespace(instance_id='a', base_url='unused', gpus=[0])]
+        raw = dict(environment=dict(gpu_uuids=['GPU-a']))
+        def _lock(self, *_args): pass
+        async def _decode_batch(self, *_args, **_kwargs):
+            return _row(0, self.decode_measure_s)
+
+    monkeypatch.setattr(module, 'EngineClient', Client)
+    (tmp_path/'wave.json').write_text(json.dumps(dict(members=['a'], qualification_measure_s=8.)))
+    profiler = Profiler()
+    wave = ProfileWave(tmp_path, 'a')
+    measured = asyncio.run(wave.probe(profiler, 'isolated'))
+    assert measured['instances'][0]['repeats'][0]['end_s'] == 8.
+    assert profiler.decode_measure_s == 5.
