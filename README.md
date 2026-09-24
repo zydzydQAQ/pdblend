@@ -1,8 +1,24 @@
-# PDblend 当前入口
+# PDblend · pdblend4-v3
 
-GitHub 上的本次更新是代码、测试与文档快照；新增的原始测量、prepared 语料、模型和运行队列
-保留在实验机，不随代码提交。下文 `results/2026-09-22/three-model` 与 `results/2026-09-23`
-链接指向实验机上的证据。发布范围和未完成门槛见[复现进度说明](docs/REPRODUCTION-STATUS-2026-09-23.md)。
+本分支保存 2026-09-25 的最新优化代码、测试、实验准备工具及固定环境清单。
+在新的 **8×NVIDIA L20** 上启动相同 Docker 并重现实验，请完整执行
+[RESTART.md](RESTART.md)。源码可从 Git 分支或随交付的 Git bundle 获取；实验输入包、
+运行镜像和模型权重按手册单独迁移，并逐项校验 SHA256。
+
+当前优化包括容量保留与紧急恢复、SLO 感知路由和两 token 交接保护、预算 Shield、
+native timing/profile 组合、独立进程计量、五系统比较与失败证据恢复。
+新复现入口从当前分支冻结源码，使用新输出目录、新 GPU 身份和新队列。
+旧机器 profile 仅用于明确标记的 development 复现；新机器正式性能结论需要自己的校准与验收。
+
+真实运行镜像为 `pdblend:l20-cu128-vllm-v1`：vLLM **0.10.1.1**，
+Torch **2.7.1+cu126**（`torch.version.cuda=12.6`），CUDA 基础镜像 **12.8.1**。
+宿主控制器单独固定为 Python 3.10、Torch 2.7.0+cu128、Transformers 4.51.3。
+详细身份在 [环境清单](requirements/pdblend4-v3-image.json)；
+[迁移范围](MIGRATION.md)区分分支、小型输入包与独立的大文件。
+
+以下内容保留 9 月 23 日的功能验证和历史入口；最新实验设计见
+[Profile 与单次观测边界](docs/2026-09-24_profile_saturation_round.md)，
+历史结果链接需要源机证据目录，不能用来判断新机器已通过验收。
 
 当前三模型 seed 701 工作流从[实时状态快照](results/2026-09-23/status/current.md)进入。
 本轮优先执行 PDBlend 三模型功能与 300 秒 A/B，再执行 7B 八卡自动 P/D；
@@ -58,7 +74,7 @@ O(1) 标量查询基准、CSV 导出、日志压缩及删除后验证；不代�
 predictor、verification receipt 和冻结源码位于各自 results/archive 或 attempt 路径，清理时
 必须依据带 hash 的 tombstone 逐项核对。
 
-当前环境固定为 vLLM 0.10.1.1、Torch 2.7.1、CUDA 12.8.1 和 8×L20；当前功能工作负载统一
+该轮环境为 vLLM 0.10.1.1、Torch 2.7.1+cu126、CUDA 基础镜像 12.8.1 和 8×L20；当前功能工作负载统一
 使用 seed701，并要求 Qwen2.5-7B、14B、32B 三个模型分别通过 model/tokenizer identity
 校验。镜像为 `pdblend:l20-cu128-vllm-v1`。
 
@@ -66,7 +82,7 @@ CPU 检查使用仓库 venv：
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src \
-  /home/pdblend/.venv/bin/python -m pytest -q \
+  .venv/bin/python -m pytest -q \
   -m 'not gpu and not historical' tests/pdblend tests/independent_baselines
 ```
 

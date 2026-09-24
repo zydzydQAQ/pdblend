@@ -17,11 +17,16 @@ from .native_timing_audit import audit_window,fit_component,need
 from .native_frequency_domain import (plan_frequencies, point_fields, with_domain,
                                       validate_collection_inputs, require_same_domain)
 from .wave import atomic_json
+from .native_timing_single_pass import (is_single_pass, INPUT_SCHEMA as SINGLE_INPUT_SCHEMA,
+    COLLECTION_SCHEMA as SINGLE_COLLECTION_SCHEMA, development_qualification as single_pass_qualification)
 
 WORKER='pdblend.profile.collection.native_timing_worker.PDNativeTimingWorker'
 
 
 def validate_timing_plan(plan):
+    if is_single_pass(plan):
+        from .native_timing_single_pass import validate_plan as validate_single
+        return validate_single(plan)
     if plan.get('schema')=='pdblend-native-timing-plan/v2':
         from .native_timing_plan_v2 import validate_plan as validate_v2
         return validate_v2(plan)
@@ -36,7 +41,7 @@ def resident_specs(args,plan):
          'native timing requires one distinct eight-GPU fleet')
     need(plan['model_id']==Path(args.model).name and plan.get('pp',1)==1,
          'native timing model/topology differs')
-    if plan.get('schema')=='pdblend-native-timing-plan/v2':
+    if plan.get('schema')=='pdblend-native-timing-plan/v2' or is_single_pass(plan):
         from .native_timing_plan_v2 import MODEL_TP
         need(MODEL_TP.get(plan['model_id'])==tp and plan['resident_instances']==8//tp,
              'v2 native timing model-owned inventory differs')
@@ -239,7 +244,8 @@ async def window(spec,meter,point,path,*,before_measure=None):
 def preflight(args):
     from pdblend.source_inventory import source_root
     plan=validate_timing_plan(json.loads(args.point_plan.read_text()));expected=json.loads(args.input_manifest.read_text())
-    input_schema='pdblend-native-timing-inputs/v2' if plan.get('schema')=='pdblend-native-timing-plan/v2' else 'pdblend-native-timing-inputs-v1'
+    input_schema=(SINGLE_INPUT_SCHEMA if is_single_pass(plan) else
+        'pdblend-native-timing-inputs/v2' if plan.get('schema')=='pdblend-native-timing-plan/v2' else 'pdblend-native-timing-inputs-v1')
     need(expected.get('schema')==input_schema and expected.get('model_id')==plan['model_id']
          and expected.get('system')=='pdblend','native timing invocation schema/model identity differs')
     validate_frequency_invocation(args, plan, expected)
@@ -268,6 +274,9 @@ def preflight(args):
     validate_cycle_invocation(args, plan, expected)
     validate_layout_invocation(args, plan, expected)
     validate_phase_order(args, plan, expected)
+    if is_single_pass(plan):
+        need(invocation_phase_order(args)==['timing'] and not getattr(args,'timing_first',False),
+             'single-pass development collection must not repeat runtime or energy supplements')
     return plan,expected
 
 
@@ -451,12 +460,15 @@ async def collect(args,plan):
     if 'frequency_domain' in plan:
         validate_frequency_invocation(args,plan,json.loads(args.input_manifest.read_text()))
     specs=resident_specs(args,plan)
-    v2=plan.get('schema')=='pdblend-native-timing-plan/v2'
+    single_pass=is_single_pass(plan)
+    v2=plan.get('schema')=='pdblend-native-timing-plan/v2' or single_pass
     meter=Gpus(args.gpus,power_mode='instant');sampler=meter.sampler(interval_s=.1);fleet=Fleet(specs,args.out/'logs')
-    report=dict(schema='pdblend-native-timing-collection/v2' if v2 else 'pdblend-native-timing-collection-v1',system='pdblend',status='failed',complete=False,
+    report=dict(schema=SINGLE_COLLECTION_SCHEMA if single_pass else 'pdblend-native-timing-collection/v2' if v2 else 'pdblend-native-timing-collection-v1',system='pdblend',status='failed',complete=False,
         formal_eligible=False,energy_comparable=False,hardware_executed=False,raw_bindings=[],cleanup_errors=[],
         phase_order=invocation_phase_order(args),active_phase='startup')
     if v2:report.update(point_plan=binding(args.point_plan),capacity_policy=plan['capacity_policy'],window_owners=[])
+    if single_pass:report.update(qualification_level='single_pass_development',repeated_windows=False,
+        independent_parallel_qualification=False,full_profile_qualified=False)
     if 'frequency_domain' in plan:
         report.update({key:plan[key] for key in ('model_id','tp','pp','frequency_domain_ref',
                                                 'frequency_domain','frequency_domain_sha256')})
@@ -503,7 +515,7 @@ async def collect(args,plan):
             return raw,rows,dict(latency_ms=statistics.median(r['latency_ms'] for r in rows),
                                  power_w=statistics.mean(watts),start_s=raw['start_s'],end_s=raw['end_s'])
         isolated={};parallel={};checks=[]
-        for frequency in plan_frequencies(plan):
+        for frequency in (() if single_pass else plan_frequencies(plan)):
             # Isolated and concurrent observations must have the same idle
             # peer clocks. Set the whole inventory before either measurement.
             boundary=dict(frequency_mhz=frequency,started_s=time.time(),status='incomplete',clocks=[],observations=[])
@@ -546,6 +558,12 @@ async def collect(args,plan):
         concurrent=all(c['passed'] for c in checks)
         qualification=dict(qualified=True,parallel_qualified=concurrent,mode='parallel' if concurrent else 'serial_resident_fallback',
             limit=.05,checks=checks,exclusive_fleet_gpu_uuids=os.environ['PDBLEND_GPU_UUIDS'].split(','),energy_comparable=False)
+        if single_pass:
+            # All eight devices collect distinct points. This diagnostic mode
+            # explicitly omits repeated isolation probes and claims no independent
+            # concurrency qualification; it cannot be replayed as the v2 protocol.
+            concurrent=True
+            qualification=single_pass_qualification([],os.environ['PDBLEND_GPU_UUIDS'].split(','))
         atomic_json(args.out/'measurement-qualification.json',qualification)
         training=[];holdout=[];v2_windows=[]
         async def one(spec,points):

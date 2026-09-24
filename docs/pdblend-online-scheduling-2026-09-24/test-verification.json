@@ -1,0 +1,12 @@
+{
+  "result": "passed",
+  "passed": 53,
+  "scope": [
+    "tests/pdblend/test_router.py",
+    "tests/pdblend/test_slo_routing_recovery.py",
+    "tests/pdblend/test_pdblend_runtime_options.py"
+  ],
+  "interpreter": "/home/pdblend/.venv/bin/python",
+  "gpu_experiment_run": false,
+  "serving_code_modified": false
+}

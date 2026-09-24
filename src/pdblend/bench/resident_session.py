@@ -142,13 +142,14 @@ class ResidentGroupSession:
     execute returns a result whose evidence_valid distinguishes measurement
     integrity from SLO success. A measured SLO failure is still frozen.
     """
-    def __init__(self, group, adapter, out, *, previous=()):
+    def __init__(self, group, adapter, out, *, previous=(), stop_after_window=None):
         self.group, self.adapter, self.out = group, adapter, Path(out)
         self.signature = engine_signature(group['engine_identity'])
         if group.get('engine_signature') != self.signature:
             raise ValueError('group signature differs')
         self.previous = tuple(Path(p) for p in previous)
         self.quarantined = False
+        self.stop_after_window = Path(stop_after_window) if stop_after_window else self.out/'stop-after-window'
 
     def _completed(self, point):
         for root in self.previous:
@@ -196,22 +197,57 @@ class ResidentGroupSession:
                       group_sha256=digest(self.group),
                       planned_points={p['name']:digest(p) for p in self.group['points']},
                       complete=False, windows=[], skipped=[], cleanup_errors=[])
+        extension = None
+        if self.group.get('extension_policy'):
+            from .single_observation_slo_boundary import BoundaryPointSource, read_bound
+            extension = BoundaryPointSource(self.group, self.out/'extensions', previous=self.previous)
+            for entry in extension.entries:
+                if entry.get('receipt') and self._completed(read_bound(entry['point'])) != entry['receipt']:
+                    raise ValueError('completed extension lacks intact prior window evidence')
         pending = []
         for point in self.group['points']:
             old = self._completed(point)
             if old:
                 report['skipped'].append(dict(point=point['name'], frozen_receipt=old))
+                if extension is not None:
+                    extension.observe(point, old)
             else:
                 pending.append(point)
         started = False
         try:
-            if pending:
+            if pending or extension is not None:
                 started = True
                 # Frozen observations may bind an older controller/auditor
                 # source. They are verified above, never requalified as though
                 # executed by this new attempt's source bundle.
-                report['startup'] = await self.adapter.start(dict(self.group,points=pending))
-            for index, point in enumerate(pending):
+                report['startup'] = await self.adapter.start(dict(self.group,points=pending or self.group['points']))
+            index = 0
+            operator_stop = False
+            while True:
+                # Check only after the preceding receipt and extension manifest
+                # have committed, before consuming/registering another point.
+                if self.stop_after_window.exists():
+                    operator_stop = True
+                    report.update(stop_reason='operator_requested_priority_handoff',
+                                  stop_file=str(self.stop_after_window),
+                                  pending_points=[p['name'] for p in pending])
+                    break
+                dynamic = not pending
+                point = pending.pop(0) if pending else extension.next_point() if extension is not None else None
+                if point is None:
+                    break
+                if dynamic:
+                    old = self._completed(point)
+                    if old:
+                        report['skipped'].append(dict(point=point['name'], frozen_receipt=old))
+                        extension.observe(point, old)
+                        continue
+                    # Dynamic points are authorized by the frozen policy and
+                    # registered only after the previous window's real drain.
+                    register = getattr(self.adapter, 'register_point', None)
+                    if register is None:
+                        raise RuntimeError('resident adapter lacks dynamic point validation')
+                    await register(point)
                 window = self.out / 'windows' / point['name']
                 window.mkdir(parents=True, exist_ok=False)
                 write_new(window / 'point.json', point)
@@ -261,15 +297,27 @@ class ResidentGroupSession:
                                                evidence_valid=receipt['evidence_valid'],
                                                recorded_window_complete=receipt.get('recorded_window_complete', False),
                                                measurement_evidence_valid=receipt.get('measurement_evidence_valid', receipt['evidence_valid'])))
+                if extension is not None:
+                    extension.observe(point, dict(path=str((window/'receipt.json').resolve()),
+                                                  sha256=file_sha(window/'receipt.json')))
+                index += 1
                 if self.quarantined:
                     raise RuntimeError('session quarantined after ' + point['name'])
-            report.update(status='passed', complete=True,
+            report.update(status='interrupted' if operator_stop else 'passed', complete=not operator_stop,
                 recorded_windows=sum(w['recorded_window_complete'] for w in report['windows']),
                 all_observations_valid=all(w['measurement_evidence_valid'] for w in report['windows']),
                 invalid_observations=sum(not w['measurement_evidence_valid'] for w in report['windows']))
+            if extension is not None:
+                report.update(extension_manifest=extension.last_manifest,
+                    continuation_required=extension.stop_reason == 'lease_budget_reached',
+                    boundary_stop_reason=extension.stop_reason)
+            if operator_stop:
+                report['continuation_required'] = True
         except Exception as exc:
             report['error'] = f'{type(exc).__name__}: {exc}'
         finally:
+            if extension is not None:
+                report['extension_manifest'] = extension.last_manifest
             if started:
                 cleanup_started = time.time()
                 try:

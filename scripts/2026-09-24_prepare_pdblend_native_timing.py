@@ -18,7 +18,7 @@ from pdblend.profile.collection.native_timing_plan import binding,build_plan,dig
 BASE=ROOT/'results/2026-09-24/resident-comparison-eco-v3/sources/d7d9372cbfb57f21830a342448db9c14a3b5b2ca094665bb41298ddb2e21f5c3'
 VERIFY=ROOT/'results/2026-09-22/three-model/profile-receipts/model-verification-99fabb0721f21aa50eb2a8518877acdf05cc76df32f0f769900be7b4d4471fc8.json'
 IMAGE='sha256:1c2d0bf96dfa752394a6aa4b5398a6105dcf060936a484a89729dcab6f9d9acc'
-OVERLAYS=tuple('pdblend/profile/collection/native_timing_'+name+'.py' for name in ('plan','audit','collect','worker'))
+OVERLAYS=tuple('pdblend/profile/collection/native_timing_'+name+'.py' for name in ('plan','audit','collect','worker','single_pass'))
 CYCLE_OVERLAYS=(
     'pdblend/profile/collection/native_serving_cycles.py',
     'pdblend/profile/collection/native_serving_cycles_audit.py',
@@ -151,8 +151,13 @@ def prepare(out,ledger,bindings,*,collect_runtime=False,collect_power_pilot=Fals
     if out.exists():raise FileExistsError('new immutable preparation directory required')
     if point_plan is not None:
         from pdblend.profile.collection.native_timing_plan_v2 import validate_plan
-        plan=validate_plan(json.loads(Path(point_plan).read_text()))
+        from pdblend.profile.collection import native_timing_single_pass as single_pass
+        candidate=json.loads(Path(point_plan).read_text())
+        plan=(single_pass.validate_plan(candidate) if single_pass.is_single_pass(candidate) else validate_plan(candidate))
     else:plan=build_plan(binding(ledger),binding(bindings))
+    development=plan.get('schema')=='pdblend-native-timing-development-plan/v1'
+    if development and any((collect_runtime,collect_power_pilot,request_cycle_plan,layout_energy_plan,timing_first)):
+        raise ValueError('single-pass development only collects timing; no legacy stage or supplements')
     v2=point_plan is not None
     if type(timing_first) is not bool or (timing_first and not v2):
         raise ValueError('independent timing stage requires explicit v2 timing_first')
@@ -183,6 +188,7 @@ def prepare(out,ledger,bindings,*,collect_runtime=False,collect_power_pilot=Fals
         if v2:
             overlays += tuple('pdblend/profile/collection/native_timing_'+name+'.py'
                               for name in ('plan_v2','capacity','replay','replay_v2'))
+        if development:overlays+=('pdblend/profile/collection/native_timing_single_pass.py',)
         if collect_power_pilot:
             overlays += tuple('pdblend/profile/collection/native_power_'+name+'.py'
                               for name in ('plan','collect','audit'))
@@ -195,12 +201,13 @@ def prepare(out,ledger,bindings,*,collect_runtime=False,collect_power_pilot=Fals
         if frequency_inputs:overlays+=FREQUENCY_QUERY_OVERLAYS
         overlays=tuple(dict.fromkeys(overlays))
         for name in overlays:_copy_module(name,staging)
-        dependencies,import_closure=_close_imports(staging,overlays) if cycle or collect_power_pilot or v2 or layout else ((),())
+        dependencies,import_closure=_close_imports(staging,overlays)
         source,source_sha=helper.freeze_source(staging,out/'sources')
     write(out/'point-plan.json',plan)
-    inputs=dict(schema='pdblend-native-timing-inputs/v2' if v2 else 'pdblend-native-timing-inputs-v1',point_plan=binding(out/'point-plan.json'),
+    inputs=dict(schema=single_pass.INPUT_SCHEMA if development else ('pdblend-native-timing-inputs/v2' if v2 else 'pdblend-native-timing-inputs-v1'),point_plan=binding(out/'point-plan.json'),
         source_manifest=binding(source/'manifest.json'),model_verification=binding(VERIFY),image_digest=IMAGE,
         model_id=plan['model_id'],system='pdblend',source_sha256=source_sha)
+    if development:inputs.update(qualification_level=single_pass.LEVEL, original_design_qualified=False)
     from pdblend.profile.collection.native_timing_collect import resident_phase_order
     inputs.update(timing_first=timing_first, phase_order=resident_phase_order(
         collect_runtime=collect_runtime, power_pilot=collect_power_pilot,
@@ -268,15 +275,18 @@ def prepare(out,ledger,bindings,*,collect_runtime=False,collect_power_pilot=Fals
         overlays={name:binding(ROOT/'src'/name) for name in overlays},point_plan=binding(out/'point-plan.json'),
         dependency_overlays={name:binding(ROOT/'src'/name) for name in dependencies},source_import_closure=list(import_closure),
         jobs=binding(out/'jobs.json'),builder=binding(__file__),training_points=sum(p['purpose']=='training' for p in plan['points']),
-        holdout_points=sum(p['purpose']=='holdout' for p in plan['points']),measurement_windows=3*len(plan['points']),
-        interference_windows=12*(8//plan.get('tp',1)),
-        minimum_sampling_wall_s=6*(8//plan.get('tp',1))*7+6*7+len(plan['points'])*3/(8//plan.get('tp',1))*7,
+        holdout_points=sum(p['purpose']=='holdout' for p in plan['points']),measurement_windows=sum(p.get('repeats',3) for p in plan['points']),
+        interference_windows=0 if development else 12*(8//plan.get('tp',1)),
+        minimum_sampling_wall_s=(0 if development else 6*(8//plan.get('tp',1))*7+6*7)+sum(p.get('repeats',3) for p in plan['points'])/(8//plan.get('tp',1))*7,
         timing_only=not (collect_runtime or collect_power_pilot or cycle or layout),collect_runtime=collect_runtime,
         collect_power_pilot=collect_power_pilot,
         collect_request_cycles=bool(cycle),
         collect_layout_energy=bool(layout),
         timing_first=timing_first,phase_order=inputs['phase_order'],
         power_expansion_qualified=False,remaining_gates=plan['required_remaining'])
+    if development:
+        report.update(qualification_level=single_pass.LEVEL, original_design_qualified=False,
+                      parallel_qualified=False, component_qualified=False)
     if frequency_inputs:report.update(**frequency_inputs)
     if cycle:
         report.update(request_cycle_plan=inputs['request_cycle_plan'],request_cycle_original_plan=inputs['request_cycle_original_plan'],

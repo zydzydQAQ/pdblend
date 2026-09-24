@@ -1,6 +1,7 @@
 """End-to-end CPU test: fake vLLM engines (aiohttp) behind the real proxy, controller and load client."""
 import asyncio
 import json
+import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -133,7 +134,8 @@ class FakeEngineServer:
 
 class FakeInstance:
     def __init__(self, iid, gpu, port, kv_connector="NixlConnector"):
-        self.spec = SimpleNamespace(instance_id=iid, max_num_seqs=256, gpus=(gpu,), base_url=f"http://127.0.0.1:{port}",
+        self.spec = SimpleNamespace(instance_id=iid, max_num_seqs=256, max_model_len=8192,
+                                    gpus=(gpu,), base_url=f"http://127.0.0.1:{port}",
                                     kv_connector=kv_connector, zmq_address=f"127.0.0.1:{port + 20000}",
                                     tp=1, pp=1, generation=0)
         self.server = FakeEngineServer(gpu)
@@ -165,13 +167,32 @@ class FakeSampler:
     def __init__(self, gpus):
         self.gpus, self.samples, self._task = gpus, [], None
         self.utilization_samples, self.frequency_samples = [], []
+        self.frequency_readings, self.frequency_errors = [], []
+        self.frequency_requested = None
+        self._frequency_lock = threading.Lock()
+
+    def capture_frequency(self, requested=None, reason='explicit'):
+        # A deterministic CPU sensor, retaining the fixture's fixed 2520 MHz.
+        # Transition hooks call this from a thread, alongside periodic samples.
+        with self._frequency_lock:
+            if requested is None and self.frequency_requested is not None:
+                requested = self.frequency_requested()
+            requested = requested or {}
+            stamp = time.time()
+            rows = [dict(gpu=gpu, requested_mhz=requested.get(gpu), observed_mhz=2520.,
+                         read_started_s=stamp, read_finished_s=stamp, t_s=stamp,
+                         error=None, reason=reason, source_id='cpu_fixture:constant_clock')
+                    for gpu in self.gpus]
+            self.frequency_readings.extend(rows)
+            self.frequency_samples.append((stamp, [2520.] * len(self.gpus)))
+            return rows
     def start(self):
         self._task = asyncio.get_event_loop().create_task(self._loop())
     async def _loop(self):
         while True:
             self.samples.append((time.time(), [100.0] * len(self.gpus)))
             self.utilization_samples.append((time.time(), [50.0] * len(self.gpus)))
-            self.frequency_samples.append((time.time(), [2520.0] * len(self.gpus)))
+            self.capture_frequency(reason='periodic')
             await asyncio.sleep(0.02)
     def stop(self):
         if self._task: self._task.cancel()

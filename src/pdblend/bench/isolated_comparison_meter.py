@@ -132,7 +132,7 @@ class IsolatedComparisonMeter:
             public_snapshot_fields_modified=False, additional_snapshot_fields=['frequency_samples'],
             sample_clocks=True, additional_frequency_observation=True,
             frequency_observation_method='PowerSampler.sample_clocks; backend.current_freq for each bound GPU',
-            frequency_timestamp_method='original PowerSampler power-row timestamp',
+            frequency_timestamp_method='PowerSampler frequency-row acquisition timestamp; independent of power-row timestamp',
             rpc_scope='outside_service_and_drain_tail', commands=[], local_window_guards=[],
             liveness_observations=[])
 

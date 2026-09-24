@@ -1,0 +1,104 @@
+{
+  "archive": "pdblend4-v3-engine.tar.zst",
+  "bytes": 9465050430,
+  "identity_sha256": "5f71fda2969e374bb2cf62ab5759b8b7ab4440bdb72e04d390703ceab7cb50f6",
+  "image": {
+    "architecture": "amd64",
+    "config": {
+      "ArgsEscaped": true,
+      "Cmd": [
+        "bash"
+      ],
+      "Entrypoint": [
+        "/opt/nvidia/nvidia_entrypoint.sh"
+      ],
+      "Env": [
+        "PATH=/opt/venv/bin:/usr/local/cuda/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "NVARCH=x86_64",
+        "NVIDIA_REQUIRE_CUDA=cuda>=12.8 brand=unknown,driver>=470,driver<471 brand=grid,driver>=470,driver<471 brand=tesla,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=vapps,driver>=470,driver<471 brand=vpc,driver>=470,driver<471 brand=vcs,driver>=470,driver<471 brand=vws,driver>=470,driver<471 brand=cloudgaming,driver>=470,driver<471 brand=unknown,driver>=535,driver<536 brand=grid,driver>=535,driver<536 brand=tesla,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=vapps,driver>=535,driver<536 brand=vpc,driver>=535,driver<536 brand=vcs,driver>=535,driver<536 brand=vws,driver>=535,driver<536 brand=cloudgaming,driver>=535,driver<536 brand=unknown,driver>=550,driver<551 brand=grid,driver>=550,driver<551 brand=tesla,driver>=550,driver<551 brand=nvidia,driver>=550,driver<551 brand=quadro,driver>=550,driver<551 brand=quadrortx,driver>=550,driver<551 brand=nvidiartx,driver>=550,driver<551 brand=vapps,driver>=550,driver<551 brand=vpc,driver>=550,driver<551 brand=vcs,driver>=550,driver<551 brand=vws,driver>=550,driver<551 brand=cloudgaming,driver>=550,driver<551 brand=unknown,driver>=560,driver<561 brand=grid,driver>=560,driver<561 brand=tesla,driver>=560,driver<561 brand=nvidia,driver>=560,driver<561 brand=quadro,driver>=560,driver<561 brand=quadrortx,driver>=560,driver<561 brand=nvidiartx,driver>=560,driver<561 brand=vapps,driver>=560,driver<561 brand=vpc,driver>=560,driver<561 brand=vcs,driver>=560,driver<561 brand=vws,driver>=560,driver<561 brand=cloudgaming,driver>=560,driver<561 brand=unknown,driver>=565,driver<566 brand=grid,driver>=565,driver<566 brand=tesla,driver>=565,driver<566 brand=nvidia,driver>=565,driver<566 brand=quadro,driver>=565,driver<566 brand=quadrortx,driver>=565,driver<566 brand=nvidiartx,driver>=565,driver<566 brand=vapps,driver>=565,driver<566 brand=vpc,driver>=565,driver<566 brand=vcs,driver>=565,driver<566 brand=vws,driver>=565,driver<566 brand=cloudgaming,driver>=565,driver<566",
+        "NV_CUDA_CUDART_VERSION=12.8.90-1",
+        "CUDA_VERSION=12.8.1",
+        "LD_LIBRARY_PATH=/usr/local/cuda/lib64",
+        "NVIDIA_VISIBLE_DEVICES=all",
+        "NVIDIA_DRIVER_CAPABILITIES=compute,utility",
+        "NV_CUDA_LIB_VERSION=12.8.1-1",
+        "NV_NVTX_VERSION=12.8.90-1",
+        "NV_LIBNPP_VERSION=12.3.3.100-1",
+        "NV_LIBNPP_PACKAGE=libnpp-12-8=12.3.3.100-1",
+        "NV_LIBCUSPARSE_VERSION=12.5.8.93-1",
+        "NV_LIBCUBLAS_PACKAGE_NAME=libcublas-12-8",
+        "NV_LIBCUBLAS_VERSION=12.8.4.1-1",
+        "NV_LIBCUBLAS_PACKAGE=libcublas-12-8=12.8.4.1-1",
+        "NV_LIBNCCL_PACKAGE_NAME=libnccl2",
+        "NV_LIBNCCL_PACKAGE_VERSION=2.25.1-1",
+        "NCCL_VERSION=2.25.1-1",
+        "NV_LIBNCCL_PACKAGE=libnccl2=2.25.1-1+cuda12.8",
+        "NVIDIA_PRODUCT_NAME=CUDA",
+        "NV_CUDA_CUDART_DEV_VERSION=12.8.90-1",
+        "NV_NVML_DEV_VERSION=12.8.90-1",
+        "NV_LIBCUSPARSE_DEV_VERSION=12.5.8.93-1",
+        "NV_LIBNPP_DEV_VERSION=12.3.3.100-1",
+        "NV_LIBNPP_DEV_PACKAGE=libnpp-dev-12-8=12.3.3.100-1",
+        "NV_LIBCUBLAS_DEV_VERSION=12.8.4.1-1",
+        "NV_LIBCUBLAS_DEV_PACKAGE_NAME=libcublas-dev-12-8",
+        "NV_LIBCUBLAS_DEV_PACKAGE=libcublas-dev-12-8=12.8.4.1-1",
+        "NV_CUDA_NSIGHT_COMPUTE_VERSION=12.8.1-1",
+        "NV_CUDA_NSIGHT_COMPUTE_DEV_PACKAGE=cuda-nsight-compute-12-8=12.8.1-1",
+        "NV_NVPROF_VERSION=12.8.90-1",
+        "NV_NVPROF_DEV_PACKAGE=cuda-nvprof-12-8=12.8.90-1",
+        "NV_LIBNCCL_DEV_PACKAGE_NAME=libnccl-dev",
+        "NV_LIBNCCL_DEV_PACKAGE_VERSION=2.25.1-1",
+        "NV_LIBNCCL_DEV_PACKAGE=libnccl-dev=2.25.1-1+cuda12.8",
+        "LIBRARY_PATH=/usr/local/cuda/lib64/stubs",
+        "DEBIAN_FRONTEND=noninteractive",
+        "VIRTUAL_ENV=/opt/venv",
+        "CUDA_DEVICE_ORDER=PCI_BUS_ID",
+        "PIP_DISABLE_PIP_VERSION_CHECK=1",
+        "PDBLEND_MODELS_DIR=/models"
+      ],
+      "Labels": {
+        "maintainer": "NVIDIA CORPORATION <cudatools@nvidia.com>",
+        "org.opencontainers.image.ref.name": "ubuntu",
+        "org.opencontainers.image.version": "22.04"
+      },
+      "WorkingDir": "/workspace"
+    },
+    "created": "2026-09-22T13:21:44.062384127+08:00",
+    "id": "sha256:1c2d0bf96dfa752394a6aa4b5398a6105dcf060936a484a89729dcab6f9d9acc",
+    "os": "linux",
+    "repo_digests": [
+      "pdblend@sha256:1c2d0bf96dfa752394a6aa4b5398a6105dcf060936a484a89729dcab6f9d9acc"
+    ],
+    "repo_tags": [
+      "pdblend:l20-cu128-vllm-v1"
+    ],
+    "rootfs": {
+      "Layers": [
+        "sha256:270a1170e7e398434ff1b31e17e233f7d7b71aa99a40473615860068e86720af",
+        "sha256:fb456a9e7760e7e4481d3d9eddee3ef62358753326d669c3efe6b0cc254ab9c3",
+        "sha256:981a144d9fa2efffdbdfbdcfd3881dccb4fbf07867d4fa326a386126ca11b50f",
+        "sha256:583f1d6040fc90a1380cb4d11d46b78bbbd4ad7d6274b9656ab9832ef7ba6342",
+        "sha256:6020d84069cf575521faca653d2817e2195b8233b8c4e2d7bc65f3296296c2bb",
+        "sha256:eb0143fcce68bd06a29bf314125d30f2a1f44d606fc419e7a54ab602bc26b2d0",
+        "sha256:cb395f276e984728ca05fdee4e1dc203e1310a9e943a2d16d7aa87e5b2cf754b",
+        "sha256:70a158f70e3777a129c15ffe51399bb6c226218c08ff6819948b9b1f26a46277",
+        "sha256:9bb0510c7b4b74b056648f24e0a55c26f7521a1a1b766250a0776e14ce9d93f6",
+        "sha256:7215ae9b9700d9530f70dea6f546b7ebdaac0098e4436b4c99e3e8063170c274",
+        "sha256:acbc0d2ed199232b8f482ce41318ccd603e3c9a7731d39f0b08b88b253a6ca67",
+        "sha256:50f8c7c972f8be66f68bced9e377b20f3d1be03a0e104daac9d91dc1b5e4dc2d",
+        "sha256:aedb5bb347145222e42a176edb977a931fb157e951b2697e9330795b63b6d7a1",
+        "sha256:bcc6aedebaa37bd60ec339d22719f8776cfe3720a2b549b93c1fb7f79386fb09",
+        "sha256:d823e566b6d6223a4c0b4ff0babb58e80262f5ae986900b3fa84bdd8c03980ac",
+        "sha256:189852dbbf81ca4bf027da9a29b2084a36c62e99d6fb3453a4ac73e22cd4d5de",
+        "sha256:53a79d47a94cf0154a2818512a8f5b5453c7b4c51a8f02e9f3011437ff7b150f",
+        "sha256:4f4199c3f6451cc7b11335618c657c9fe8aacba06e29e8c59201989073f99138",
+        "sha256:da7ee3639341336574578410754b9791ab19709e0190db4f3d01f96fe934512f",
+        "sha256:5bc99f99094ac2ee662a2b18fbbaef7114fb229974d398c813ace56006b58a0c",
+        "sha256:b20990b13e3cc361a7481a11115607b7fd2fb310567b933347d31589966a7b04"
+      ],
+      "Type": "layers"
+    }
+  },
+  "schema": "pdblend4-v3-image-archive/v1",
+  "sha256": "864d008878c9f785d122db3651b7703d23155b16b431081807e7afed61a6b797"
+}

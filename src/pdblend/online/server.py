@@ -62,7 +62,8 @@ class Proxy:
         loads = {i: dict(role=l.role, inflight_prefill_tokens=l.inflight_prefill_tokens,
                          inflight_seqs=l.inflight_seqs) for i, l in self.router.loads.items()}
         return web.json_response(dict(loads=loads, rejected=self.router.rejected,
-                                      records=len(self.router.records)))
+                                      records=len(self.router.records),
+                                      slo_routing=self.router.slo_routing_summary()))
 
     async def completions(self, request):
         body = await request.json()
@@ -134,6 +135,7 @@ class Proxy:
                     created=int(record.submitted_s), diagnostics=diagnostics)))
                 self.router.first_token(record)
                 record.tokens_so_far = completion_tokens = 1
+                record.pd_handoff_started_s = record.first_token_s
                 completion_tokens = await self._stream_pd_leg(record, engine_body, engine_id, response, diagnostics=diagnostics)
             else:
                 await response.prepare(request)

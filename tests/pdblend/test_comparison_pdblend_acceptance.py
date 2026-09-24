@@ -12,15 +12,16 @@ from test_comparison_native_acceptance import native_fixture
 from test_comparison_acceptance import put, save_change, state, drain_rows
 
 
-def fixture(tmp_path, monkeypatch, *, parked=False, failed=False, slow=False):
+def fixture(tmp_path, monkeypatch, *, parked=False, failed=False, slow=False,
+            mixed_instances=4, profile_key='profile-key'):
     args = native_fixture(tmp_path); point = args['point']; point['system'] = 'pdblend'
     identity = args['engine_identity']; specs = identity['instances']
     instances = {r['instance_id']:r for r in specs}
     trace = json.loads(Path(point['trace']['path']).read_text()); trace['selection_split'] = 'evaluation'
     point['trace'] = args['raw_refs']['trace'] = put(tmp_path,'trace.json',trace)
-    roles = {iid:('M' if not parked or index < 4 else 'off' if index == 7 else 'L1')
+    roles = {iid:('M' if not parked or index < mixed_instances else 'off' if index == 7 else 'L1')
              for index,iid in enumerate(instances)}
-    counts = dict(Counter(roles.values())); selected = dict(profile_key='profile-key', frequencies=[1500,2520],
+    counts = dict(Counter(roles.values())); selected = dict(profile_key=profile_key, frequencies=[1500,2520],
         choice=dict(plan=dict(counts=counts,f_P=1500,f_D=1500,f_M=1500,tau=1024)))
     monkeypatch.setattr(audit,'_inputs',lambda *_:selected)
     reset = args['reset']; caps = deepcopy(args['startup_qualification']['capabilities'])
@@ -52,7 +53,7 @@ def fixture(tmp_path, monkeypatch, *, parked=False, failed=False, slow=False):
             phases.append(row)
     phases.sort(key=lambda r:r['finished_s'])
     plan = dict(kind='plan',t=99.7,roles=roles,**selected['choice']['plan'],
-        plan_identity=dict(tp=1,pp=1,generation=5,profile_key='profile-key'))
+        plan_identity=dict(tp=1,pp=1,generation=5,profile_key=profile_key))
     complete = dict(kind='transition_complete',t=99.8,started_s=99.1,finished_s=99.8,
         transition_id='initial',affected=list(instances),validation_scope='native_drain_resume_and_proxy_publication',formal_eligible=False)
     events = [dict(row,kind='transition_phase',t=row['finished_s']) for row in phases]+[plan,complete,

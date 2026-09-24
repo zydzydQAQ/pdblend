@@ -1,0 +1,16 @@
+{
+  "files": [
+    {
+      "path": "/home/pdblend/datasets/raw/azure-llm-2024/AzureLLMInferenceTrace_code_1week.csv",
+      "sha256": "71de5c55cbc35f8f1ed0b6b7806b4cd1e9764b0058469725a6aac98023a1448f",
+      "size": 691989454
+    }
+  ],
+  "formal_eligible": false,
+  "includes_active_queue": false,
+  "includes_full_historical_audit": false,
+  "includes_qwen_weights": false,
+  "project_root": "/home/pdblend",
+  "schema": "pdblend-v3-release-runtime-inputs/v1",
+  "total_bytes": 691989454
+}

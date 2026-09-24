@@ -69,25 +69,48 @@ class QualifiedCapacityFloor:
     qualified: bool = False
     profile_key: str = ""
     accepted_slo: tuple[float, float] | None = None
+    version: int = 1
+    frequency_mhz: int | None = None
+    context: dict = field(default_factory=dict)
 
-    def matches(self, model: PerfModel, fc: Forecast, slo: SLO | None = None) -> bool:
-        import json
+    def matches(self, model: PerfModel, fc: Forecast, slo: SLO | None = None, **kwargs) -> bool:
+        return self.rejection_reason(model, fc, slo, **kwargs) is None
+
+    def rejection_reason(self, model: PerfModel, fc: Forecast, slo: SLO | None = None, *,
+                         context=None, n_m=None, frequency_mhz=None) -> str | None:
         identity = model.profile_key.get("model_id", model.model)
-        if (not self.qualified or not self.evidence or self.min_m_instances < 1
-                or self.model_id != identity or (self.tp, self.pp) != (model.tp, model.pp)):
-            return False
+        if not self.qualified or not self.evidence or self.min_m_instances < 1:
+            return "missing_qualified_acceptance"
+        if self.model_id != identity or (self.tp, self.pp) != (model.tp, model.pp):
+            return "model_or_topology_mismatch"
         if self.profile_key and self.profile_key != json.dumps(model.profile_key, sort_keys=True, separators=(",", ":")):
-            return False
+            return "profile_mismatch"
+        if self.version == 2:
+            if not self.context or context != self.context:
+                return "source_workload_or_recovery_mismatch"
+            if n_m is not None and n_m != self.min_m_instances:
+                return "mixed_count_outside_accepted_domain"
+            if frequency_mhz is not None and frequency_mhz != self.frequency_mhz:
+                return "frequency_outside_accepted_domain"
+            if self.accepted_slo is None or slo is None or (slo.ttft_s, slo.tpot_s) != tuple(self.accepted_slo):
+                return "slo_outside_accepted_domain"
+        elif self.version != 1:
+            return "unsupported_capacity_floor_version"
         if self.accepted_slo is not None and (slo is None or slo.ttft_s < self.accepted_slo[0]
                                               or slo.tpot_s < self.accepted_slo[1]):
-            return False
+            return "slo_stricter_than_accepted"
         inputs = fc.inputs or (fc.input_mean, fc.input_p95)
         outputs = tuple(o for _, o in fc.length_pairs) or fc.outputs or (fc.output_mean,)
-        return (self.rate_range[0] <= fc.rate_rps <= self.rate_range[1]
-                and self.input_range[0] <= min(inputs) <= max(inputs) <= self.input_range[1]
-                and self.output_range[0] <= min(outputs) <= max(outputs) <= self.output_range[1]
-                and all(self.input_range[0] <= w.input_tokens <= self.input_range[1]
-                        and w.remaining_output_tokens <= self.output_range[1] for w in fc.backlog))
+        if not self.rate_range[0] <= fc.rate_rps <= self.rate_range[1]:
+            return "rate_outside_accepted_domain"
+        if not self.input_range[0] <= min(inputs) <= max(inputs) <= self.input_range[1]:
+            return "input_outside_accepted_domain"
+        if not self.output_range[0] <= min(outputs) <= max(outputs) <= self.output_range[1]:
+            return "output_outside_accepted_domain"
+        if not all(self.input_range[0] <= w.input_tokens <= self.input_range[1]
+                   and w.remaining_output_tokens <= self.output_range[1] for w in fc.backlog):
+            return "backlog_outside_accepted_domain"
+        return None
 
 
 @dataclass
@@ -118,7 +141,10 @@ class PlannerConfig:
     pd_min_input_tokens: int = 1024
     pure_pd_min_input_tokens: int = 2048
     capacity_floors: tuple[QualifiedCapacityFloor, ...] = ()
+    capacity_floor_reserve_canonical: bool = False  # comparison keeps parked M restoration capacity
+    capacity_floor_context: dict = field(default_factory=dict)
     memoize_roles: bool = True
+    preserve_overload_capacity: bool = False  # PDblend recovery; legacy baseline fallback is unchanged
     transition_estimator: Callable[[Plan, Plan], float | dict | None] | None = None
 
 
@@ -162,10 +188,108 @@ class PoolPlanner:
         self._role_cache: dict | None = None
         self._branch_cache: dict = {}
         self._floor: int | None = None
+        self._capacity_decision_cache = None
+
+    @property
+    def capacity_reserve_enabled(self) -> bool:
+        """Whether controller safety must restore the canonical M reserve."""
+        return bool(self.cfg.capacity_floors)
 
     def mixed_floor(self, fc: Forecast) -> int:
-        qualified = [q.min_m_instances for q in self.cfg.capacity_floors if q.matches(self.model, fc, self.cfg.slo)]
+        qualified = [q.min_m_instances for q in self.cfg.capacity_floors if q.matches(
+            self.model, fc, self.cfg.slo, context=self.cfg.capacity_floor_context)]
         return min(qualified) if qualified else self.cfg.min_m_instances
+
+    def capacity_floor_decision(self, fc: Forecast, *, n_m=None, frequency_mhz=None) -> dict | None:
+        """Bind the exact workload and qualification used to relax the M reserve."""
+        if not self.cfg.capacity_floors:
+            return None
+        if (n_m is None and frequency_mhz is None and self._capacity_decision_cache is not None
+                and self._capacity_decision_cache[0] is fc):
+            return self._capacity_decision_cache[1]
+        from .capacity import capacity_floor_decision
+        return capacity_floor_decision(self.cfg.capacity_floors, self.model, fc, self.cfg.slo,
+                                       canonical_floor=self.cfg.min_m_instances,
+                                       context=self.cfg.capacity_floor_context,
+                                       n_m=n_m, frequency_mhz=frequency_mhz)
+
+    def _bind_capacity_floor(self, plan: Plan, fc: Forecast) -> Plan:
+        decision = self.capacity_floor_decision(fc, n_m=plan.counts.get('M', 0), frequency_mhz=plan.f_M)
+        if decision is not None:
+            plan.detail["capacity_floor"] = decision
+        return plan
+
+    def enforce_capacity_floor(self, plan: Plan, fc: Forecast, *, force_canonical=False,
+                               preserve_restoration=False) -> Plan:
+        """Refresh evidence and wake reserved slots without reducing P/D capacity.
+
+        Comparison candidates reserve this space before selection. During Shield
+        escalation it becomes M capacity before Shield may allocate other spares.
+        """
+        decision = self.capacity_floor_decision(fc, n_m=plan.counts.get('M', 0), frequency_mhz=plan.f_M)
+        if decision is None:
+            return plan
+        detail = dict(plan.detail, capacity_floor=decision)
+        if not preserve_restoration:
+            detail.pop('capacity_floor_restoration', None)
+        if not self.cfg.capacity_floor_reserve_canonical:
+            return replace(plan, detail=detail)
+        canonical = min(self.cfg.min_m_instances, self.cfg.slots)
+        counts = dict(plan.counts)
+        if (sum(counts.values()) != self.cfg.slots
+                or counts.get('P', 0) + counts.get('D', 0) > self.cfg.slots - canonical):
+            raise ValueError('capacity-floor plan lacks reserved canonical M restoration slots')
+        unsupported_clock = (counts.get('M', 0) < canonical and plan.f_M != max(self.cfg.freqs)
+            and not any(q.version == 2 and q.matches(self.model, fc, self.cfg.slo,
+                context=self.cfg.capacity_floor_context, n_m=counts.get('M', 0), frequency_mhz=plan.f_M)
+                for q in self.cfg.capacity_floors))
+        unsupported_layout = (counts.get('M',0) < canonical and any(q.version == 2 for q in self.cfg.capacity_floors)
+            and (any(n for role,n in counts.items() if role not in ('M','L1')) or plan.tau != 0))
+        required = canonical if force_canonical or unsupported_clock or unsupported_layout else min(decision['effective_floor'], self.cfg.slots)
+        needed = max(0, required - counts.get('M', 0))
+        if not needed:
+            return replace(plan, detail=detail)
+        restored = needed
+        for role in PARKED:
+            take = min(needed, counts.get(role, 0))
+            counts[role] = counts.get(role, 0) - take
+            counts['M'] = counts.get('M', 0) + take
+            needed -= take
+        if needed:
+            raise ValueError('capacity-floor restoration cannot reduce owned P/D capacity')
+        counts = {role: n for role, n in counts.items() if n or role in ACTIVE}
+        detail['capacity_floor_restoration'] = dict(from_counts=dict(plan.counts), to_counts=dict(counts),
+            restored_instances=restored, required_floor=required,
+            reason=('shield_capacity_reserve' if force_canonical else
+                    'unqualified_low_m_frequency' if unsupported_clock else
+                    'unqualified_low_m_layout' if unsupported_layout else 'qualified_domain_exit'))
+        detail.update(capacity_estimate_available=False, capacity_insufficient=True)
+        restored_plan = replace(plan, counts=counts, f_M=max(self.cfg.freqs), detail=detail,
+                       power_w=float('inf'), ttft_s=float('inf'), tpot_s=float('inf'))
+        return self._bind_capacity_floor(restored_plan, fc)
+
+    def refresh_estimate(self, plan: Plan, forecast: Forecast) -> Plan:
+        """Estimate the final applied layout without changing its deployment identity."""
+        try:
+            fresh = self.evaluate(plan.counts, plan.f_P, plan.f_D, plan.f_M, plan.tau,
+                                  forecast, strict=False)
+        except ValueError as exc:
+            if 'outside measured coverage' not in str(exc) and 'missing_profile:' not in str(exc):
+                raise
+            fresh = None
+        detail = {key: value for key, value in plan.detail.items()
+                  if key not in ('P', 'D', 'M', 'forecast', 'prediction_unavailable')}
+        if fresh is None or not all(math.isfinite(value) for value in (fresh.power_w,fresh.ttft_s,fresh.tpot_s)):
+            detail.update(prediction_unavailable='final_layout_outside_model_or_capacity_domain',
+                          capacity_estimate_available=False)
+            result = replace(plan, power_w=float('inf'), ttft_s=float('inf'),
+                             tpot_s=float('inf'), detail=detail)
+        else:
+            detail.update(fresh.detail)
+            detail['capacity_estimate_available'] = True
+            result = replace(plan, power_w=fresh.power_w, ttft_s=fresh.ttft_s,
+                             tpot_s=fresh.tpot_s, detail=detail)
+        return self._bind_capacity_floor(result, forecast)
 
     def _branches(self, fc: Forecast, tau: int) -> tuple[Forecast, Forecast]:
         if self._branch_cache.get("ref") is not fc:
@@ -275,7 +399,10 @@ class PoolPlanner:
         if key not in self._peak_cache:
             self._peak_cache[key] = max(
                 (b / self.model.step_seconds(b, ctx, f)
-                 for b in range(8, min(self.cfg.max_num_seqs, self.cfg.peak_batch_cap) + 1, 8)
+                 # Long contexts can fit only 1..7 requests in physical KV.
+                 # Sampling multiples of eight incorrectly reports zero
+                 # capacity even though valid smaller batches can serve.
+                 for b in range(1, min(self.cfg.max_num_seqs, self.cfg.peak_batch_cap) + 1)
                  if self.model.decode_supported(b, ctx, f)), default=0.0)
         return self._peak_cache[key]
 
@@ -398,7 +525,22 @@ class PoolPlanner:
         """Predicted plan for a layout; None if the queues are unstable or (strict) the SLO is missed."""
         slo = self.cfg.slo
         n_P, n_D, n_M = counts.get("P", 0), counts.get("D", 0), counts.get("M", 0)
+        if (n_M < self.cfg.min_m_instances and any(q.version == 2 for q in self.cfg.capacity_floors)
+                and (sum(counts.values()) != self.cfg.slots or tau != 0
+                     or any(n for role,n in counts.items() if role not in ('M','L1')))):
+            return None
         floor = self.mixed_floor(fc) if self._floor is None else self._floor
+        decision = self.capacity_floor_decision(fc, n_m=n_M, frequency_mhz=f_M)
+        if decision is not None:
+            floor = decision['effective_floor']
+        if self.cfg.capacity_floors and self.cfg.capacity_floor_reserve_canonical:
+            canonical = min(self.cfg.min_m_instances, self.cfg.slots)
+            if (n_P + n_D > self.cfg.slots - canonical or n_M < min(floor, self.cfg.slots)
+                    or (n_M < canonical and f_M != max(self.cfg.freqs)
+                        and not any(q.version == 2 and q.matches(self.model, fc, slo,
+                            context=self.cfg.capacity_floor_context, n_m=n_M, frequency_mhz=f_M)
+                            for q in self.cfg.capacity_floors))):
+                return None
         if 0 < n_M < min(floor, self.cfg.slots):
             return None
         has_pd, has_m = n_P > 0 and n_D > 0, n_M > 0
@@ -464,10 +606,10 @@ class PoolPlanner:
                                   remaining_decode_tokens=fc.remaining_decode_tokens,
                                   occupied_kv_tokens=fc.occupied_kv_tokens,
                                   mixed_floor=floor)
-        return Plan(dict(counts), f_P, f_D, f_M, tau, power, ttft, tpot, detail,
+        return self._bind_capacity_floor(Plan(dict(counts), f_P, f_D, f_M, tau, power, ttft, tpot, detail,
                     tp=self.model.tp, pp=self.model.pp,
                     profile_key=json.dumps(self.model.profile_key, sort_keys=True, separators=(",", ":"))
-                    if self.model.profile_key else "")
+                    if self.model.profile_key else ""), fc)
 
     # ---- enumeration -------------------------------------------------------------------------
     def _count_options(self) -> Iterable[dict]:
@@ -503,11 +645,13 @@ class PoolPlanner:
         self._branch_cache.clear()
         self._split_cache.clear()
         self._floor = self.mixed_floor(fc)
+        self._capacity_decision_cache = (fc, self.capacity_floor_decision(fc))
         try:
             return self._enumerate_candidates(fc)
         finally:
             self._role_cache = None
             self._floor = None
+            self._capacity_decision_cache = None
 
     def _enumerate_candidates(self, fc: Forecast) -> list[Plan]:
         freqs = self.cfg.freqs if self.cfg.allow_dvfs else (max(self.cfg.freqs),)
@@ -579,7 +723,10 @@ class PoolPlanner:
         """Best feasible plan with hysteresis; falls back to the most capable plan if nothing is feasible."""
         plans = self.candidates(fc)
         if not plans:
-            fallback = self.fallback(fc)
+            # Specialized/legacy planners may implement the original one-arg
+            # fallback. Only the explicitly enabled recovery passes ownership.
+            fallback = (self.fallback(fc, current) if self.cfg.preserve_overload_capacity
+                        else self.fallback(fc))
             if current is not None:
                 fallback.pool_id, fallback.generation = current.pool_id, current.generation
             return fallback
@@ -619,8 +766,60 @@ class PoolPlanner:
                                         total_energy_j=cost, retained_current=False)
         return best
 
-    def fallback(self, fc: Forecast) -> Plan:
-        """Everything active at max clock; PD only if it lowers predicted TTFT/TPOT violation."""
+    def _capacity_preserving_fallback(self, fc: Forecast, current: Plan) -> Plan:
+        """Retain the known deployment when the model cannot certify a replacement.
+
+        An empty feasible set is not evidence that P can be reduced to one.
+        Without a measured bottleneck, every existing role keeps its capacity
+        and its routing threshold. Spare slots may augment those roles only
+        when the resulting full-clock layout has a finite capacity estimate.
+        """
+        f, slots = max(self.cfg.freqs), self.cfg.slots
+        counts = dict(current.counts)
+        if sum(counts.values()) != slots:
+            raise ValueError("current fallback plan does not match the instance inventory")
+        if (any(w.branch in {"PD", "P_ONLY"} for w in fc.backlog)
+                and not (counts.get("P", 0) and counts.get("D", 0))
+                or any(w.branch == "M" for w in fc.backlog) and not counts.get("M", 0)):
+            raise ValueError("current fallback plan does not preserve backlog ownership")
+        roles = [role for role in ACTIVE if counts.get(role, 0)]
+        spare = slots - current.active()
+        options = [counts]
+        if spare and roles:
+            for additions in itertools.product(range(spare + 1), repeat=len(roles)):
+                if sum(additions) == spare:
+                    options.append({role: counts.get(role, 0) + extra
+                                    for role, extra in zip(roles, additions)})
+        finite = []
+        for layout in options:
+            candidate = self.evaluate(layout, f, f, f, current.tau, fc, strict=False)
+            if candidate is not None and all(math.isfinite(value) for value in
+                    (candidate.power_w, candidate.ttft_s, candidate.tpot_s)):
+                finite.append(candidate)
+        if finite:
+            slo = self.cfg.slo
+            best = min(finite, key=lambda p: (max(p.ttft_s / slo.ttft_s,
+                                                 p.tpot_s / slo.tpot_s), p.power_w))
+            best.tp, best.pp, best.pool_id = current.tp, current.pp, current.pool_id
+            best.generation, best.profile_key = current.generation, current.profile_key
+            best.detail.update(fallback=True, fallback_reason="capacity_preserving_full_clock",
+                               capacity_insufficient=True, capacity_estimate_available=True)
+            return best
+        # These infinities explicitly mean "no capacity prediction"; unlike
+        # the legacy fallback they never authorize a new role split or tau.
+        return replace(current, counts=counts, f_P=f, f_D=f, f_M=f,
+                       power_w=float("inf"), ttft_s=float("inf"), tpot_s=float("inf"),
+                       detail=dict(fallback=True, fallback_reason="retain_uncertified_capacity",
+                                   capacity_insufficient=True, capacity_estimate_available=False,
+                                   preserved_backlog_branches=True))
+
+    def fallback(self, fc: Forecast, current: Optional[Plan] = None) -> Plan:
+        """Opt-in capacity-preserving recovery, or the legacy full-clock fallback."""
+        return self.enforce_capacity_floor(self._fallback(fc, current), fc)
+
+    def _fallback(self, fc: Forecast, current: Optional[Plan] = None) -> Plan:
+        if self.cfg.preserve_overload_capacity and current is not None:
+            return self._capacity_preserving_fallback(fc, current)
         N, f = self.cfg.slots, max(self.cfg.freqs)
         has_pd_work = any(w.branch in {"PD", "P_ONLY"} for w in fc.backlog)
         has_m_work = any(w.branch == "M" for w in fc.backlog)

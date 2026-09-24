@@ -33,6 +33,14 @@ PDBlend 使用 `pdblend_runtime.serve` 提供原生队列、逐 rank 状态及�
 
 具体参数以 `pdblend --help` 和 `pdblend bench --help` 为准。所有组件与布局检查均在启动 GPU 引擎前执行。联合规划不能同时采用强制固定池计划或另一套动态 M 下限控制器。
 
+独立 homogeneous comparison 的 `pdblend_runtime.capacity_floor_path` 必须直接绑定 floor 文件的绝对路径与 SHA256，不接受仅绑定路径索引。入口重放该文件所绑定的原 controlled acceptance manifest，低 M 初始计划还须匹配独立 planning trace 的完整负载和当前 SLO；profile、SLO 或适用域不符时不能以低 M 启动。普通 `run_point` 的 topology index 用法保留。
+
+floor 本身是限定工作负载下的最小 M 数候选约束，不代表所有频率均经过 GPU 验收。comparison 额外要求原验收的 `fixed_plan.f_M` 明确等于当前 profile 的最高频率，并只允许低于 canonical M 数的计划使用该频率；缺失或不符即拒绝启用。普通性能模型的 SLO 可行性筛选仍保留，CPU 接线不赋予低频 GPU 资格。
+
+comparison 启用下限文件时，要求 `preserve_overload_capacity=true`、`safety_recovery=true`，并强制 `capacity_floor_reserve_canonical=true`。初始计划和候选必须满足 `P+D <= slots-min(4,slots)`，使不足的 M 容量可由停车槽位恢复。每次 plan 记录完整 Forecast、匹配的 floor 内容 ID 和原验收身份，独立 audit 重放该次适用域。域退出时优先把当前布局的停车槽位唤醒为满频 M，保留 P/D 数量和路由阈值，绕过普通 hold；Shield 分配额外 P/D 前也先兑现这部分 M 预留。没有 floor 文件的 canonical M≥4 验收保持不变。
+
+`pdblend_runtime.capacity_floor` 区分适用域命中、实际部署 M<4、canonical 回退、恢复次数及不匹配原因；`trigger_counts.fallback_candidates` 与 `fallback_plans` 分别统计 planner 产生的回退候选和实际发布的回退计划，布局未变化的回退仍可见。这些字段只适用于新版本，不补写旧回执。本轮接线与保护通过 CPU 回归，仍需新的独立 GPU 单机制实验确认效果，不提升历史资格。
+
 转换目录的证据格式见 [转换成本](transition-cost-catalog.md)，路由增量能量见 [能量路由](online-energy-artifact.md)，阶段比较见 [能效验收](optimization-acceptance.md)。普通 benchmark 输出增加 `profile-selection.json`／TP 选择元数据、`native-cleanup.json`、`transition-measurements.json` 和请求终止／路由估算信息。
 
 ## GPU 队列与后处理

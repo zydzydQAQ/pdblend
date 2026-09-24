@@ -312,6 +312,9 @@ def load_profile(path=None, *, registry=None, version_id=None, system, model_id,
     if path is not None:
         path = Path(path).resolve()
         data = _read(path)
+        if data.get('kind') == 'pdblend_development_composite_profile_v1':
+            from .development_composite import load_development_profile
+            return load_development_profile(path,system=system,model_id=model_id,tp=tp,pp=pp,usage=usage)
         if data.get('kind') == 'pdblend_native_profile_selection_v1':
             from .native_composition import load_native_profile
             return load_native_profile(path,system=system,model_id=model_id,tp=tp,pp=pp,usage=usage)

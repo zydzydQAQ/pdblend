@@ -3,9 +3,12 @@ from __future__ import annotations
 
 import time
 import math
-from collections import deque
+import asyncio
+from collections import Counter, deque
 from dataclasses import dataclass, field
 from typing import Optional
+
+from pdblend.online.deadline import mixed_queue_prediction
 
 ROLES = ("P", "D", "M", "parked")
 
@@ -39,6 +42,8 @@ class RequestRecord:
     terminal_state: Optional[str] = None
     engine_instances: set[str] = field(default_factory=set)
     route_estimate: dict = field(default_factory=dict)
+    pd_handoff_started_s: Optional[float] = None
+    first_decode_token_s: Optional[float] = None
 
     @property
     def ttft_s(self) -> Optional[float]:
@@ -96,6 +101,282 @@ class Router:
         self._active_ids: dict[str, RequestRecord] = {}
         self.quarantined: set[str] = set()
         self._quarantine_accepting: dict[str, bool] = {}
+        self.slo_routing_enabled = False
+        self._slo_route_config: dict = {}
+        self._slo_route_counts: Counter = Counter()
+        self._slo_route_events: deque = deque(maxlen=128)
+        self.admitted_requests = 0
+        self.first_arrival_s = None
+        self.deadline_event = asyncio.Event()
+        self.deadline_safety_enabled = False
+        self._deadline_last_token_signal_s = 0.
+        self.deadline_actuation_s = .05
+
+    def configure_slo_routing(self, *, model, slo, frequency_provider, enabled=True,
+                              max_num_seqs=32, max_model_len=8192, safety=0.85,
+                              handoff_floor_s=0.0):
+        """Opt in to model-backed admission and new-request PD-to-M spillover.
+
+        These are development policy parameters, not a qualification claim.
+        Unknown timing never qualifies an M alternative. In-flight ownership
+        is unchanged; every decision is recorded on the newly admitted request.
+        """
+        if (type(max_num_seqs) is not int or max_num_seqs < 1
+                or type(max_model_len) is not int or max_model_len < 1
+                or not math.isfinite(safety) or not 0 < safety <= 1
+                or not math.isfinite(handoff_floor_s) or handoff_floor_s < 0
+                or not callable(frequency_provider)):
+            raise ValueError("invalid SLO routing configuration")
+        self.slo_routing_enabled = bool(enabled)
+        self._slo_route_model, self._slo_route_slo = model, slo
+        self._slo_route_frequency = frequency_provider
+        self._slo_route_config = dict(enabled=bool(enabled), max_num_seqs=max_num_seqs,
+            max_model_len=max_model_len, safety=safety, handoff_floor_s=handoff_floor_s,
+            ttft_s=slo.ttft_s, tpot_s=slo.tpot_s, qualification="development_policy")
+
+    def slo_routing_summary(self):
+        return dict(config=dict(self._slo_route_config), enabled=self.slo_routing_enabled,
+                    decisions=dict(self._slo_route_counts), recent_events=list(self._slo_route_events))
+
+    def configure_deadline_safety(self, *, enabled=True, actuation_s=.05):
+        if not math.isfinite(actuation_s) or actuation_s < 0:
+            raise ValueError('invalid deadline actuation bound')
+        self.deadline_safety_enabled = bool(enabled)
+        self.deadline_actuation_s = actuation_s
+
+    def _notify_deadline(self, reason, now=None):
+        if not self.deadline_safety_enabled or not self.slo_routing_enabled:
+            return
+        now = time.time() if now is None else now
+        # Admissions and releases always signal. Coalesce high-rate token
+        # updates before doing any model queries in the control task.
+        if reason == 'token' and now-self._deadline_last_token_signal_s < .05:
+            return
+        if reason == 'token':
+            self._deadline_last_token_signal_s = now
+        self.deadline_event.set()
+
+    def deadline_risk_snapshot(self, *, now=None, frequency=None, include_saturation=True):
+        now = time.time() if now is None else now
+        result = dict(source='observed_proxy_queue', native_scheduler_observed=False,
+                      at_s=now, risk=False, saturated=False, instances=[], unavailable=[])
+        if not self.deadline_safety_enabled or not self.slo_routing_enabled:
+            return result
+        cfg = self._slo_route_config
+        limit = min(.8, cfg['safety']) * cfg['ttft_s']
+        mixed = self._pool('M')
+        occupancies = []
+        for iid in mixed:
+            records = [r for r in self._active_ids.values() if r.decode_instance == iid]
+            occupancies.append(len(records))
+            if not records:
+                continue
+            f = self._slo_route_frequency(iid) if frequency is None else frequency
+            try:
+                if f not in self._slo_route_model.freqs:
+                    raise ValueError('current frequency unavailable')
+                prediction = mixed_queue_prediction(records, model=self._slo_route_model,
+                    frequency=f, max_num_seqs=cfg['max_num_seqs'], input_tokens=None,
+                    max_tokens=0, now=now)
+                by_id = {r.request_id:r for r in records}
+                deadlines = {rid:now-by_id[rid].submitted_s+delay+self.deadline_actuation_s
+                             for rid,delay in prediction['waiting_first_token_s'].items()}
+                risky = any(delay >= limit for delay in deadlines.values())
+                result['instances'].append(dict(instance=iid, frequency_mhz=f,
+                    risk=risky, deadline_ttft_s=deadlines, **prediction))
+                result['risk'] |= risky
+            except (ValueError, KeyError, ZeroDivisionError) as exc:
+                # Unknown queue service cannot count as safety evidence.
+                risky = len(records) >= cfg['max_num_seqs'] or any(
+                    r.first_token_s is None and now-r.submitted_s+self.deadline_actuation_s >= limit
+                    for r in records)
+                result['unavailable'].append(dict(instance=iid, reason=str(exc), risk=risky))
+                result['risk'] |= risky
+        result['saturated'] = bool(occupancies and min(occupancies) >= cfg['max_num_seqs']-1)
+        result['risk'] |= bool(include_saturation and result['saturated'])
+        return result
+
+    def _route_capacity(self, choice, input_tokens, max_tokens):
+        model, cfg = self._slo_route_model, self._slo_route_config
+        if input_tokens <= 0 or input_tokens + max_tokens > cfg['max_model_len']:
+            return False, 'request_length'
+        try:
+            capacity = model.kv_capacity_tokens
+        except ValueError:
+            return False, 'capacity_unavailable'
+        if not math.isfinite(capacity) or capacity <= 0:
+            return False, 'capacity_unavailable'
+        for iid in set(choice[1:]):
+            load = self.loads[iid]
+            if not load.accepting or iid in self.quarantined:
+                return False, 'not_accepting'
+            owned = [r for r in self._active_ids.values()
+                     if iid in {r.prefill_instance, r.decode_instance}]
+            # max_num_seqs bounds the engine's running batch, not its admitted
+            # waiting queue. Hard admission is bounded by KV reservations below;
+            # an unmodelled scheduler queue cannot qualify a spillover prediction.
+            if sum(r.input_tokens + r.max_tokens for r in owned) + input_tokens + max_tokens > capacity:
+                return False, 'kv_capacity'
+        return True, ''
+
+    def _slo_route_prediction(self, choice, input_tokens, max_tokens):
+        path, p, d = choice
+        model = self._slo_route_model
+        frequencies = {iid: self._slo_route_frequency(iid) for iid in {p, d}}
+        if any(f not in model.freqs for f in frequencies.values()):
+            raise ValueError('missing_profile: current frequency unavailable')
+        owned = list(self._active_ids.values())
+        waiting = [r for r in owned if r.prefill_instance == p and r.first_token_s is None]
+        queue_s = sum(model.prefill_seconds(r.input_tokens, frequencies[p]) for r in waiting)
+        prefill_s = model.prefill_seconds(input_tokens, frequencies[p])
+        decodes = [r for r in owned if r.decode_instance == d]
+        batch = len(decodes) + 1
+        context = max([input_tokens + max_tokens] + [r.input_tokens + r.max_tokens for r in decodes])
+        queue_prediction = None
+        if path == 'M' and self.deadline_safety_enabled:
+            queue_prediction = mixed_queue_prediction(decodes, model=model,
+                frequency=frequencies[d], max_num_seqs=self._slo_route_config['max_num_seqs'],
+                input_tokens=input_tokens, max_tokens=max_tokens, now=time.time())
+            batch = queue_prediction['running_batch']
+        elif batch > self._slo_route_config['max_num_seqs']:
+            raise ValueError('missing_profile: scheduler queue exceeds modelled running batch')
+        supported = getattr(model, 'decode_supported', None)
+        if not callable(supported) or not supported(batch, context, frequencies[d]):
+            raise ValueError('decode query outside measured coverage')
+        step_s = model.step_seconds(batch, context, frequencies[d])
+        transfer_s, handoff_s, handoff_source = 0.0, 0.0, 'not_required'
+        if path == 'PD' and max_tokens == 2:
+            # Legacy transfer_seconds is a copy model or signed endpoint
+            # contrast. Neither proves the P-first -> D-first protocol gap,
+            # which is the entire TPOT budget here. A configured floor is not
+            # measurement coverage. A future qualified model must reject any
+            # shape/clock/batch/pair outside its measured first-gap domain.
+            first_gap = getattr(model, 'pd_first_gap_seconds', None)
+            if not callable(first_gap):
+                raise ValueError('missing_profile: two-token PD first-gap coverage unavailable')
+            handoff_s = first_gap(input_tokens=input_tokens, output_tokens=max_tokens,
+                f_P_mhz=frequencies[p], f_D_mhz=frequencies[d], batch=batch,
+                context_tokens=context, prefill_instance=p, decode_instance=d)
+            if type(handoff_s) not in (int, float) or not math.isfinite(handoff_s) or handoff_s < 0:
+                raise ValueError('missing_profile: invalid measured PD first gap')
+            handoff_s = max(handoff_s, self._slo_route_config['handoff_floor_s'])
+            transfer_s, handoff_source = None, 'measured_first_gap_including_first_decode'
+        elif path == 'PD' and max_tokens > 1:
+            first_gap = getattr(model, 'pd_first_gap_seconds', None)
+            try:
+                if not callable(first_gap) or not getattr(model, 'pd_first_gap_extended_domain', False):
+                    raise ValueError('endpoint first-gap component unavailable')
+                handoff_s = first_gap(input_tokens=input_tokens, output_tokens=max_tokens,
+                    f_P_mhz=frequencies[p], f_D_mhz=frequencies[d], batch=batch,
+                    context_tokens=context, prefill_instance=p, decode_instance=d)
+                if type(handoff_s) not in (int, float) or not math.isfinite(handoff_s) or handoff_s < 0:
+                    raise ValueError('invalid endpoint first gap')
+                # The endpoint already includes the first decode step. Adding
+                # step_s here would charge that interval twice.
+                handoff_s = max(handoff_s, self._slo_route_config['handoff_floor_s'])
+                transfer_s = None
+                handoff_source = getattr(model, 'pd_first_gap_source',
+                    'measured_first_gap_including_first_decode')
+            except ValueError:
+                # Uncovered clocks, batches and output budgets keep their
+                # existing route-risk estimate. Two-token protection above is
+                # deliberately stricter and still requires endpoint coverage.
+                transfer_s = model.transfer_seconds(input_tokens)
+                handoff_s = max(transfer_s + step_s, self._slo_route_config['handoff_floor_s'])
+                handoff_source = 'legacy_transfer_plus_step'
+        # The first PD token comes from P. Transfer/first-D latency belongs to
+        # the first TPOT interval, which is the whole TPOT of a two-token reply.
+        tpot_s = ((handoff_s + max(0, max_tokens - 2) * step_s) / (max_tokens - 1)
+                  if path == 'PD' and max_tokens > 1 else step_s if max_tokens > 1 else 0.0)
+        ttft_s = queue_s + prefill_s + (step_s if path == 'M' else 0.0)
+        if queue_prediction is not None:
+            ttft_s = queue_prediction['ttft_s']
+        incumbent_safe = incumbent_ttft_safe = True
+        if path == 'M':
+            # A new mixed prefill stalls existing decodes. Do not spill into an
+            # idle-looking M whose owned output budgets cannot absorb that work.
+            now = time.time()
+            limit = self._slo_route_slo.tpot_s * self._slo_route_config['safety']
+            for r in decodes:
+                if r.first_token_s is None:
+                    remaining_ttft = (queue_prediction['waiting_first_token_s'][r.request_id]
+                                      if queue_prediction is not None else queue_s + prefill_s + step_s)
+                    incumbent_ttft_safe &= (now - r.submitted_s + remaining_ttft
+                        <= self._slo_route_slo.ttft_s * self._slo_route_config['safety'])
+                elif r.max_tokens > 1:
+                    remaining = max(0, r.max_tokens - r.tokens_so_far)
+                    predicted = (now - r.first_token_s + prefill_s + remaining * step_s) / (r.max_tokens - 1)
+                    incumbent_safe &= predicted <= limit
+        values = (queue_s, prefill_s, step_s, handoff_s, ttft_s, tpot_s,
+                  *(() if transfer_s is None else (transfer_s,)))
+        if any(not math.isfinite(v) or v < 0 for v in values):
+            raise ValueError('missing_profile: invalid route timing')
+        return dict(path=path, prefill_instance=p, decode_instance=d,
+                    queued_prefill_s=queue_s, prefill_s=prefill_s, step_s=step_s,
+                    transfer_s=transfer_s, handoff_s=handoff_s, ttft_s=ttft_s, tpot_s=tpot_s,
+                    handoff_source=handoff_source,
+                    output_budget=max_tokens, batch=batch, context_tokens=context,
+                    frequencies=frequencies, incumbent_tpot_safe=incumbent_safe,
+                    incumbent_ttft_safe=incumbent_ttft_safe,
+                    queue_prediction=queue_prediction,
+                    profile_key=getattr(model, 'profile_key', {}))
+
+    def _slo_route_choice(self, input_tokens, max_tokens):
+        preferred = self.choose(input_tokens)
+        legacy = self.candidates(input_tokens)
+        audit = dict(config=dict(self._slo_route_config), predictions=[], exclusions=[],
+                     fallback=False, reason='legacy_threshold')
+        original_pd = bool(legacy and legacy[0][0] == 'PD')
+        alternatives = [('M', m, m) for m in self._pool('M')] if original_pd else []
+        admitted, predicted = [], {}
+        for choice in legacy + alternatives:
+            capacity, reason = self._route_capacity(choice, input_tokens, max_tokens)
+            if not capacity:
+                audit['exclusions'].append(dict(route=choice, reason=reason))
+                continue
+            admitted.append(choice)
+            try:
+                prediction = self._slo_route_prediction(choice, input_tokens, max_tokens)
+            except (ValueError, KeyError, ZeroDivisionError) as exc:
+                audit['exclusions'].append(dict(route=choice, reason='prediction_unavailable', detail=str(exc)))
+                continue
+            predicted[choice] = prediction
+            audit['predictions'].append(prediction)
+        cfg = self._slo_route_config
+        def safe(prediction):
+            return (prediction['ttft_s'] <= cfg['ttft_s'] * cfg['safety']
+                    and prediction['tpot_s'] <= cfg['tpot_s'] * cfg['safety']
+                    and prediction['incumbent_ttft_safe']
+                    and prediction['incumbent_tpot_safe'])
+        originals = [c for c in legacy if c in admitted]
+        good_originals = [c for c in originals if c in predicted and safe(predicted[c])]
+        good_mixed = [c for c in alternatives if c in predicted and safe(predicted[c])]
+        if original_pd and not good_originals and good_mixed:
+            chosen = min(good_mixed, key=lambda c: (predicted[c]['ttft_s'], c))
+            pd_estimates = [predicted[c] for c in originals if c in predicted]
+            audit['reason'] = ('pd_handoff_tpot_risk' if pd_estimates and all(
+                p['tpot_s'] > cfg['tpot_s'] * cfg['safety'] for p in pd_estimates)
+                else 'pd_capacity_or_ttft_spillover')
+            if max_tokens == 2 and any(e['route'][0] == 'PD' and
+                    'two-token PD first-gap coverage unavailable' in e.get('detail', '')
+                    for e in audit['exclusions']):
+                audit['reason'] = 'pd_first_gap_unavailable_spillover'
+        elif good_originals:
+            chosen = min(good_originals, key=lambda c: (predicted[c]['ttft_s'], c))
+        elif originals:
+            # A missing prediction cannot authorise a new path. Retain only a
+            # capacity-admitted historical path and label the unproven decision.
+            chosen = preferred if preferred in originals else min(originals,
+                key=lambda c: (self.loads[c[1]].inflight_prefill_tokens,
+                               self.loads[c[2]].inflight_seqs, c))
+            audit.update(fallback=True, reason='legacy_capacity_fallback_unproven_slo')
+        else:
+            chosen = None
+            audit.update(fallback=True, reason='no_capacity_or_proven_alternative')
+        audit['selected'] = predicted.get(chosen)
+        self._slo_route_counts[audit['reason']] += 1
+        self._slo_route_events.append(dict(at_s=time.time(), reason=audit['reason'], route=chosen))
+        return chosen, audit
 
     def set_instance_metadata(self, instance_id: str, *, tp: int, pp: int = 1, pool_id: str = "",
                               generation: int = 0, profile_key: str = "", model_id: str = "") -> None:
@@ -252,7 +533,11 @@ class Router:
                  choice: Optional[tuple[str, str, str]] = None) -> Optional[RequestRecord]:
         if self.has_request(request_id):
             raise DuplicateRequestError("request_id is already active or awaiting native cleanup")
-        choice = choice if choice is not None else self.choose(input_tokens)
+        audit = None
+        if choice is None and self.slo_routing_enabled:
+            choice, audit = self._slo_route_choice(input_tokens, max_tokens)
+        else:
+            choice = choice if choice is not None else self.choose(input_tokens)
         if choice is None:
             self.rejected += 1
             return None
@@ -269,14 +554,21 @@ class Router:
                                              else ("threshold_pd" if path == "PD" else "m_capacity")),
                                tp=self.loads[d].tp, pp=self.loads[d].pp, pool_id=self.loads[d].pool_id,
                                generation=self.loads[d].generation, profile_key=self.loads[d].profile_key)
+        if audit is not None:
+            record.route_reason = audit['reason']
+            record.route_estimate['slo_routing'] = audit
         self.records.append(record)
         self.active[d].append(record)
         self._active_ids[request_id] = record
+        self.admitted_requests += 1
+        if self.first_arrival_s is None:
+            self.first_arrival_s = record.submitted_s
         for l in self.listeners:
             if hasattr(l, "arrive_request"):
                 l.arrive_request(input_tokens, max_tokens, request_id=request_id)
             else:
                 l.arrive(input_tokens)
+        self._notify_deadline('admission', record.submitted_s)
         return record
 
     def first_token(self, record: RequestRecord, at_s: Optional[float] = None) -> None:
@@ -286,11 +578,16 @@ class Router:
         if count < 1:
             return
         at_s = time.time() if at_s is None else at_s
+        if record.path == 'PD' and record.tokens_so_far >= 1 and record.first_decode_token_s is None:
+            record.first_decode_token_s = at_s
+            if record.pd_handoff_started_s is not None:
+                record.route_estimate['observed_handoff_s'] = max(0.0, at_s - record.pd_handoff_started_s)
         record.tokens_so_far += count
         record.last_token_s = at_s
         if record.first_token_s is None:
             record.first_token_s = at_s
             self.loads[record.prefill_instance].inflight_prefill_tokens -= record.input_tokens
+        self._notify_deadline('token', at_s)
 
     def _release_accounting(self, record):
         if self._active_ids.get(record.request_id) is not record:
@@ -327,6 +624,7 @@ class Router:
                                  request_id=record.request_id, input_tokens=record.input_tokens)
             else:
                 l.finish(completion_tokens if error is None else 0)
+        self._notify_deadline('terminal')
 
     def recover_cancel(self, record, receipts, *, engine_request_id: str) -> bool:
         if record.terminal_state != "uncertain" or self._active_ids.get(record.request_id) is not record:
@@ -341,6 +639,7 @@ class Router:
             if not uncertain:
                 self.quarantined.discard(iid)
                 self.loads[iid].accepting = self._quarantine_accepting.pop(iid, False)
+        self._notify_deadline('terminal')
         return True
 
     def recent(self, window_s: float, now: Optional[float] = None) -> list[RequestRecord]:

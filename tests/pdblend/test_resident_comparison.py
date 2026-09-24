@@ -86,6 +86,25 @@ def test_load_once_freeze_measured_slo_failure(tmp_path):
     assert row['baseline_frozen'] and not row['result']['metrics']['slo_pass']
 
 
+def test_stop_after_window_commits_receipt_and_cleans_up(tmp_path):
+    stop_file = tmp_path/'stop'
+    class StoppingAdapter(Adapter):
+        async def drain(self, point):
+            stop_file.touch()
+            return {'passed': True}
+    adapter = StoppingAdapter()
+    out = tmp_path/'session'
+    result = asyncio.run(ResidentGroupSession(group(), adapter, out, stop_after_window=stop_file).run())
+    assert result['status'] == 'interrupted' and not result['complete']
+    assert result['continuation_required'] and result['cleanup']['passed']
+    assert adapter.runs == adapter.stops == 1
+    assert len(result['windows']) == 1 and len(result['pending_points']) == 2
+    frozen = result['windows'][0]
+    assert file_sha(frozen['path']) == frozen['sha256']
+    resumed = asyncio.run(ResidentGroupSession(group(), Adapter(), tmp_path/'resume', previous=[out]).run())
+    assert resumed['complete'] and len(resumed['windows']) == 2
+
+
 def test_reset_failure_quarantines_and_stops(tmp_path):
     adapter = Adapter(fail_reset=2)
     result = asyncio.run(ResidentGroupSession(group(), adapter, tmp_path/'session').run())

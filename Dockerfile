@@ -1,5 +1,6 @@
-# 重建 pdblend:l20-cu128-vllm-v1（8×L20 + CUDA 12.8 + vLLM 0.10.1.1 + P2pNccl 补丁）
-# 构建：docker build -t pdblend:l20-cu128-vllm-v1 .
+# 重建已锁定的 v3 运行环境（CUDA base 12.8.1，Torch 实际使用 cu126）
+# 与当前镜像逐层相同请按 RESTART.md 导入快照；源码重建具有新的镜像 ID。
+# 构建：docker build -t pdblend:pdblend4-v3-rebuilt .
 # 非阿里云网络：--build-arg PIP_INDEX=https://pypi.org/simple --build-arg APT_MIRROR=archive.ubuntu.com
 ARG CUDA_BASE=nvcr.io/nvidia/cuda:12.8.1-devel-ubuntu22.04@sha256:a99a1860ba8e2916e5c3e73b72ec4c4301653a84586e05bfc9a2aa2d58027e97
 FROM ${CUDA_BASE}
@@ -18,17 +19,15 @@ RUN sed -i "s|archive.ubuntu.com|${APT_MIRROR}|g; s|security.ubuntu.com|${APT_MI
     ca-certificates tzdata libnuma1 libibverbs1 libgomp1 \
     && rm -rf /var/lib/apt/lists/* \
     && python3 -m venv /opt/venv \
-    && python -m pip install --no-cache-dir -i ${PIP_INDEX} 'pip<26'
-RUN pip install --no-cache-dir -i ${PIP_INDEX} "vllm==${VLLM_VERSION}" "torch==2.7.1" \
-    "nvidia-ml-py==12.535.133" "aiohttp==3.12.15" "numpy==2.2.6" "PyYAML==6.0.2" "scipy==1.15.3" \
-    "pytest==8.4.2" "pytest-asyncio==1.2.0" matplotlib \
-    && (pip install --no-cache-dir -i ${PIP_INDEX} nixl || echo "nixl unavailable: use P2pNcclConnector")
-# 不钉会解析到 transformers 5.x，删掉 vLLM 0.10.1.1 依赖的 all_special_tokens_extended
-RUN pip install --no-cache-dir -i ${PIP_INDEX} "transformers==4.55.2" "tokenizers==0.21.4" "huggingface_hub==0.34.4"
+    && python -m pip install --no-cache-dir -i ${PIP_INDEX} 'pip==22.0.2'
+# 全部传递依赖来自当前镜像；不得重新解析未来版本或静默跳过 nixl。
+COPY requirements/pdblend4-v3-container.lock /tmp/pdblend-container.lock
+RUN pip install --no-cache-dir --no-deps -i ${PIP_INDEX} -r /tmp/pdblend-container.lock \
+    && pip check
 WORKDIR /workspace
 COPY pyproject.toml setup.py ./
 COPY src ./src
-RUN pip install --no-cache-dir -i ${PIP_INDEX} .
+RUN pip install --no-cache-dir --no-deps -i ${PIP_INDEX} . && pip check
 # vLLM 补丁（关键，不可省）：按 manifest 覆盖 2 个文件并做 sha256 校验
 COPY engine_patches/vllm-${VLLM_VERSION} /tmp/engine_patches
 RUN python - <<'EOF'

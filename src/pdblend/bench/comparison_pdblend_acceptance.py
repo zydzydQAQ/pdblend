@@ -21,7 +21,7 @@ ACTIVE = {'P', 'D', 'M'}
 RAW_REFS = ('trace', 'outcomes', 'power', 'native_result', 'canonical_requests',
     'metering', 'startup_qualification', 'reset', 'drain', 'controller', 'routes',
     'native_cleanup', 'transition_measurements', 'frequencies')
-JOURNALS = {'outcomes', 'controller', 'routes', 'frequencies'}
+JOURNALS = {'outcomes', 'controller', 'routes', 'frequencies', 'frequency_readings'}
 
 
 def _read_raw(ref, name):
@@ -59,14 +59,69 @@ def _inputs(point, instances):
     _need(choice.get('profile_sha256') == matches[0]['sha256'], 'offline plan profile differs')
     loaded = load_profile(path, system='pdblend', model_id=point['model_id'], tp=tp, pp=pp, usage='formal')
     require_planner_components(loaded.model, allow_pd=True, allow_dvfs=True)
-    plan = Plan(**choice['plan'])
+    from .pdblend_observation_plan import decode_plan
+    plan = decode_plan(choice, observation=False)
     _need((plan.tp, plan.pp) == (tp, pp) and set(plan.counts) <= ROLES
           and all(type(v) is int and v >= 0 for v in plan.counts.values())
           and sum(plan.counts.values()) == len(instances), 'offline plan inventory differs')
     key = json.dumps(loaded.profile_key, sort_keys=True, separators=(',', ':'))
     _need(not plan.profile_key or plan.profile_key == key, 'offline profile identity differs')
+    from .pdblend_runtime_options import capacity_floor_selection
     return dict(choice=choice, profile_key=key, frequencies=list(loaded.model.freqs),
-                calibration=loaded.manifest_fields(), qualification_bindings=checked['qualification_bindings'])
+                calibration=loaded.manifest_fields(), qualification_bindings=checked['qualification_bindings'],
+                capacity_floor=capacity_floor_selection(checked['pdblend_runtime'], loaded.model, point['slo'], len(instances)))
+
+
+def _plan_capacity_floor(plan, selected, slots):
+    """Replay every claimed reserve relaxation from independently bound floors."""
+    selection = selected.get('capacity_floor')
+    canonical = min(4, slots)
+    if selection is None:
+        return canonical
+    from types import SimpleNamespace
+    from pdblend.planner.capacity import capacity_floor_decision, forecast_from_snapshot
+    from pdblend.planner.pool import QualifiedCapacityFloor, SLO
+    v2 = selection.get('schema') == 'pdblend-capacity-floor-selection/v2'
+    _need(selection.get('schema') in ('pdblend-capacity-floor-selection/v1','pdblend-capacity-floor-selection/v2')
+          and selection.get('reserve_canonical') is True
+          and selection.get('canonical_floor') == canonical,
+          'capacity-floor comparison restoration policy is missing')
+    decision = plan.get('query_results', {}).get('capacity_floor')
+    _need(isinstance(decision, dict), 'capacity-floor plan lacks a complete forecast decision')
+    model = SimpleNamespace(**selection['model'])
+    _need(json.dumps(model.profile_key, sort_keys=True, separators=(',', ':')) == selected['profile_key'],
+          'capacity-floor replay profile differs from deployed profile')
+    floors = tuple(QualifiedCapacityFloor(**row) for row in selection['floors'])
+    _need(floors, 'capacity-floor replay has no qualified floors')
+    forecast = forecast_from_snapshot(decision.get('forecast'))
+    counts = plan['counts']
+    if v2 and counts.get('M',0) < canonical:
+        _need(sum(counts.values()) == slots and plan.get('tau') == 0
+              and not any(n for role,n in counts.items() if role not in ('M','L1')),
+              'v2 lower-M layout lies outside controlled M/L1 acceptance')
+    expected = capacity_floor_decision(floors, model, forecast, SLO(**selection['slo']), canonical_floor=canonical,
+        **(dict(context=selection.get('context',{}),n_m=counts.get('M',0),frequency_mhz=plan.get('f_M')) if v2 else {}))
+    _need(_equal(expected, decision), 'capacity-floor decision differs from qualified workload replay')
+    _need((bool(expected['selected_floor_ids']) or counts.get('M',0) >= canonical) if v2 else
+          (selection.get('qualified_m_frequency_mhz') == max(selected['frequencies'])
+          and (counts.get('M', 0) >= canonical or plan.get('f_M') == selection['qualified_m_frequency_mhz'])),
+          'lower-M frequency is outside controlled capacity-floor acceptance')
+    _need(counts.get('P', 0) + counts.get('D', 0) <= slots - canonical,
+          'capacity-floor plan consumed reserved canonical M restoration capacity')
+    restoration = plan.get('query_results', {}).get('capacity_floor_restoration')
+    if restoration is not None:
+        before = restoration.get('from_counts', {})
+        after = restoration.get('to_counts', {})
+        _need(isinstance(before, dict) and all(type(n) is int and n >= 0 for n in before.values())
+              and isinstance(after, dict) and all(type(n) is int and n >= 0 for n in after.values())
+              and sum(before.values()) == sum(after.values()) == slots
+              and all(before.get(role, 0) == after.get(role, 0) <= counts.get(role, 0) for role in ('P', 'D'))
+              and restoration.get('restored_instances') == after.get('M', 0) - before.get('M', 0)
+              and restoration['restored_instances'] > 0
+              and counts.get('M', 0) >= after.get('M', 0) >= restoration.get('required_floor', slots + 1)
+              and plan.get('f_M') == (selection['recovery_frequency_mhz'] if v2 else max(selected['frequencies'])),
+              'capacity-floor restoration changed P/D capacity or lacks full-clock M recovery')
+    return min(expected['effective_floor'], slots)
 
 
 def _boundary(native, outcomes, metering):
@@ -120,7 +175,8 @@ def _native_phase(row, instances, generation):
           and state['native_at_s'] >= row['started_s'], 'native phase epoch or freshness differs')
 
 
-def _controller(events, native, instances, identity, reset, selected, transitions):
+def _controller(events, native, instances, identity, reset, selected, transitions, *,
+                capacity_floor_check=None):
     _need(events and all(_finite(r.get('t')) for r in events)
           and all(a['t'] <= b['t'] for a, b in zip(events, events[1:])), 'controller journal time order is incomplete')
     _need(not any(r.get('kind') in ('transition_failed', 'park_failed') for r in events),
@@ -163,7 +219,8 @@ def _controller(events, native, instances, identity, reset, selected, transition
               and all(type(v) is int and v >= 0 for v in counts.values())
               and all(counts.get(r, 0) == list(roles.values()).count(r) for r in ROLES),
               'planned role inventory differs')
-        _need(counts.get('M', 0) >= min(4, len(instances)) and counts.get('idle', 0) == 0
+        minimum_m = (capacity_floor_check or _plan_capacity_floor)(plan, selected, len(instances))
+        _need(counts.get('M', 0) >= minimum_m and counts.get('idle', 0) == 0
               and type(plan.get('tau')) is int and plan['tau'] >= 0,
               'canonical PD mixed reserve or routing threshold differs')
         _need(complete['started_s'] <= plan['t'] <= complete['finished_s'], 'plan was not published within its transition')
@@ -180,7 +237,9 @@ def _controller(events, native, instances, identity, reset, selected, transition
             if before in ACTIVE and role not in ACTIVE:
                 required = ['route_publish', 'proxy_drain', 'native_drain']
                 required += ['stop', 'clock_reset'] if role == 'off' else ['clock_reset', 'park'] if role == 'L1' else []
-                _need(all(o in ops for o in required) and [ops.index(o) for o in required] == sorted(ops.index(o) for o in required),
+                missing = [o for o in required if o not in ops]
+                _need(not missing, 'parking is missing required operations: ' + ', '.join(missing))
+                _need([ops.index(o) for o in required] == sorted(ops.index(o) for o in required),
                       'parking precedes routing/native KV release')
             if before not in ACTIVE and role in ACTIVE:
                 required = (['start', 'ready'] if before == 'off' else ['unpark'] if before == 'L1' else [])
@@ -211,15 +270,43 @@ def _controller(events, native, instances, identity, reset, selected, transition
           'controller final roles or stop boundary differs')
     forecasts = [r for r in events if r.get('kind') == 'forecast'
                  and native['service_started_s'] <= r['t'] < native['service_ended_s']]
-    _need(len(forecasts) >= 2 and all(r.get('decision_reason') for r in forecasts),
-          'canonical periodic controller observations are missing')
+    if selected.get('experiment_mode') == 'freeze_initial_all_m':
+        _need(len(plans) == 1 and not forecasts and first['counts'].get('M') == len(instances)
+              and first['tau'] == 0 and first['f_M'] == max(selected['frequencies']),
+              'fixed all-M diagnostic changed its bound initial deployment')
+    else:
+        _need(len(forecasts) >= 2 and all(r.get('decision_reason') for r in forecasts),
+              'canonical periodic controller observations are missing')
     return plans, completed
 
 
-def _frequencies(samples, plans, completed, instances, identity, origin):
+def _frequency_samples(samples):
     _need(samples and all(isinstance(r, (list, tuple)) and len(r) == 2 and _finite(r[0])
-          and len(r[1]) == 8 for r in samples)
+          and isinstance(r[1], (list, tuple)) and len(r[1]) == 8
+          and all(_finite(value) and value >= 0 for value in r[1]) for r in samples)
           and all(a[0] < b[0] for a,b in zip(samples, samples[1:])), 'actual physical frequency samples are incomplete')
+
+
+def _audit_physical_clocks(gate, blocked, data, control, instances, identity, origin):
+    """Keep missing control evidence distinct from a measured clock mismatch."""
+    gate('pdblend.frequency_samples', lambda: _frequency_samples(data['frequencies']))
+    dependencies = []
+    if control is None:
+        dependencies.append('pdblend.controller_actions')
+    if instances is None:
+        dependencies.append('pdblend.inventory')
+    if origin is None:
+        dependencies.append('pdblend.actual_window')
+    if dependencies:
+        blocked['pdblend.physical_clocks'] = dependencies
+        return
+    gate('pdblend.physical_clocks', lambda: _frequencies(
+        data['frequencies'], *control, instances, identity, origin,
+        readings=data.get('frequency_readings')))
+
+
+def _frequencies(samples, plans, completed, instances, identity, origin, *, readings=None):
+    _frequency_samples(samples)
     for index, plan in enumerate(plans):
         # Plan logging happens just before transition_complete. Settle from
         # the completed physical boundary, not that earlier publication time.
@@ -233,11 +320,25 @@ def _frequencies(samples, plans, completed, instances, identity, origin):
             if role not in ACTIVE | {'L1'}: continue
             indices = [identity['fleet_gpu_uuids'].index(u) for u in instances[iid]['gpu_uuids']]
             requested = 210 if role == 'L1' else plan['f_'+role]
+            if readings is not None:
+                for gpu in indices:
+                    device = [r for r in readings if r.get('gpu') == gpu
+                              and _finite(r.get('read_started_s')) and _finite(r.get('read_finished_s'))
+                              and left <= r['read_started_s'] <= r['read_finished_s'] < right]
+                    _need(device and device[0]['read_finished_s'] <= left+1
+                          and device[-1]['read_finished_s'] >= right-1
+                          and all(0 < b['read_finished_s']-a['read_finished_s'] <= 1
+                                  for a,b in zip(device, device[1:])),
+                          'stable plan per-GPU frequency observations contain a gap')
+                    _need(all(not r.get('error') and _finite(r.get('observed_mhz'))
+                              and abs(r['observed_mhz']-requested) <= 30 for r in device),
+                          'actual active/parked clock differs from executed plan')
+                continue
             _need(all(_finite(r[1][g]) and abs(r[1][g]-requested) <= 30 for r in rows for g in indices),
                   'actual active/parked clock differs from executed plan')
 
 
-def _routes(routes, outcomes, trace, instances, reset, native):
+def _routes(routes, outcomes, trace, instances, reset, native, *, sampling_seed=701):
     expected = {f'r{i}':r for i,r in enumerate(trace['requests'])}
     _need(len({r.get('request_id') for r in routes}) == len(routes)
           and {r.get('request_id') for r in routes} <= expected.keys(), 'route cohort has foreign/duplicate requests')
@@ -247,7 +348,7 @@ def _routes(routes, outcomes, trace, instances, reset, native):
     for outcome in outcomes:
         rid = 'r'+str(outcome['idx']); request = expected[rid]; route = by_id.get(rid)
         _need(outcome.get('arrival_s') == request['arrival_s'] and outcome.get('input_tokens') == len(request['prompt'])
-              and outcome.get('max_tokens') == request['max_tokens'] and outcome.get('sampling_seed') == 701,
+              and outcome.get('max_tokens') == request['max_tokens'] and outcome.get('sampling_seed') == sampling_seed,
               'actual client workload/seed differs')
         _need(_finite(outcome.get('submitted_s')) and native['service_started_s']+request['arrival_s']
               <= outcome['submitted_s'] <= outcome['finished_s'], 'client submission precedes its offered arrival')
@@ -377,13 +478,13 @@ def _drain(native, drain, cleanup, instances, identity, reset, metering, phases,
 
 def audit_pdblend_window(point, engine_identity, startup_qualification, reset, native_result,
                          canonical_metrics, metering, drain, raw_refs):
-    failures, checked, data = {}, [], {}
+    failures, checked, data, blocked = {}, [], {}, {}
     def gate(name, fn):
         try: value = fn()
         except (ValueError, TypeError, KeyError, OSError, IndexError, AttributeError, OverflowError, RuntimeError) as exc:
             failures[name] = str(exc); return None
         checked.append(name); return value
-    for name in RAW_REFS:
+    for name in RAW_REFS + (('frequency_readings',) if 'frequency_readings' in raw_refs else ()):
         value = gate('raw.'+name, lambda name=name:_read_raw(raw_refs.get(name), name))
         if value is not None: data[name] = value
     for name, value in (('native_result',native_result), ('startup_qualification',startup_qualification),
@@ -401,7 +502,7 @@ def audit_pdblend_window(point, engine_identity, startup_qualification, reset, n
     gate('pdblend.inventory_restoration', lambda:_inventory_reset(reset, instances, engine_identity, startup_qualification, origin))
     control = gate('pdblend.controller_actions', lambda:_controller(data['controller'], native_result, instances,
               engine_identity, reset, selected, data['transition_measurements']))
-    gate('pdblend.physical_clocks', lambda:_frequencies(data['frequencies'], *control, instances, engine_identity, origin))
+    _audit_physical_clocks(gate, blocked, data, control, instances, engine_identity, origin)
     gate('pdblend.request_routes', lambda:_routes(data['routes'], data['outcomes'], data['trace'], instances, reset, native_result))
     gate('pdblend.published_route_roles', lambda:_routing_roles(data['routes'], data['controller'], instances))
     gate('pdblend.native_release_and_off', lambda:_drain(native_result, drain, data['native_cleanup'], instances,
@@ -410,9 +511,10 @@ def audit_pdblend_window(point, engine_identity, startup_qualification, reset, n
     reduced = gate('pdblend.canonical_metrics', lambda:audit_native_metrics(point, data['trace'], data['outcomes'], None,
                    origin, data['canonical_requests'], canonical_metrics))
     gate('metering.raw_eight_gpu_window', lambda:audit_native_meter(engine_identity, data['power'], metering, origin))
-    valid = not failures
+    valid = not failures and not blocked
     return dict(schema='pdblend-single-observation-acceptance-v1', scope='canonical_policy+single_observation',
         evidence_valid=valid, formal_eligible=valid, slo_pass=reduced['slo_pass'] if reduced else False,
-        missing_gates=list(failures), gate_failures=failures, checked_gates=checked,
+        missing_gates=list(failures)+list(blocked), gate_failures=failures, blocked_gates=blocked, checked_gates=checked,
+        capacity_floor_selection=(selected or {}).get('capacity_floor'),
         optimality_established=False, per_request_kv_transaction_audited=False,
         inherited_artifact_flags_unchanged=True, evidence_sha256=digest(raw_refs))

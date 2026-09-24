@@ -1,0 +1,104 @@
+{
+  "schema": "pdblend-v3-release-source-audit/v1",
+  "audited_at": "2026-09-24T19:57:28.251714+00:00",
+  "source_recovery": {
+    "manifest": {
+      "path": "/home/pdblend4/results/2026-09-24/profile-saturation-round-v3-independent-baseline-preflight-v1/trace-equivalence-proposal-v1/manifest.json",
+      "sha256": "2c041de51e2388d76dff3292a827102145f4c0ae1b180be99bc61f0b60c8d666"
+    },
+    "original_module": {
+      "path": "/home/pdblend4/results/2026-09-24/profile-saturation-round-v3-independent-baseline-preflight-v1/trace-equivalence-proposal-v1/overlay/pdblend/bench/comparison_trace_equivalence.py",
+      "sha256": "baec87af47a671796a7c55a4b5c04f5db40e0c8537f368f07f59f5b03cf3d59f"
+    },
+    "maintained_module": {
+      "path": "/home/pdblend4/src/pdblend/bench/comparison_trace_equivalence.py",
+      "sha256": "baec87af47a671796a7c55a4b5c04f5db40e0c8537f368f07f59f5b03cf3d59f"
+    },
+    "original_tests": {
+      "path": "/home/pdblend4/results/2026-09-24/profile-saturation-round-v3-independent-baseline-preflight-v1/trace-equivalence-proposal-v1/test_trace_equivalence.py",
+      "sha256": "8034638793a8a385d567659db137c2e7ce89c4ead54b7f60f93ef2729d476b5f"
+    },
+    "portable_tests": {
+      "path": "/home/pdblend4/tests/pdblend/test_comparison_trace_equivalence.py",
+      "sha256": "9d5212e0f98f4ac1242b1aa5f7457d100429167c83a0156b2e0304dd2af4414f"
+    },
+    "export_integration": "Applied bound host.patch registry/receipt/trace-annotation wiring to maintained comparison_campaign and comparison_recorded without replacing other current changes."
+  },
+  "baseline_independence": {
+    "validator": {
+      "path": "/home/pdblend4/src/pdblend_baselines/dynamollm/native_state.py",
+      "sha256": "8f31122e17d048a42171f30b762804e52e42f0581b1d9782e15f7f0c07928d27"
+    },
+    "origin": {
+      "path": "/home/pdblend4/src/pdblend/online/native_control.py",
+      "sha256": "9ca2ee31cb978e441514f1ec5c0fecd7cf39ed3897640c4bf215aad5dedeb4a3"
+    },
+    "validation": "NativeControlError and validate_state copied byte-for-byte; six stationary consumers use baseline-local module.",
+    "allowed_infrastructure": "stationary_kv_probe.py run_owned may import only pdblend.engine.launcher.Fleet for process start/cleanup; planner/router/native_control imports remain forbidden."
+  },
+  "deleted_history": {
+    "tracked_deleted_count": 202,
+    "covered_by_applied_tombstone_count": 202,
+    "head_content_hash_matches": 201,
+    "hash_difference": {
+      "path": "results/v2/logs/eval-7b-v2-matrix.log",
+      "head_bytes": 127142,
+      "tombstone_bytes": 173167,
+      "reason": "Tombstone records later larger log; exact relationship not independently recoverable from remaining files."
+    },
+    "tombstone": {
+      "path": "/home/pdblend4/results/maintenance/2026-09-23-history-pruning-v6/plan.json",
+      "sha256": "4809d50b0718e3b0cc0a6f874d034ef3ec8c04596750a09ebb378048899e5d2b"
+    }
+  },
+  "credential_scan": {
+    "non_result_text_files": 1088,
+    "result_text_files": 65686,
+    "result_text_bytes": 2121508812,
+    "result_max_file_bytes": 1048576,
+    "findings": [],
+    "patterns": [
+      "private key headers",
+      "GitHub token",
+      "AWS access key",
+      "OpenAI token",
+      "credentials in HTTP URL"
+    ],
+    "limitation": "Pattern-based screening; result binaries and files over 1 MiB were excluded."
+  },
+  "verification": {
+    "initial_cpu": {
+      "passed": 3396,
+      "failed": 9,
+      "skipped": 48,
+      "deselected": 28
+    },
+    "portable_archive_and_review_tests": {
+      "passed": 54,
+      "isolated_directory_without_results": true
+    },
+    "fix_regression_before_infrastructure_allowance": {
+      "passed": 406,
+      "failed": 2,
+      "skipped": 6
+    },
+    "final_cpu": {
+      "passed": 3472,
+      "failed": 0,
+      "skipped": 48,
+      "deselected": 28,
+      "duration_s": 280.29,
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src CUDA_VISIBLE_DEVICES='' /home/pdblend/.venv/bin/python -m pytest -q -rs -m 'not gpu and not historical' tests/pdblend tests/independent_baselines",
+      "skip_reasons": {
+        "collection skipped": 18,
+        "could not import 'fastapi': No module named 'fastapi'": 2,
+        "run this CPU contract test in the pinned vLLM image": 5,
+        "requires the pinned image; no GPU or vLLM import is used": 9,
+        "pinned vLLM source is available in the CPU test image": 14
+      },
+      "log": "/home/pdblend4-v3-release/validation/cpu-tests.log",
+      "junit": "/home/pdblend4-v3-release/validation/cpu-tests.xml",
+      "note": "test_reproduce_v3.py was edited after this run started; parent will check its latest version separately."
+    }
+  }
+}

@@ -77,28 +77,54 @@ async def _serve_proxy(proxy: Proxy, port: int) -> web.AppRunner:
 
 def _make_controller(fleet, router, gpus, model, policy, slo, trace, out_dir, period_s,
                      fixed_plan=None, min_warm_s=20.0, initial_plan=None, native_control=None,
-                     transition_catalog_path=None, capacity_floor_path=None, transition_qualified_only=False):
+                     transition_catalog_path=None, capacity_floor_path=None, transition_qualified_only=False,
+                     pdblend_runtime=None, planner_factory=None, capacity_workload_binding=None):
+    from .pdblend_runtime_options import control_options
+    runtime = control_options(policy, pdblend_runtime)
     cfg = policy.planner_config(PlannerConfig(slots=len(fleet.instances), slo=slo, freqs=model.freqs))
+    if runtime['safety_max_freq'] is not None:
+        if runtime['safety_max_freq'] not in model.freqs:
+            raise ValueError('safety frequency ceiling lacks profile coverage')
+        cfg.freqs = tuple(f for f in cfg.freqs if f <= runtime['safety_max_freq'])
+    cfg.preserve_overload_capacity = runtime['preserve_overload_capacity']
     if policy.name.startswith('pdblend'):
         limits = {instance.spec.max_num_seqs for instance in fleet.instances.values()}
         if len(limits) != 1 or any(type(v) is not int or v <= 0 for v in limits):
             raise ValueError('PD planner requires a homogeneous actual max_num_seqs inventory')
         cfg.max_num_seqs = next(iter(limits))
     cfg.pressure_controls = policy.dynamic_m_floor
+    cfg.capacity_floor_reserve_canonical = runtime['capacity_floor_reserve_canonical']
     if transition_catalog_path is not None or capacity_floor_path is not None:
         if not policy.name.startswith('pdblend'):
             raise ValueError('optimization artifacts require the PDBlend policy')
         from pdblend.planner.capacity import load_capacity_floors, select_artifact
         from pdblend.planner.transitions import TransitionCatalog
         if capacity_floor_path is not None:
-            cfg.capacity_floors = load_capacity_floors(capacity_floor_path, model=model)
+            if cfg.capacity_floor_reserve_canonical:
+                from .pdblend_runtime_options import comparison_capacity_floors
+                cfg.capacity_floors, _ = comparison_capacity_floors(capacity_floor_path, model=model)
+            else:
+                cfg.capacity_floors = load_capacity_floors(capacity_floor_path, model=model)
+            if capacity_workload_binding is not None:
+                from .pdblend_runtime_options import capacity_workload_context
+                cfg.capacity_floor_context = capacity_workload_context(
+                    capacity_floor_path, capacity_workload_binding, runtime)
         if transition_catalog_path is not None:
             cfg.transition_estimator = TransitionCatalog.load(select_artifact(transition_catalog_path, model),
                 model=model, qualified_only=transition_qualified_only)
-    planner = PoolPlanner(model, cfg)
+    planner = (planner_factory(model, cfg) if planner_factory is not None else PoolPlanner(model, cfg))
     freeze = policy.freeze or fixed_plan is not None
     prior = offline_forecast(trace) if policy.bootstrap_forecast else None
     initial = fixed_plan or initial_plan or (planner.plan(prior or offline_forecast(trace)) if (policy.freeze or policy.warm_start) else None)
+    if initial is not None and any(floor.version == 2 for floor in cfg.capacity_floors):
+        # v2 evidence includes canonical startup before any low-M transition.
+        # Replaying its low-M steady state as a cold initial layout is untested.
+        if fixed_plan is not None:
+            raise ValueError('v2 capacity evidence requires adaptive canonical startup')
+        canonical = min(cfg.min_m_instances,cfg.slots)
+        initial = replace(initial,counts={'M':canonical,'L1':cfg.slots-canonical},
+            f_P=max(cfg.freqs),f_D=max(cfg.freqs),f_M=max(cfg.freqs),tau=0,
+            detail=dict(initial.detail,capacity_floor_canonical_startup=True))
     if policy.dynamic_m_floor and initial is not None and fixed_plan is None:
         demand = prior or offline_forecast(trace)
         pressure = planner.mixed_pressure(demand, initial.counts.get('M', 0), initial.f_M)
@@ -110,7 +136,10 @@ def _make_controller(fleet, router, gpus, model, policy, slo, trace, out_dir, pe
         planner, initial, freeze, ported_period = build_control(policy.name, planner, router, offline_forecast(trace))
         period_s = ported_period or period_s
     ctl = Controller(fleet, router, gpus, planner,
-                     Shield(slo, protect_s=policy.shield_protect_s) if policy.shield else None,
+                     Shield(slo, protect_s=policy.shield_protect_s, mode=runtime['shield_mode'],
+                            sustained_gap_s=runtime['shield_sustained_gap_s'],
+                            stalled_fraction=runtime['shield_stalled_fraction'],
+                            stalled_min_requests=runtime['shield_stalled_min_requests']) if policy.shield else None,
                      Forecaster(initial=prior),
                      period_s=period_s, log_path=out_dir / "controller.jsonl", initial_plan=initial, freeze=freeze,
                      hold_initial=policy.warm_start, min_warm_s=min_warm_s,
@@ -129,7 +158,21 @@ def _make_controller(fleet, router, gpus, model, policy, slo, trace, out_dir, pe
                      pd_route_stable_windows=policy.pd_route_stable_windows,
                      shield_protect_s=policy.shield_protect_s,
                      transition_cooldown_s=policy.transition_cooldown_s,
+                     safety_recovery=runtime['safety_recovery'],
+                     safety_max_freq=runtime['safety_max_freq'],
+                     startup_safety=runtime['startup_safety'],
+                     deadline_safety=runtime['deadline_safety'],
                      native_control=native_control)
+    if runtime['slo_routing']:
+        specs = [instance.spec for instance in fleet.instances.values()]
+        limits = {(spec.max_num_seqs, spec.max_model_len) for spec in specs}
+        if len(limits) != 1:
+            raise ValueError('SLO routing requires a homogeneous capacity/context inventory')
+        max_num_seqs, max_model_len = next(iter(limits))
+        router.configure_slo_routing(model=model, slo=slo,
+            frequency_provider=lambda iid: ctl.freqs.get(iid), enabled=True,
+            max_num_seqs=max_num_seqs, max_model_len=max_model_len,
+            safety=runtime['slo_routing_safety'], handoff_floor_s=runtime['slo_routing_handoff_floor_s'])
     return ctl
 
 
@@ -219,7 +262,23 @@ async def _point(fleet: Fleet, gpus: Gpus, model: PerfModel, policy: Policy, slo
                  capacity_floor_path: Optional[Path] = None,
                  transition_qualified_only: bool = False,
                  comparison_record_tokens: bool = False,
-                 comparison_wait_initial_plan: bool = False) -> dict:
+                 comparison_wait_initial_plan: bool = False,
+                 pdblend_runtime: Optional[dict] = None,
+                 runtime_requested: Optional[dict] = None,
+                 runtime_artifact_bindings: Optional[dict] = None,
+                 planner_factory=None, tuning_scope: Optional[str] = None,
+                 capacity_workload_binding: Optional[dict] = None) -> dict:
+    from .pdblend_runtime_options import scoped_control_options, runtime_receipt
+    runtime = scoped_control_options(policy, pdblend_runtime, resident_pools=bool(pool_models))
+    if planner_factory is not None and (tuning_scope != 'independent_low_m_tuning/v2'
+            or policy.name != 'pdblend' or pool_models or fixed_plan is not None or sampling_seed == 701):
+        raise ValueError('experimental planner requires explicit independent PD tuning scope and seed')
+    controller_runtime = runtime if policy.name.startswith('pdblend') else None
+    if runtime['experiment_mode'] == 'freeze_initial_all_m':
+        if (pool_models or fixed_plan is None or fixed_plan.counts.get('M') != len(fleet.instances)
+                or any(v for k, v in fixed_plan.counts.items() if k != 'M')
+                or fixed_plan.tau != 0 or fixed_plan.f_M != max(model.freqs)):
+            raise ValueError('freeze_initial_all_m requires the explicit fixed all-M maximum-frequency plan')
     if comparison_wait_initial_plan and (policy.name != 'pdblend' or pool_models or initial_plan is None):
         raise ValueError('initial transition wait requires the explicit single-pool PD initial plan')
     selection_trace = trace if planning_trace is None else planning_trace
@@ -254,7 +313,7 @@ async def _point(fleet: Fleet, gpus: Gpus, model: PerfModel, policy: Policy, slo
                 sub_fleet, sub_router, gpus, pool_model, policy, slo, pool_trace, pool_dir, period_s,
                 (pool_fixed_plans or {}).get(pool_id), min_warm_s, native_control=native,
                 transition_catalog_path=transition_catalog_path, capacity_floor_path=capacity_floor_path,
-                transition_qualified_only=transition_qualified_only)
+                transition_qualified_only=transition_qualified_only, pdblend_runtime=controller_runtime)
             pool_routers[pool_id] = sub_router
         router = ResidentRouter(pool_routers, pool_models)
         router.frequency_provider = lambda iid: controllers[router._owners[iid]].freqs.get(iid)
@@ -285,13 +344,26 @@ async def _point(fleet: Fleet, gpus: Gpus, model: PerfModel, policy: Policy, slo
         ctl = _make_controller(fleet, router, gpus, model, policy, slo, selection_trace, out_dir, period_s,
                                fixed_plan, min_warm_s, initial_plan, native_control=native,
                                transition_catalog_path=transition_catalog_path, capacity_floor_path=capacity_floor_path,
-                               transition_qualified_only=transition_qualified_only)
+                               transition_qualified_only=transition_qualified_only, pdblend_runtime=controller_runtime,
+                               planner_factory=planner_factory, capacity_workload_binding=capacity_workload_binding)
     proxy = Proxy(urls, router, transfer=transfer, native_cancel=native.cancel if native else None,
                   cancel_timeout_s=native.timeout_s + 5 if native else 15)
     runner = await _serve_proxy(proxy, proxy_port)
     # Start the common sampler before initial controller actions; evaluation
     # energy remains restricted to t_start below, setup costs stay separate.
     sampler = gpus.sampler(interval_s=0.1)
+    children = list(ctl.controllers.values()) if isinstance(ctl, _PoolControllers) else [ctl]
+    def requested_clocks():
+        requested = {}
+        for child in children:
+            for iid, instance in child.fleet.instances.items():
+                role = child.roles.get(iid, 'off')
+                frequency = 210 if role == 'L1' else None if role == 'off' else child.freqs.get(iid)
+                requested.update({gpu: frequency for gpu in instance.spec.gpus})
+        return requested
+    sampler.frequency_requested = requested_clocks
+    for child in children:
+        child.frequency_snapshot = sampler.capture_frequency
     sampler.start()
     stop = asyncio.Event()
     ctl_task = asyncio.create_task(ctl.run(stop))
@@ -358,6 +430,9 @@ async def _point(fleet: Fleet, gpus: Gpus, model: PerfModel, policy: Policy, slo
     if sampler.frequency_samples:
         freq_text = "\n".join(json.dumps([t, f]) for t, f in sampler.frequency_samples) + "\n"
         (out_dir / "freq.jsonl").write_text(freq_text)
+    (out_dir / 'frequency-readings.jsonl').write_text(''.join(
+        json.dumps(row, allow_nan=False) + '\n' for row in sampler.frequency_readings))
+    (out_dir / 'frequency-errors.json').write_text(json.dumps(sampler.frequency_errors, indent=2) + '\n')
     power_stats = series_stats([sum(w) for _, w in sampler.samples])
     util_stats = gpu_series_stats(sampler.utilization_samples, gpus.gpus)
     freq_stats = gpu_series_stats(sampler.frequency_samples, gpus.gpus)
@@ -375,7 +450,27 @@ async def _point(fleet: Fleet, gpus: Gpus, model: PerfModel, policy: Policy, slo
                                      power_source=getattr(sampler, 'power_source', 'unknown'))
     (out_dir / 'transition-measurements.json').write_text(json.dumps(transitions, indent=2) + '\n')
     metering_summary = {k: v for k, v in metering.items() if k != "metadata"}
+    optimization = runtime_receipt(requested=runtime_requested if runtime_requested is not None else dict(
+        runtime, joint_resident=joint_resident,
+        **{k: str(v) if v is not None else None for k, v in (
+            ('incremental_energy_path', incremental_energy_path), ('transition_catalog_path', transition_catalog_path),
+            ('capacity_floor_path', capacity_floor_path))}),
+        enabled=dict(runtime, joint_resident=bool(getattr(ctl, 'coordinator', None)),
+            incremental_energy=incremental_energy_path is not None,
+            transition_catalog=transition_catalog_path is not None, capacity_floor=capacity_floor_path is not None),
+        controller=ctl, router=router, profile_key=getattr(model, 'profile_key', {}),
+        artifact_bindings=runtime_artifact_bindings) if policy.name.startswith('pdblend') else None
+    if optimization is not None and callable(getattr(model, 'query_provenance_summary', None)):
+        provenance = model.query_provenance_summary()
+        optimization['profile_query_provenance'] = provenance
+        provenance_log = getattr(model, 'query_provenance_log', None)
+        (out_dir / 'profile-query-provenance.json').write_text(json.dumps(dict(
+            summary=provenance,
+            queries=provenance_log() if callable(provenance_log) else []),
+            indent=2, default=str) + '\n')
+        optimization['profile_query_provenance_artifact'] = 'profile-query-provenance.json'
     return dict(slo=att, **({'initial_plan_ready': initial_ready} if comparison_wait_initial_plan else {}),
+                **({'pdblend_runtime': optimization} if optimization is not None else {}),
                 service_started_s=t_start, service_ended_s=t_load_end,
                 request_finished_s=t_requests_done, finished_s=t_done,
                 energy_j=total_j, mean_power_w=total_w, peak_power_w=power_stats["max"],

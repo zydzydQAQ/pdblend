@@ -1,0 +1,50 @@
+{
+  "schema": "pdblend-v3-release-validation/v1",
+  "branch": "pdblend4-v3",
+  "source_manifest": {
+    "path": "/home/pdblend4/results/2026-09-25/v3-latest-new-uuid-cpu-preflight/sources/63a44934e1e573e079b453b9adbb9af93aee739a799be6ae15abdb05bbfddc0c/manifest.json",
+    "sha256": "9d019588ed1ede82e43cc560f2f17c3d5e91447d38fec7490bfb38e512c030c2"
+  },
+  "cpu": {
+    "passed": 3472,
+    "failed": 0,
+    "skipped": 48,
+    "deselected": 28
+  },
+  "entrypoint_and_archive_tests": {
+    "passed": 20,
+    "failed": 0
+  },
+  "model_files_fully_hashed": 50,
+  "engine_export_import_verified": true,
+  "isolated_input_restore": {
+    "project_files": 4237,
+    "external_files": 1,
+    "original_results_visible": false,
+    "pdblend_points": 36,
+    "baseline_points": 144,
+    "synthetic_new_gpu_uuids": true,
+    "cpu_only": true,
+    "passed": true
+  },
+  "new_machine_gpu_execution": false,
+  "host_lock_available_on_official_indexes": true,
+  "fresh_host_full_wheel_install_executed": false,
+  "formal_eligible": false,
+  "input_archives": [
+    {
+      "path": "inputs/pdblend4-v3-inputs.tar.gz",
+      "project_root": "/home/pdblend4",
+      "sha256": "6c2939a29ea85edfbca66ed148e2854219a7efc08d916b513998bf34aa197cf3",
+      "bytes": 1325724407,
+      "files": 4237
+    },
+    {
+      "path": "external/pdblend4-v3-inputs.tar.gz",
+      "project_root": "/home/pdblend",
+      "sha256": "feb628714ae0d2b47b176e085cd197f3e57318aad8e8b5b137a7f40017347338",
+      "bytes": 170981548,
+      "files": 1
+    }
+  ]
+}

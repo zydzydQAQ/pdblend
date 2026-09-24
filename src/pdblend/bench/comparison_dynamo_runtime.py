@@ -141,6 +141,10 @@ class DynamoResidentAdapter:
             if os.environ.get(key) != expected:
                 raise ValueError('Dynamo launch environment differs: '+key)
 
+    async def _start_monitor(self, actual):
+        """Observation adapters may isolate the unchanged public sampler."""
+        return ComparisonMeteringSession(range(8), actual).start()
+
     async def start(self, group):
         if not is_dynamo_group(group):
             raise ValueError('independent Dynamo entrypoint required')
@@ -178,7 +182,7 @@ class DynamoResidentAdapter:
         if any(Path(p['config']['model_path']).resolve() != expected_path for p in self.points.values()):
             raise ValueError('Dynamo configuration selects a different verified model directory')
         first = next(iter(self.points.values()))['config']
-        self.monitor = ComparisonMeteringSession(range(8), actual).start()
+        self.monitor = await self._start_monitor(actual)
         started = time.time()
         with model_load_lock():
             acquired = time.time()

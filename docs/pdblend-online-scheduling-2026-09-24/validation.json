@@ -1,0 +1,14 @@
+{
+  "canvas": [
+    2400,
+    3370
+  ],
+  "text_items": 273,
+  "outside_canvas": [],
+  "text_overlaps": [],
+  "timing_is_measured": false,
+  "source_scope": "current working tree; homogeneous PDblend runner",
+  "scenario_requests": 6,
+  "scenario_tokens": 30,
+  "scenario_event_checks": "passed"
+}

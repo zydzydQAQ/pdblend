@@ -1,0 +1,33 @@
+{
+  "language": "English",
+  "pages": 4,
+  "columns": 2,
+  "body_pt": 11,
+  "major_sections": 3,
+  "algorithms": 2,
+  "numbered_equations": 7,
+  "external_inputs": 0,
+  "overfull_boxes": 0,
+  "missing_glyphs": 0,
+  "unresolved_references": 0,
+  "page_details": [
+    {
+      "page": 1,
+      "extracted_words": 731
+    },
+    {
+      "page": 2,
+      "extracted_words": 837
+    },
+    {
+      "page": 3,
+      "extracted_words": 758
+    },
+    {
+      "page": 4,
+      "extracted_words": 550
+    }
+  ],
+  "pdf_sha256": "021675ad72b6da6393636d8a779286e38fb366cdbe47e5b8760ceeb67f42dd20",
+  "source_sha256": "4c28fd67e71317704e70713318868f62c8a10e068413e227a319eb164d15c1bf"
+}

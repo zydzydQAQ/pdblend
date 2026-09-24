@@ -14,12 +14,21 @@ from .native_timing_plan_v2 import build_plan,MODEL_TP
 from .native_timing_capacity import partition_windows,fit_measured_partition
 from .native_timing_replay import (Resolver,mounts,_validate_attempt,_power,_audited_window,
     audit_interference_peers,audit_native_launch)
+from . import native_timing_single_pass as single_pass
 
 SCHEMA='pdblend-native-timing-replay-evidence/v2'
 
 
 def _plan(inputs,resolver):
     plan=resolver.read(inputs['point_plan'])
+    if single_pass.is_single_pass(plan):
+        parent = _plan(dict(inputs, point_plan=plan['parent_point_plan']), resolver)
+        expected = single_pass.from_parent(parent, plan['parent_point_plan'])
+        need(digest(expected) == digest(plan), 'single-pass bound design does not reproduce')
+        need(inputs.get('timing_first') is False and not any(inputs.get(key) for key in
+             ('collect_runtime', 'power_pilot_plan', 'request_cycle_plan', 'layout_energy_plan')),
+             'single-pass development cannot schedule legacy qualification or supplements')
+        return plan
     refs=[plan['query_ledger'],plan['query_provenance'],*plan['corpus_refs'].values()]
     if plan.get('frequency_domain_ref'):refs.append(plan['frequency_domain_ref'])
     for ref in refs:resolver.read(ref)
@@ -45,14 +54,16 @@ def _files(attempt,manifest,execution,resolver):
     need(execution.get('receipt_sha256',{}).get('native-timing/completion.json')==completion['sha256'],
          'worker did not bind v2 timing completion')
     report=resolver.read(completion)
-    need(report.get('schema')=='pdblend-native-timing-collection/v2' and report.get('system')=='pdblend'
+    development = report.get('schema') == single_pass.COLLECTION_SCHEMA
+    need(report.get('schema') in ('pdblend-native-timing-collection/v2', single_pass.COLLECTION_SCHEMA) and report.get('system')=='pdblend'
          and report.get('status')=='passed' and report.get('complete') is True
          and report.get('hardware_executed') is True and not report.get('error') and not report.get('cleanup_errors'),
          'v2 timing collection did not safely complete')
     inputs_ref=manifest['payload']['input_manifest'];inputs=resolver.read(inputs_ref)
-    need(inputs.get('schema')=='pdblend-native-timing-inputs/v2' and inputs.get('system')=='pdblend',
+    need(inputs.get('schema')==(single_pass.INPUT_SCHEMA if development else 'pdblend-native-timing-inputs/v2') and inputs.get('system')=='pdblend',
          'v2 timing input schema differs')
     plan=_plan(inputs,resolver);source=resolver.read(inputs['source_manifest'])
+    need(single_pass.is_single_pass(plan) is development, 'timing schema cannot promote single-pass observations')
     need(report.get('point_plan')==inputs['point_plan'] and report.get('capacity_policy')==plan['capacity_policy']
          and inputs.get('model_id')==plan['model_id'],'v2 collection plan/capacity/model binding differs')
     need(digest(source['files'])==source['source_sha256']==inputs['source_sha256']==manifest['payload']['source_sha256']
@@ -66,6 +77,7 @@ def _files(attempt,manifest,execution,resolver):
         timing_component=report['timing_component'],measurement_qualification=report['measurement_qualification'],
         window_partition=report['window_partition'],query_ledger=plan['query_ledger'],query_provenance=plan['query_provenance'],
         **{'corpus_'+k:v for k,v in plan['corpus_refs'].items()})
+    if development: refs['parent_point_plan'] = plan['parent_point_plan']
     for ref in refs.values():resolver.read(ref)
     raw_refs=report['raw_bindings'];paths=[resolver.path(r['path']) for r in raw_refs]
     expected={f'{digest(point)[:20]}-{repeat}.json' for point in plan['points'] for repeat in range(point['repeats'])}
@@ -78,7 +90,7 @@ def _files(attempt,manifest,execution,resolver):
     for ref in raw_refs:resolver.read(ref)
     ids=tuple('pd-timing-'+str(i) for i in range(plan['resident_instances']))
     interference=[root/'interference'/f'{f}-{repeat}-{iid}-{phase}.json'
-        for f in plan_frequencies(plan) for repeat in range(3) for iid in ids for phase in ('isolated','parallel')]
+        for f in plan_frequencies(plan) for repeat in range(0 if development else 3) for iid in ids for phase in ('isolated','parallel')]
     need(set((root/'interference').glob('*.json'))==set(interference),'v2 interference raw inventory differs')
     return root,report,inputs,plan,refs,raw_refs,interference,ids
 
@@ -90,8 +102,8 @@ def capture_evidence(attempt,queue,out,*,path_map=()):
     job=json.loads(Path(queue).read_text())['jobs'].get(manifest['job_id'],{})
     _validate_attempt(manifest,execution,job)
     resolver=Resolver([*path_map,*mounts(execution['argv'])])
-    _,_,_,_,refs,raw_refs,interference,_=_files(attempt,manifest,execution,resolver)
-    value=dict(schema=SCHEMA,created_s=time.time(),binding_scope='new_post_collection_snapshot_not_original_completion_binding',
+    _,_,_,plan,refs,raw_refs,interference,_=_files(attempt,manifest,execution,resolver)
+    value=dict(schema=single_pass.EVIDENCE_SCHEMA if single_pass.is_single_pass(plan) else SCHEMA,created_s=time.time(),binding_scope='new_post_collection_snapshot_not_original_completion_binding',
         formal_eligible=False,full_profile_qualified=False,attempt_root=str(attempt),queue_job=job,queue_job_sha256=digest(job),
         attempt_manifest=binding(attempt/'manifest.json'),worker_execution=binding(attempt/'execution.json'),
         references={name:dict(ref,resolved_path=str(resolver.path(ref['path']))) for name,ref in refs.items()},
@@ -129,6 +141,11 @@ def _identities(report,inputs,plan,manifest,resolver,ids):
 
 def _interference(root,raws,report,identities,uuids):
     from pdblend.bench.comparison_acceptance import _equal
+    if report.get('schema') == single_pass.COLLECTION_SCHEMA:
+        need(not raws and not report.get('interference_peer_states'),
+             'single-pass development cannot relabel interference observations')
+        return single_pass.development_qualification([], uuids), [], dict(
+            status='not_measured_development', replayed=False, continuous_idle_clock_coverage=False)
     ids=tuple(identities);tp=next(iter(identities.values()))['tp'];checks=[];intervals=[]
     need('interference_peer_states' in report,'v2 all-peer preparation evidence is mandatory')
     frequencies=plan_frequencies(dict(report,model_id=next(iter(identities.values()))['model_id'],tp=tp,pp=1))
@@ -195,13 +212,16 @@ def _cleanup(report,uuids,ids,last_window,execution):
 def replay_evidence(evidence_ref,*,path_map=()):
     from pdblend.bench.comparison_acceptance import _equal
     resolver=Resolver(path_map);evidence=resolver.read(evidence_ref)
-    need(evidence.get('schema')==SCHEMA and evidence.get('formal_eligible') is False,'unknown v2 timing replay evidence')
+    need(evidence.get('schema') in (SCHEMA, single_pass.EVIDENCE_SCHEMA) and evidence.get('formal_eligible') is False,'unknown v2 timing replay evidence')
     manifest=resolver.read(evidence['attempt_manifest']);execution=resolver.read(evidence['worker_execution'])
     need(digest(evidence['queue_job'])==evidence['queue_job_sha256'],'captured v2 queue job differs')
     _validate_attempt(manifest,execution,evidence['queue_job'])
     translated=[(r['path'],str(resolver.path(r['resolved_path']))) for r in [*evidence['references'].values(),*evidence['samples']]]
     resolver=Resolver([*path_map,*translated,*evidence.get('path_map',[]),*mounts(execution['argv'])])
     root,report,inputs,plan,refs,raw_refs,interference,ids=_files(resolver.path(evidence['attempt_root']),manifest,execution,resolver)
+    development = single_pass.is_single_pass(plan)
+    need(evidence['schema'] == (single_pass.EVIDENCE_SCHEMA if development else SCHEMA),
+         'single-pass evidence cannot claim original three-repeat qualification')
     need(set(evidence['references'])==set(refs) and all(evidence['references'][k]['sha256']==r['sha256']
          and resolver.path(evidence['references'][k]['path'])==resolver.path(r['path']) for k,r in refs.items())
          and [{k:r[k] for k in ('path','sha256')} for r in evidence['samples']]==raw_refs,
@@ -229,18 +249,23 @@ def replay_evidence(evidence_ref,*,path_map=()):
     for iid in ids:
         owned=sorted(r for r in owned_intervals if r[2]==iid)
         need(all(a[1]<=b[0] for a,b in zip(owned,owned[1:])), 'v2 one engine overlapped its timing/capacity windows')
-    if not qualification['parallel_qualified']:
+    if not qualification['parallel_qualified'] and not development:
         ordered=sorted(owned_intervals)
         need(all(a[1]<=b[0] for a,b in zip(ordered,ordered[1:])), 'v2 serial fallback overlapped windows')
-    need(min(r[0] for r in owned_intervals)>=max(r[1] for r in intervals),'v2 points preceded interference qualification')
+    if intervals:
+        need(min(r[0] for r in owned_intervals)>=max(r[1] for r in intervals),'v2 points preceded interference qualification')
     fitted=fit_measured_partition(partition,identity=dict(system='pdblend',**identity),raw_bindings=raw_refs,
         measurement_qualification=dict(qualification,receipt=refs['measurement_qualification']),limits=plan['holdout_limits'])
     need(_equal(fitted,resolver.read(refs['timing_component'])),'v2 measured-only fit/hull/holdout does not reproduce')
     need(report.get('component_qualified') is fitted['component_qualified'],'v2 completion component qualification differs')
     _cleanup(report,manifest['gpu_uuids'],ids,max(r[1] for r in owned_intervals),execution)
-    return dict(schema='pdblend-native-timing-replay/v2',component=deepcopy(fitted['component']),supported_fit=fitted,
+    result = dict(schema=single_pass.REPLAY_SCHEMA if development else 'pdblend-native-timing-replay/v2',component=deepcopy(fitted['component']),supported_fit=fitted,
         component_qualified=fitted['component_qualified'],identity=dict(system='pdblend',**identity),
         evidence=binding(resolver.path(evidence_ref['path'])),replayed_windows=len(raw_refs),
         replayed_interference_windows=len(interference),measured_windows=len(partition['measured']),
         unsupported_windows=len(partition['unsupported']),interference_peer_preparation=peers,
         formal_eligible=False,full_profile_qualified=False,auxiliary_power_qualifies_power_component=False)
+    if development:
+        result.update(qualification_level=single_pass.LEVEL, original_design_qualified=False,
+                      parallel_qualified=False)
+    return result

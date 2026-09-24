@@ -10,12 +10,27 @@ from pdblend.experimentation.lease import GPULeaseQueue, gpu_snapshot
 from pdblend.experimentation.worker import run_one
 
 
+class QueueWithinScope(GPULeaseQueue):
+    """Respect an explicit user handoff while retaining the shared GPU lease."""
+    def __init__(self, db):
+        super().__init__(db)
+        self.scope_path = Path(db).resolve().parent / 'active-execution-scope.json'
+
+    def _deps_ready(self, state, job):
+        if self.scope_path.is_file():
+            scope = json.loads(self.scope_path.read_text())
+            if (scope.get('status') == 'active'
+                    and job.get('payload', {}).get('run_id') not in scope['allowed_run_ids']):
+                return False
+        return super()._deps_ready(state, job)
+
+
 def _worker_loop(db: Path, *, once: bool, idle_exit: bool, stop_file: Path | None = None) -> None:
     """Keep one isolated queue handle replenished until its queue is drained."""
     while True:
         if stop_file is not None and stop_file.exists():
             return
-        worked = run_one(GPULeaseQueue(db))
+        worked = run_one(QueueWithinScope(db))
         if once:
             return
         pending = any(job.status in {'queued', 'running'}

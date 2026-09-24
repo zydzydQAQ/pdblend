@@ -1,0 +1,8 @@
+{
+  "schema": "pdblend-v3-source-host/v1",
+  "gpu_csv": "index, name, uuid, driver_version, memory.total [MiB]\n0, NVIDIA L20, GPU-d5135a74-255a-e68a-157d-dd669925844c, 580.126.09, 46068 MiB\n1, NVIDIA L20, GPU-37f42927-33ad-334f-2c1e-c0256021ba9d, 580.126.09, 46068 MiB\n2, NVIDIA L20, GPU-eea9f89a-e3c3-0dd5-b6f0-39d212ae9ca7, 580.126.09, 46068 MiB\n3, NVIDIA L20, GPU-6f0fad01-367f-b93f-4030-c8de196e06be, 580.126.09, 46068 MiB\n4, NVIDIA L20, GPU-3cf75f17-77d3-3b8f-3cb9-5f66f921069f, 580.126.09, 46068 MiB\n5, NVIDIA L20, GPU-dc219033-62fc-ad87-1880-79f941665adf, 580.126.09, 46068 MiB\n6, NVIDIA L20, GPU-47ba0760-6328-b0b7-19bf-d43937696f30, 580.126.09, 46068 MiB\n7, NVIDIA L20, GPU-4298f067-569c-5359-df1d-94a6dcf7ae15, 580.126.09, 46068 MiB\n",
+  "uname": "x86_64",
+  "os_release": "PRETTY_NAME=\"Ubuntu 22.04.5 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"22.04\"\nVERSION=\"22.04.5 LTS (Jammy Jellyfish)\"\nVERSION_CODENAME=jammy\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=jammy\n",
+  "docker_version": "29.5.1",
+  "new_hardware_tested": false
+}

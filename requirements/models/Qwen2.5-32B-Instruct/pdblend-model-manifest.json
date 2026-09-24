@@ -1,0 +1,214 @@
+{
+  "schema": 1,
+  "repo_id": "Qwen/Qwen2.5-32B-Instruct",
+  "revision": "modelscope-manifest:d5995db75c82741d2e6ac567c33214a20bd2d312a555e193b9e8fff2d40eea37",
+  "revision_type": "sha256_of_full_file_revision_and_content_manifest",
+  "files": [
+    {
+      "path": "config.json",
+      "bytes": 663,
+      "sha256": "9c6772f138ef9e5b3d1c18f2c87e451bbc01f5f1a4eabb36f9bf4f53829b903e",
+      "upstream_sha256": "9c6772f138ef9e5b3d1c18f2c87e451bbc01f5f1a4eabb36f9bf4f53829b903e",
+      "upstream_blob_id": null,
+      "source_revision": "167f9e935fef58f36d040ab38b199cf73ada0c30"
+    },
+    {
+      "path": "generation_config.json",
+      "bytes": 242,
+      "sha256": "ea35dfb6fc5051b01114f9b995820d55dab01ed33ee490f6378b442af82c09f9",
+      "upstream_sha256": "ea35dfb6fc5051b01114f9b995820d55dab01ed33ee490f6378b442af82c09f9",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4"
+    },
+    {
+      "path": "merges.txt",
+      "bytes": 1671839,
+      "sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+      "upstream_sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4"
+    },
+    {
+      "path": "model-00001-of-00017.safetensors",
+      "bytes": 3916539832,
+      "sha256": "fa006a0382517a4e9a8781d8e7d3405cd6bdd1b9100fb344d73f925b7da9341c",
+      "upstream_sha256": "fa006a0382517a4e9a8781d8e7d3405cd6bdd1b9100fb344d73f925b7da9341c",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4"
+    },
+    {
+      "path": "model-00002-of-00017.safetensors",
+      "bytes": 3900847496,
+      "sha256": "0d7f28a4ba7135c2c8365016170cfa25723f65ec41e32ec9a3c81746e4395615",
+      "upstream_sha256": "0d7f28a4ba7135c2c8365016170cfa25723f65ec41e32ec9a3c81746e4395615",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4"
+    },
+    {
+      "path": "model-00003-of-00017.safetensors",
+      "bytes": 3900847480,
+      "sha256": "8f4b7b811a7ecf117c179ac9413b7a746f2fc0707a41ae4b2efd0282e73bed85",
+      "upstream_sha256": "8f4b7b811a7ecf117c179ac9413b7a746f2fc0707a41ae4b2efd0282e73bed85",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4"
+    },
+    {
+      "path": "model-00004-of-00017.safetensors",
+      "bytes": 3900847544,
+      "sha256": "de8ab9cb81e6798031d2cf9ef6d15a0034b77fceeba3d4e011647943c8b99afb",
+      "upstream_sha256": "de8ab9cb81e6798031d2cf9ef6d15a0034b77fceeba3d4e011647943c8b99afb",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "download_source": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00004-of-00017.safetensors",
+      "direct": true
+    },
+    {
+      "path": "model-00005-of-00017.safetensors",
+      "bytes": 3900847544,
+      "sha256": "fa86494f0074cc36c610aa54e7bde03edefc57a9be7636216277bd5ed8b8bfda",
+      "upstream_sha256": "fa86494f0074cc36c610aa54e7bde03edefc57a9be7636216277bd5ed8b8bfda",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "download_source": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00005-of-00017.safetensors",
+      "direct": true
+    },
+    {
+      "path": "model-00006-of-00017.safetensors",
+      "bytes": 3900847544,
+      "sha256": "c8fa152bd8a23bab2c0cfca43ff9f586bccd82b1cb67f2f84231f31d0f3cab47",
+      "upstream_sha256": "c8fa152bd8a23bab2c0cfca43ff9f586bccd82b1cb67f2f84231f31d0f3cab47",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "download_source": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00006-of-00017.safetensors",
+      "direct": true
+    },
+    {
+      "path": "model-00007-of-00017.safetensors",
+      "bytes": 3900847544,
+      "sha256": "5e33e16319d18d1e180187d9f858deddbbaf06d950abc88941bf027d1439c7bc",
+      "upstream_sha256": "5e33e16319d18d1e180187d9f858deddbbaf06d950abc88941bf027d1439c7bc",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4"
+    },
+    {
+      "path": "model-00008-of-00017.safetensors",
+      "bytes": 3900847544,
+      "sha256": "8561b86737884397772bb990b38c0efe896f66ed27815ca207ddc8ec7965ffe4",
+      "upstream_sha256": "8561b86737884397772bb990b38c0efe896f66ed27815ca207ddc8ec7965ffe4",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "download_source": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00008-of-00017.safetensors",
+      "direct": true
+    },
+    {
+      "path": "model-00009-of-00017.safetensors",
+      "bytes": 3900847544,
+      "sha256": "47f562bf77d986b53c5390b01a30a77576c3eed69191b484cf88b53bb64bce19",
+      "upstream_sha256": "47f562bf77d986b53c5390b01a30a77576c3eed69191b484cf88b53bb64bce19",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "download_source": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00009-of-00017.safetensors",
+      "direct": true
+    },
+    {
+      "path": "model-00010-of-00017.safetensors",
+      "bytes": 3900847544,
+      "sha256": "359450e2c9e261751b5803fcdd1d0a040029a6119a271dd8592d7bb37fa722b5",
+      "upstream_sha256": "359450e2c9e261751b5803fcdd1d0a040029a6119a271dd8592d7bb37fa722b5",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4"
+    },
+    {
+      "path": "model-00011-of-00017.safetensors",
+      "bytes": 3900847544,
+      "sha256": "836f0570f5694ce1d55f505064190e2688926dad4f033384ae519d96faaad670",
+      "upstream_sha256": "836f0570f5694ce1d55f505064190e2688926dad4f033384ae519d96faaad670",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "download_source": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00011-of-00017.safetensors",
+      "direct": true
+    },
+    {
+      "path": "model-00012-of-00017.safetensors",
+      "bytes": 3900847544,
+      "sha256": "5307431e385a177375a5aa887eb1c546f3413dd2e2269c291672f11f752842b4",
+      "upstream_sha256": "5307431e385a177375a5aa887eb1c546f3413dd2e2269c291672f11f752842b4",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4"
+    },
+    {
+      "path": "model-00013-of-00017.safetensors",
+      "bytes": 3900847544,
+      "sha256": "9b2657db02572dd4370186b35c0e0fa70218d7e2ec1190e4dc4a755c5cbd430e",
+      "upstream_sha256": "9b2657db02572dd4370186b35c0e0fa70218d7e2ec1190e4dc4a755c5cbd430e",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4"
+    },
+    {
+      "path": "model-00014-of-00017.safetensors",
+      "bytes": 3900847544,
+      "sha256": "b5f1f8af3b6bbf734790985590752fb815dd69566cf05ee578d70af74ace1d4c",
+      "upstream_sha256": "b5f1f8af3b6bbf734790985590752fb815dd69566cf05ee578d70af74ace1d4c",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "download_source": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00014-of-00017.safetensors",
+      "direct": true
+    },
+    {
+      "path": "model-00015-of-00017.safetensors",
+      "bytes": 3900847544,
+      "sha256": "8cdfcbf8913e10056c981db2db817f92c8601998deb9eabcae14fade98d76c14",
+      "upstream_sha256": "8cdfcbf8913e10056c981db2db817f92c8601998deb9eabcae14fade98d76c14",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4"
+    },
+    {
+      "path": "model-00016-of-00017.safetensors",
+      "bytes": 3900847544,
+      "sha256": "977b3d2ca7f97dc3b518ed5087ddc43ccf7afb371190828f2334d7e4c81224ee",
+      "upstream_sha256": "977b3d2ca7f97dc3b518ed5087ddc43ccf7afb371190828f2334d7e4c81224ee",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4"
+    },
+    {
+      "path": "model-00017-of-00017.safetensors",
+      "bytes": 3098588976,
+      "sha256": "2853695483f9c61a8bd8b109025b3c591214a0362992fa844537f09acc81bd03",
+      "upstream_sha256": "2853695483f9c61a8bd8b109025b3c591214a0362992fa844537f09acc81bd03",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4"
+    },
+    {
+      "path": "model.safetensors.index.json",
+      "bytes": 63248,
+      "sha256": "0183543f2e6e40d3d1e863ed0b2a8c9cdaf2ee4045ce724a45cea30e9995a0af",
+      "upstream_sha256": "0183543f2e6e40d3d1e863ed0b2a8c9cdaf2ee4045ce724a45cea30e9995a0af",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4"
+    },
+    {
+      "path": "tokenizer.json",
+      "bytes": 7031645,
+      "sha256": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539",
+      "upstream_sha256": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4"
+    },
+    {
+      "path": "tokenizer_config.json",
+      "bytes": 7305,
+      "sha256": "5b5d4f65d0acd3b2d56a35b56d374a36cbc1c8fa5cf3b3febbbfabf22f359583",
+      "upstream_sha256": "5b5d4f65d0acd3b2d56a35b56d374a36cbc1c8fa5cf3b3febbbfabf22f359583",
+      "upstream_blob_id": null,
+      "source_revision": "feb114abfdd1040654a39c1283f288cb84d58981"
+    },
+    {
+      "path": "vocab.json",
+      "bytes": 2776833,
+      "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+      "upstream_sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+      "upstream_blob_id": null,
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4"
+    }
+  ]
+}

@@ -11,12 +11,13 @@ from .native_timing_audit import audit_window,fit_component,finite,need
 from .native_timing_plan import digest
 from .native_frequency_domain import check_rows,plan_frequencies
 from .native_timing_plan_v2 import CAPACITY_POLICY,MODEL_TP
+from .native_timing_single_pass import is_single_pass
 
 IDENTITY=('model_id','model_hash','tokenizer_hash','engine_revision','source_revision','image_digest','tp','pp','gpu_uuids')
 
 
 def _point(plan,point):
-    need(plan.get('schema')=='pdblend-native-timing-plan/v2' and plan.get('capacity_policy')==CAPACITY_POLICY,
+    need((plan.get('schema')=='pdblend-native-timing-plan/v2' or is_single_pass(plan)) and plan.get('capacity_policy')==CAPACITY_POLICY,
          'explicit immutable v2 capacity policy required')
     need(type(plan.get('tp'))is int and plan.get('tp')==MODEL_TP.get(plan.get('model_id')) and plan.get('pp')==1,
          'model-owned v2 topology required')
@@ -24,6 +25,9 @@ def _point(plan,point):
     need(point.get('frequency_mhz') in frequencies and point.get('frequency_domain_sha256')==plan.get('frequency_domain_sha256'),
          'capacity point frequency domain differs')
     candidate=dict(point);repeat=candidate.pop('repeat',None)
+    if is_single_pass(plan):
+        need(candidate.get('repeats') == 1 and type(candidate['repeats']) is int,
+             'single-pass capacity point cannot claim multiple repeats')
     need(candidate in plan['points'] and type(repeat)is int and 0<=repeat<candidate['repeats'],
          'capacity receipt is not a predeclared point/repeat')
     need(all(type(point.get(k))is int for k in ('batch','prompt_tokens','output_tokens'))
@@ -133,9 +137,13 @@ def partition_windows(plan,windows,*,identities):
         (training if point['purpose']=='training' else holdout).extend(rows)
         measured.append(dict(point_sha256=key[0],repeat=repeat,instance_id=expected[key],events=len(rows)))
     need(seen==set(expected),'v2 timing windows are incomplete; unmeasured planned points cannot disappear')
-    return dict(schema='pdblend-native-timing-window-partition/v2',training=training,holdout=holdout,
+    result = dict(schema='pdblend-native-timing-window-partition/v2',training=training,holdout=holdout,
         measured=measured,unsupported=unsupported,planned_windows=len(expected),formal_eligible=False,
         full_profile_qualified=False,unsupported_points_in_fit=False)
+    if is_single_pass(plan):
+        result.update(schema='pdblend-native-timing-development-window-partition/v1',
+                      qualification_level=plan['qualification_level'], original_design_qualified=False)
+    return result
 
 
 def fit_measured_partition(partition,*,identity,raw_bindings,measurement_qualification,limits):
@@ -159,6 +167,13 @@ def fit_measured_partition(partition,*,identity,raw_bindings,measurement_qualifi
     result=dict(schema='pdblend-native-timing-supported-fit/v2',component_qualified=False,component=None,
         missing_domains=missing,unsupported=deepcopy(partition['unsupported']),
         formal_eligible=False,full_profile_qualified=False,energy_comparable=False)
+    if partition.get('qualification_level') == 'single_pass_development':
+        need(measurement_qualification.get('qualified') is False
+             and measurement_qualification.get('parallel_qualified') is False
+             and measurement_qualification.get('mode') == 'parallel_development_unqualified',
+             'single-pass observations cannot inherit measurement qualification')
+        result.update(schema='pdblend-native-timing-development-supported-fit/v1',
+                      qualification_level='single_pass_development', original_design_qualified=False)
     if missing:return result
     component=fit_component(train,hold,identity=identity,raw_bindings=raw_bindings,
         measurement_qualification=measurement_qualification,limits=limits)

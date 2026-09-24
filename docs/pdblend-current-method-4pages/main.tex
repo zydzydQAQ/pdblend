@@ -1,0 +1,39 @@
+\documentclass[11pt,a4paper,twocolumn]{article}
+\usepackage[fontset=fandol,heading=true]{ctex}
+\usepackage{fontspec}
+\IfFontExistsTF{TeX Gyre Termes}{\setmainfont{TeX Gyre Termes}}{}
+\usepackage[left=18mm,right=18mm,top=20mm,bottom=20mm,columnsep=7mm]{geometry}
+\usepackage{amsmath,amssymb,booktabs,tabularx}
+\usepackage{algorithm,algpseudocode}
+\usepackage{microtype}
+\usepackage{flushend}
+\usepackage[unicode,hidelinks]{hyperref}
+\setlength{\parindent}{1em}
+\setlength{\parskip}{1pt}
+\setlength{\textfloatsep}{8pt plus 2pt minus 2pt}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+\setlength{\abovedisplayskip}{5pt plus 2pt minus 1pt}
+\setlength{\belowdisplayskip}{5pt plus 2pt minus 1pt}
+\renewcommand{\topfraction}{.92}
+\renewcommand{\bottomfraction}{.85}
+\renewcommand{\textfraction}{.08}
+\setcounter{topnumber}{3}
+\emergencystretch=1em
+\ctexset{section={format=\large\bfseries,beforeskip=8pt,afterskip=4pt},subsection={format=\normalsize\bfseries,beforeskip=6pt,afterskip=3pt}}
+\floatname{algorithm}{算法}
+\algrenewcommand\algorithmicrequire{\textbf{输入：}}
+\algrenewcommand\algorithmicensure{\textbf{输出：}}
+\newcommand{\para}[1]{\par\noindent\textbf{#1}\quad}
+\newcommand{\TTFT}{\mathrm{TTFT}}
+\newcommand{\TPOT}{\mathrm{TPOT}}
+\hypersetup{pdftitle={PDblend：性能刻画、在线调度与自适应池配置}}
+\begin{document}
+\pagestyle{plain}
+\raggedbottom
+\twocolumn[{\centering\Large\bfseries
+PDblend：性能刻画、在线调度与自适应池配置\par\vspace{9pt}}]
+PDblend 在同一 GPU 集群中组合混合执行（M）与预填充/解码分离（P/D），在首 token 延迟（TTFT）和平均 token 间隔（TPOT）约束下降低服务能耗。一个 instance 是一个推理引擎及其张量并行（TP）GPU 组；M 在同一实例内完成两个阶段，PD 则使用一对 P、D 实例。方法由三个环节组成：离线 profiler 提供性能与能耗依据，请求到达时确定执行路径，运行期间调整频率、角色及异构 TP 池的流量权重。以下描述当前工作树中的机制，并在必要处注明不同执行入口的边界。
+\input{sections/01-profiler}
+\input{sections/02-online}
+\input{sections/03-adaptive}
+\end{document}

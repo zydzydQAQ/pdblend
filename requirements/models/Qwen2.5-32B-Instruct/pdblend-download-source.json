@@ -1,0 +1,304 @@
+{
+  "id": "Qwen/Qwen2.5-32B-Instruct",
+  "sha": "modelscope-manifest:d5995db75c82741d2e6ac567c33214a20bd2d312a555e193b9e8fff2d40eea37",
+  "siblings": [
+    {
+      "rfilename": ".gitattributes",
+      "size": 1519,
+      "lfs": {
+        "sha256": "11ad7efa24975ee4b0c3c3a38ed18737f0658a5f75a0a96787b576a78a023361",
+        "size": 1519
+      },
+      "source_revision": "9746f515d90bc7502fb3edf68be5d6ea31387f80",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/9746f515d90bc7502fb3edf68be5d6ea31387f80/.gitattributes"
+    },
+    {
+      "rfilename": "config.json",
+      "size": 663,
+      "lfs": {
+        "sha256": "9c6772f138ef9e5b3d1c18f2c87e451bbc01f5f1a4eabb36f9bf4f53829b903e",
+        "size": 663
+      },
+      "source_revision": "167f9e935fef58f36d040ab38b199cf73ada0c30",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/167f9e935fef58f36d040ab38b199cf73ada0c30/config.json"
+    },
+    {
+      "rfilename": "configuration.json",
+      "size": 2,
+      "lfs": {
+        "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "size": 2
+      },
+      "source_revision": "84b01e76584e71fa081ffc85971beea085589b03",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/84b01e76584e71fa081ffc85971beea085589b03/configuration.json"
+    },
+    {
+      "rfilename": "generation_config.json",
+      "size": 242,
+      "lfs": {
+        "sha256": "ea35dfb6fc5051b01114f9b995820d55dab01ed33ee490f6378b442af82c09f9",
+        "size": 242
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/generation_config.json"
+    },
+    {
+      "rfilename": "LICENSE",
+      "size": 11343,
+      "lfs": {
+        "sha256": "832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e",
+        "size": 11343
+      },
+      "source_revision": "17d867623c9c01762e4b3ad674331f6877e066ed",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/17d867623c9c01762e4b3ad674331f6877e066ed/LICENSE"
+    },
+    {
+      "rfilename": "merges.txt",
+      "size": 1671839,
+      "lfs": {
+        "sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+        "size": 1671839
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/merges.txt"
+    },
+    {
+      "rfilename": "model-00001-of-00017.safetensors",
+      "size": 3916539832,
+      "lfs": {
+        "sha256": "fa006a0382517a4e9a8781d8e7d3405cd6bdd1b9100fb344d73f925b7da9341c",
+        "size": 3916539832
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00001-of-00017.safetensors"
+    },
+    {
+      "rfilename": "model-00002-of-00017.safetensors",
+      "size": 3900847496,
+      "lfs": {
+        "sha256": "0d7f28a4ba7135c2c8365016170cfa25723f65ec41e32ec9a3c81746e4395615",
+        "size": 3900847496
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00002-of-00017.safetensors"
+    },
+    {
+      "rfilename": "model-00003-of-00017.safetensors",
+      "size": 3900847480,
+      "lfs": {
+        "sha256": "8f4b7b811a7ecf117c179ac9413b7a746f2fc0707a41ae4b2efd0282e73bed85",
+        "size": 3900847480
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00003-of-00017.safetensors"
+    },
+    {
+      "rfilename": "model-00004-of-00017.safetensors",
+      "size": 3900847544,
+      "lfs": {
+        "sha256": "de8ab9cb81e6798031d2cf9ef6d15a0034b77fceeba3d4e011647943c8b99afb",
+        "size": 3900847544
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00004-of-00017.safetensors"
+    },
+    {
+      "rfilename": "model-00005-of-00017.safetensors",
+      "size": 3900847544,
+      "lfs": {
+        "sha256": "fa86494f0074cc36c610aa54e7bde03edefc57a9be7636216277bd5ed8b8bfda",
+        "size": 3900847544
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00005-of-00017.safetensors"
+    },
+    {
+      "rfilename": "model-00006-of-00017.safetensors",
+      "size": 3900847544,
+      "lfs": {
+        "sha256": "c8fa152bd8a23bab2c0cfca43ff9f586bccd82b1cb67f2f84231f31d0f3cab47",
+        "size": 3900847544
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00006-of-00017.safetensors"
+    },
+    {
+      "rfilename": "model-00007-of-00017.safetensors",
+      "size": 3900847544,
+      "lfs": {
+        "sha256": "5e33e16319d18d1e180187d9f858deddbbaf06d950abc88941bf027d1439c7bc",
+        "size": 3900847544
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00007-of-00017.safetensors"
+    },
+    {
+      "rfilename": "model-00008-of-00017.safetensors",
+      "size": 3900847544,
+      "lfs": {
+        "sha256": "8561b86737884397772bb990b38c0efe896f66ed27815ca207ddc8ec7965ffe4",
+        "size": 3900847544
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00008-of-00017.safetensors"
+    },
+    {
+      "rfilename": "model-00009-of-00017.safetensors",
+      "size": 3900847544,
+      "lfs": {
+        "sha256": "47f562bf77d986b53c5390b01a30a77576c3eed69191b484cf88b53bb64bce19",
+        "size": 3900847544
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00009-of-00017.safetensors"
+    },
+    {
+      "rfilename": "model-00010-of-00017.safetensors",
+      "size": 3900847544,
+      "lfs": {
+        "sha256": "359450e2c9e261751b5803fcdd1d0a040029a6119a271dd8592d7bb37fa722b5",
+        "size": 3900847544
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00010-of-00017.safetensors"
+    },
+    {
+      "rfilename": "model-00011-of-00017.safetensors",
+      "size": 3900847544,
+      "lfs": {
+        "sha256": "836f0570f5694ce1d55f505064190e2688926dad4f033384ae519d96faaad670",
+        "size": 3900847544
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00011-of-00017.safetensors"
+    },
+    {
+      "rfilename": "model-00012-of-00017.safetensors",
+      "size": 3900847544,
+      "lfs": {
+        "sha256": "5307431e385a177375a5aa887eb1c546f3413dd2e2269c291672f11f752842b4",
+        "size": 3900847544
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00012-of-00017.safetensors"
+    },
+    {
+      "rfilename": "model-00013-of-00017.safetensors",
+      "size": 3900847544,
+      "lfs": {
+        "sha256": "9b2657db02572dd4370186b35c0e0fa70218d7e2ec1190e4dc4a755c5cbd430e",
+        "size": 3900847544
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00013-of-00017.safetensors"
+    },
+    {
+      "rfilename": "model-00014-of-00017.safetensors",
+      "size": 3900847544,
+      "lfs": {
+        "sha256": "b5f1f8af3b6bbf734790985590752fb815dd69566cf05ee578d70af74ace1d4c",
+        "size": 3900847544
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00014-of-00017.safetensors"
+    },
+    {
+      "rfilename": "model-00015-of-00017.safetensors",
+      "size": 3900847544,
+      "lfs": {
+        "sha256": "8cdfcbf8913e10056c981db2db817f92c8601998deb9eabcae14fade98d76c14",
+        "size": 3900847544
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00015-of-00017.safetensors"
+    },
+    {
+      "rfilename": "model-00016-of-00017.safetensors",
+      "size": 3900847544,
+      "lfs": {
+        "sha256": "977b3d2ca7f97dc3b518ed5087ddc43ccf7afb371190828f2334d7e4c81224ee",
+        "size": 3900847544
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00016-of-00017.safetensors"
+    },
+    {
+      "rfilename": "model-00017-of-00017.safetensors",
+      "size": 3098588976,
+      "lfs": {
+        "sha256": "2853695483f9c61a8bd8b109025b3c591214a0362992fa844537f09acc81bd03",
+        "size": 3098588976
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model-00017-of-00017.safetensors"
+    },
+    {
+      "rfilename": "model.safetensors.index.json",
+      "size": 63248,
+      "lfs": {
+        "sha256": "0183543f2e6e40d3d1e863ed0b2a8c9cdaf2ee4045ce724a45cea30e9995a0af",
+        "size": 63248
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/model.safetensors.index.json"
+    },
+    {
+      "rfilename": "README.md",
+      "size": 6010,
+      "lfs": {
+        "sha256": "6d137cdde7224657e7a6d22139e175eb17d635db901c0a6c7d6ff362640f0c99",
+        "size": 6010
+      },
+      "source_revision": "f899082bc89b13f3008deba7b5cbc36cfd2e9271",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/f899082bc89b13f3008deba7b5cbc36cfd2e9271/README.md"
+    },
+    {
+      "rfilename": "tokenizer.json",
+      "size": 7031645,
+      "lfs": {
+        "sha256": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539",
+        "size": 7031645
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/tokenizer.json"
+    },
+    {
+      "rfilename": "tokenizer_config.json",
+      "size": 7305,
+      "lfs": {
+        "sha256": "5b5d4f65d0acd3b2d56a35b56d374a36cbc1c8fa5cf3b3febbbfabf22f359583",
+        "size": 7305
+      },
+      "source_revision": "feb114abfdd1040654a39c1283f288cb84d58981",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/feb114abfdd1040654a39c1283f288cb84d58981/tokenizer_config.json"
+    },
+    {
+      "rfilename": "vocab.json",
+      "size": 2776833,
+      "lfs": {
+        "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+        "size": 2776833
+      },
+      "source_revision": "10f4456d1810315bc6b2a82e4c50f69dbc930cd4",
+      "source_url": "https://modelscope.cn/models/Qwen/Qwen2.5-32B-Instruct/resolve/10f4456d1810315bc6b2a82e4c50f69dbc930cd4/vocab.json"
+    }
+  ],
+  "revision_type": "sha256_of_full_file_revision_and_content_manifest",
+  "source": "https://modelscope.cn/api/v1/models/Qwen/Qwen2.5-32B-Instruct/repo/files?Revision=master&Recursive=true",
+  "latest_commit": {
+    "AuthorEmail": "",
+    "AuthorName": "ai-modelscope",
+    "AuthoredDate": 0,
+    "CommittedDate": 1740587099,
+    "CommitterEmail": "",
+    "CommitterName": "ai-modelscope",
+    "CreatedAt": 1740587099,
+    "Id": "",
+    "Message": "Update metadata: Add library_name to Transformers (#3)",
+    "ParentIds": [
+      "feb114abfdd1040654a39c1283f288cb84d58981"
+    ],
+    "ShortId": "f899082b",
+    "Title": "Update metadata: Add library_name to Transformers (#3)"
+  }
+}

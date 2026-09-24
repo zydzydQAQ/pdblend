@@ -148,7 +148,7 @@ async def run_owned(config_path, out, base_port):
                 peer=dict(url=specs[1].base_url, identity_binding=bindings[1]))
             need(result['probe']['ready_for_next'], 'source KV probe did not safely restore and match ordinary output')
             need(result['probe']['peer_isolation_exercised'], 'independent peer did not serve while source KV was absent')
-            from pdblend.online.native_control import validate_state
+            from .native_state import validate_state
             started = time.time()
             result['peer_final_drain'] = await call(session, specs[1].base_url, '/baseline/drain', dict(timeout_s=30))
             validate_state(result['peer_final_drain'], generation=0, tp=1, pp=1,
@@ -208,7 +208,7 @@ async def verify_public_fence(session, url, transaction):
 
 async def probe_on_resident(session, url, out, *, identity_binding, plan=None, peer=None):
     from pdblend_runtime.probe import call, generate
-    from pdblend.online.native_control import validate_state
+    from .native_state import validate_state
     plan = deepcopy(PROBE_PLAN if plan is None else plan)
     need(plan == PROBE_PLAN, 'resident KV probe differs from fixed non-evaluation design')
     expected = read_bound(identity_binding)

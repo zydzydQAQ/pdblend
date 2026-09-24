@@ -214,7 +214,11 @@ def test_original_sampler_frequency_rows_survive_archive_and_do_not_change_energ
     assert snapshot['error'] is None
     clocks = snapshot['frequency_samples']
     assert len(clocks) >= 3 and len(clocks) == len(snapshot['samples'])
-    assert clocks == [(stamp, [2520]*2+[900]*6) for stamp, _ in snapshot['samples']]
+    assert all(values == [2520]*2+[900]*6 for _, values in clocks)
+    assert all(power_stamp <= clock_stamp for (clock_stamp, _), (power_stamp, _)
+               in zip(clocks, snapshot['samples']))
+    assert any(power_stamp < clock_stamp for (clock_stamp, _), (power_stamp, _)
+               in zip(clocks, snapshot['samples'])), 'retain actual frequency acquisition time'
     assert value.method_receipt()['sampler'] == value.method_receipt()['public_sampler']
     path = tmp_path/'power.json'
     write_power_archive(path, snapshot)
@@ -250,6 +254,33 @@ def test_startup_preflight_replays_original_sampler_and_keeps_window_gate_closed
     assert result['passed'] and result['observed_span_s'] >= 2.
     assert result['public_metering']['energy_comparable']
     assert not result['formal_eligible'] and not result['evaluation_window_qualified']
+
+
+@pytest.mark.parametrize('fault', ['before_power', 'next_loop', 'nonfinite', 'missing_middle'])
+def test_startup_frequency_acquisition_must_belong_to_its_sampler_loop(startup_observations, fault):
+    from copy import deepcopy
+    from pdblend.bench.comparison_meter_preflight import qualify_startup_snapshot
+    snapshot, receipt = deepcopy(startup_observations)
+    rows = snapshot['frequency_samples']
+    if fault == 'before_power':
+        rows[1] = (snapshot['samples'][1][0]-.01, rows[1][1])
+    elif fault == 'next_loop':
+        rows[1] = (snapshot['samples'][2][0]+.001, rows[1][1])
+    elif fault == 'nonfinite':
+        rows[1] = (float('nan'), rows[1][1])
+    else:
+        rows.pop(1)
+    with pytest.raises(ValueError, match='frequency'):
+        qualify_startup_snapshot(snapshot, receipt, snapshot['gpu_uuids'])
+
+
+def test_startup_legacy_frequency_timestamps_remain_valid(startup_observations):
+    from copy import deepcopy
+    from pdblend.bench.comparison_meter_preflight import qualify_startup_snapshot
+    snapshot, receipt = deepcopy(startup_observations)
+    snapshot['frequency_samples'] = [(power[0], clock[1]) for power, clock in
+                                      zip(snapshot['samples'], snapshot['frequency_samples'])]
+    assert qualify_startup_snapshot(snapshot, receipt, snapshot['gpu_uuids'])['passed']
 
 
 def test_startup_uses_common_acquisition_span_without_changing_sensor_data(startup_observations):

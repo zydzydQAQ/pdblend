@@ -82,10 +82,8 @@ def pdblend_window_resources(point, specs):
         raise ValueError('unknown offline Plan fields')
     if (values['tp'], values['pp']) != (tp, pp):
         raise ValueError('offline Plan topology differs from resident engines')
-    try:
-        plan = Plan(**values)
-    except TypeError as exc:
-        raise ValueError('incomplete offline Plan schema') from exc
+    from .pdblend_observation_plan import decode_plan
+    plan = decode_plan(choice, observation=observation)
     if (not isinstance(plan.counts, dict) or set(plan.counts) - set(ACTIVE + PARKED)
             or any(type(v) is not int or v < 0 for v in plan.counts.values())
             or sum(plan.counts.values()) != len(specs) or plan.active() <= 0
@@ -106,6 +104,14 @@ def pdblend_window_resources(point, specs):
     if plan.profile_key and plan.profile_key != profile_key:
         raise ValueError('offline Plan profile key differs from selected profile')
     plan = replace(plan, generation=next(iter(generations)), profile_key=profile_key)
+    from .pdblend_runtime_options import comparison_options, preflight_comparison_options
+    options = comparison_options(cfg, inputs['system_config']['path'], point=point)
+    forecast = None
+    if options['values']['capacity_floor_path'] is not None:
+        from .run import offline_forecast
+        from .independent_dispatch import request_rows
+        forecast = offline_forecast(request_rows(load_bound(inputs['planning_trace'])))
+    preflight_comparison_options(options, loaded.model, plan, specs, forecast=forecast, slo=point.get('slo'))
     return loaded, plan
 
 
@@ -157,6 +163,10 @@ class NativeResidentAdapter:
         modes = [p.get('metering_execution') for p in group['points']]
         if 'isolated_process' not in [identity_mode, *modes]:
             return False
+        if any(p.get('observation_scope') == 'baseline_profile_unqualified_evaluation/v1'
+               for p in group['points']):
+            from .comparison_baseline_observation import isolated_observation_metering_requested
+            return isolated_observation_metering_requested(group)
         if (identity_mode != 'isolated_process' or not modes
                 or len({p['system'] for p in group['points']}) != 1
                 or any(p['system'] not in ('ecoserve','distserve')
@@ -231,6 +241,11 @@ class NativeResidentAdapter:
             self.specs.append(NativeSpec(row['instance_id'], tuple(actual.index(x) for x in row['gpu_uuids']),
                 self.base_port + index * 4, str(Path(os.environ['PDBLEND_MODELS_DIR']) / group['model_id']),
                 tp=row['tp'], pp=row['pp'], **options))
+        # Profile selection and optimization artifacts must fail before GPU
+        # sampler/model startup, not after the resident fleet has been loaded.
+        for point in group['points']:
+            if point['system'] == 'pdblend':
+                pdblend_window_resources(point, self.specs)
         for key, expected_value in self.identity['environment'].items():
             if os.environ.get(key) != expected_value:
                 raise ValueError('launch environment differs: ' + key)
@@ -328,6 +343,29 @@ class NativeResidentAdapter:
                     load_lock_wait_s=acquired-started, engine_load_s=finished-acquired,
                     qualification=binding(self.out / 'qualification.json'))
 
+    async def register_point(self, point):
+        """Validate an authorized generated window without reloading the fleet."""
+        from .resident_session import engine_signature
+        from .single_observation_slo_boundary import read_bound, validate_policy, validate_generated_point
+        ref = self.group.get('extension_policy')
+        if not ref or point.get('boundary_policy') != ref:
+            raise ValueError('dynamic point lacks the current lease extension authorization')
+        policy = validate_policy(read_bound(ref), self.group)
+        validate_generated_point(policy, point)
+        if (point['system'] != 'pdblend' or point['model_id'] != self.group['model_id']
+                or point['revision'] != policy['revision']
+                or engine_signature(point['engine_identity']) != self.group['engine_signature']):
+            raise ValueError('dynamic point engine/source differs from the resident lease')
+        trace = load_bound(point['trace'])
+        if (trace['model_id'] != point['model_id'] or trace['dataset'] != point['dataset']
+                or trace['slo'] != point['slo'] or trace['seed'] != point['seed'] or point['seed'] != 701
+                or trace['rate_rps'] != point['rate_rps'] or trace['duration_s'] != 150
+                or point['duration_s'] != 150
+                or any(not 0 <= r['arrival_s'] < 150 or len(r['prompt'])+r['max_tokens'] > 8192
+                       for r in trace['requests'])):
+            raise ValueError('dynamic evaluation trace identity differs')
+        pdblend_window_resources(point, self.specs)
+
     async def reset(self, point):
         started = time.time()
         pd_inventory = None
@@ -386,8 +424,9 @@ class NativeResidentAdapter:
     async def execute(self, point, out):
         if not getattr(self, 'isolated_metering', False):
             return await self._execute_window(point, out)
-        if point['system'] != 'ecoserve' or point.get('metering_execution') != 'isolated_process':
-            raise ValueError('window metering method differs from explicit Eco session identity')
+        if (point['system'] not in ('ecoserve', 'distserve')
+                or point.get('metering_execution') != 'isolated_process'):
+            raise ValueError('window metering method differs from explicit native session identity')
         self.monitor.begin_window()
         try:
             return await self._execute_window(point, out)
@@ -452,7 +491,8 @@ class NativeResidentAdapter:
             await asyncio.sleep(.3)
             return finalize_observation(point, self.identity, out=out, native_result=raw,
                 snapshot=self.monitor.snapshot(), tail_end_s=tail_end,
-                startup=self.qualification, reset=self.reset_receipt, drain=self.last_drain)
+                startup=self.qualification, reset=self.reset_receipt, drain=self.last_drain,
+                metering_method=self.monitor.method_receipt() if self.isolated_metering else None)
         write_new(out / 'native-result.json', raw)
         if point['system'] == 'ecoserve':
             # Audit the frozen JSON representation, including integer GPU keys.
@@ -502,6 +542,8 @@ class NativeResidentAdapter:
             raw_paths.update(controller=out/'controller.jsonl', routes=out/'routes.jsonl',
                 native_cleanup=out/'native-cleanup.json', transition_measurements=out/'transition-measurements.json',
                 frequencies=out/'freq.jsonl')
+            if (out/'frequency-readings.jsonl').is_file():
+                raw_paths['frequency_readings'] = out/'frequency-readings.jsonl'
         if getattr(self, 'isolated_metering', False):
             raw_paths['metering_method'] = out/'metering-method.json'
         raw_refs = {name:binding(path) for name,path in raw_paths.items() if path and path.is_file()}
@@ -644,10 +686,12 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--base-port', type=int, required=True)
     parser.add_argument('--previous', type=Path, action='append', default=[])
+    parser.add_argument('--stop-after-window', type=Path)
     args = parser.parse_args()
     group = json.loads(args.group.read_text())
     adapter = make_resident_adapter(group, args.out, base_port=args.base_port)
-    session = ResidentGroupSession(group, adapter, args.out, previous=args.previous)
+    session = ResidentGroupSession(group, adapter, args.out, previous=args.previous,
+                                   stop_after_window=args.stop_after_window)
     result = asyncio.run(session.run())
     print(json.dumps(dict(status=result['status'], windows=len(result['windows']))))
     raise SystemExit(0 if result['complete'] else 1)

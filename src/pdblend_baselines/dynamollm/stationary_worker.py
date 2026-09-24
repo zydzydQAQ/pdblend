@@ -10,7 +10,7 @@ import time
 
 from .gpu_weights import DynamoWorkerExtension,_metadata
 from .stationary_ipc import StationaryOwner,TorchCudaIpcCodec,need
-from pdblend.online.native_control import validate_state
+from .native_state import validate_state
 
 
 class DynamoStationaryWorkerExtension(DynamoWorkerExtension):

@@ -15,7 +15,7 @@ import weakref
 
 import torch
 
-from pdblend.online.native_control import validate_state
+from .native_state import validate_state
 from .stationary_ipc import TorchCudaIpcCodec, digest, need
 from .stationary_tensors import _tensor_identity
 

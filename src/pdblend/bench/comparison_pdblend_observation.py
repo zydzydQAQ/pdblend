@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 from .comparison_pdblend_acceptance import (
-    RAW_REFS, _read_raw, _boundary, _inventory_reset, _controller, _frequencies,
+    RAW_REFS, _read_raw, _boundary, _inventory_reset, _controller, _frequencies, _audit_physical_clocks,
     _routes, _routing_roles, _drain)
 from .comparison_acceptance import _bound, _need, _equal
 from .comparison_native_acceptance import (native_topology, audit_native_startup,
@@ -60,13 +60,16 @@ def validate_observation_inputs(point, inputs):
 
 def observation_selection(point, instances):
     from .comparison_runtime import pdblend_window_resources
+    from .pdblend_runtime_options import capacity_floor_selection
     checked = validate_observation_inputs(point, point['inputs'])
     specs = [SimpleNamespace(tp=r['tp'], pp=r['pp'], generation=0) for r in instances.values()]
     loaded, _ = pdblend_window_resources(point, specs)
     return dict(choice=_bound(point['inputs']['offline_choice']),
+        experiment_mode=checked['pdblend_runtime']['values']['experiment_mode'],
         profile_key=json.dumps(loaded.profile_key, sort_keys=True, separators=(',', ':')),
         frequencies=list(loaded.model.freqs), calibration=loaded.manifest_fields(),
-        qualification_bindings=checked['qualification_bindings'])
+        qualification_bindings=checked['qualification_bindings'],
+        capacity_floor=capacity_floor_selection(checked['pdblend_runtime'], loaded.model, point['slo'], len(instances)))
 
 
 def valid_observation_result(point, result):
@@ -93,13 +96,13 @@ def valid_observation_result(point, result):
 
 def audit_observation_window(point, engine_identity, startup_qualification, reset, native_result,
                          canonical_metrics, metering, drain, raw_refs):
-    failures, checked, data = {}, [], {}
+    failures, checked, data, blocked = {}, [], {}, {}
     def gate(name, fn):
         try: value = fn()
         except (ValueError, TypeError, KeyError, OSError, IndexError, AttributeError, OverflowError, RuntimeError) as exc:
             failures[name] = str(exc); return None
         checked.append(name); return value
-    for name in RAW_REFS:
+    for name in RAW_REFS + (('frequency_readings',) if 'frequency_readings' in raw_refs else ()):
         value = gate('raw.'+name, lambda name=name:_read_raw(raw_refs.get(name), name))
         if value is not None: data[name] = value
     for name, value in (('native_result',native_result), ('startup_qualification',startup_qualification),
@@ -117,7 +120,7 @@ def audit_observation_window(point, engine_identity, startup_qualification, rese
     gate('pdblend.inventory_restoration', lambda:_inventory_reset(reset, instances, engine_identity, startup_qualification, origin))
     control = gate('pdblend.controller_actions', lambda:_controller(data['controller'], native_result, instances,
               engine_identity, reset, selected, data['transition_measurements']))
-    gate('pdblend.physical_clocks', lambda:_frequencies(data['frequencies'], *control, instances, engine_identity, origin))
+    _audit_physical_clocks(gate, blocked, data, control, instances, engine_identity, origin)
     gate('pdblend.request_routes', lambda:_routes(data['routes'], data['outcomes'], data['trace'], instances, reset, native_result))
     gate('pdblend.published_route_roles', lambda:_routing_roles(data['routes'], data['controller'], instances))
     gate('pdblend.native_release_and_off', lambda:_drain(native_result, drain, data['native_cleanup'], instances,
@@ -126,10 +129,11 @@ def audit_observation_window(point, engine_identity, startup_qualification, rese
     reduced = gate('pdblend.canonical_metrics', lambda:audit_native_metrics(point, data['trace'], data['outcomes'], None,
                    origin, data['canonical_requests'], canonical_metrics))
     gate('metering.raw_eight_gpu_window', lambda:audit_native_meter(engine_identity, data['power'], metering, origin))
-    valid = not failures
+    valid = not failures and not blocked
     return dict(schema=SCHEMA, scope=SCOPE, point_sha256=digest(point), metrics_sha256=digest(canonical_metrics),
         evidence_valid=False, formal_eligible=False, measurement_evidence_valid=valid, profile_qualified=False, slo_pass=reduced['slo_pass'] if reduced else False,
-        missing_gates=list(failures), gate_failures=failures, checked_gates=checked,
+        missing_gates=list(failures)+list(blocked), gate_failures=failures, blocked_gates=blocked, checked_gates=checked,
+        capacity_floor_selection=(selected or {}).get('capacity_floor'),
         optimality_established=False, per_request_kv_transaction_audited=False,
         inherited_artifact_flags_unchanged=True, evidence_sha256=digest(raw_refs), raw_refs=raw_refs,
         profile_missing_gates=list(PROFILE_GAPS))

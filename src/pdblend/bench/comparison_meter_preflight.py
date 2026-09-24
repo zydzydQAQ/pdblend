@@ -21,10 +21,18 @@ def qualify_startup_snapshot(snapshot, method, gpu_uuids):
                                  ('samples', 'power_metadata', 'frequency_samples'))
     if len(samples) < 3 or len(metadata) != len(samples) or len(clocks) < 3 or len(clocks) > len(samples):
         raise ValueError('isolated startup samples/metadata/frequencies are incomplete')
-    # A concurrent read may observe power just before its corresponding clock
-    # append. Validate the available prefix without editing any raw sample.
-    for (stamp, values), (power_stamp, _) in zip(clocks, samples):
-        if (stamp != power_stamp or len(values) != 8 or any(type(v) not in (int,float)
+    # Power, utilization and frequency are sequential acquisitions in one
+    # sampler loop. Frequency records retain their own actual read completion;
+    # legacy records used the preceding power timestamp. Both must remain
+    # within that loop's bounded acquisition interval. A concurrent snapshot
+    # may contain one power row whose corresponding clock is not appended yet.
+    for index, ((stamp, values), (power_stamp, _)) in enumerate(zip(clocks, samples)):
+        next_power = samples[index+1][0] if index+1 < len(samples) else None
+        if (type(stamp) not in (int,float) or not math.isfinite(stamp)
+                or not power_stamp <= stamp <= power_stamp+1.
+                or (next_power is not None and stamp >= next_power)
+                or (index and stamp <= clocks[index-1][0])
+                or len(values) != 8 or any(type(v) not in (int,float)
                 or not math.isfinite(v) or v <= 0 for v in values)):
             raise ValueError('isolated startup frequency order/values are invalid')
     # NVML power and utilization are sequential acquisitions, not simultaneous.

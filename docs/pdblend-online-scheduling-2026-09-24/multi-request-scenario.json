@@ -1,0 +1,163 @@
+{
+  "kind": "illustrative_event_sequence",
+  "timing_is_measured": false,
+  "performance_simulation": false,
+  "threshold_tokens": 1024,
+  "requests": [
+    {
+      "id": "R1",
+      "arrival": 0,
+      "L": 256,
+      "K": 8,
+      "baseline": "M",
+      "path": "M",
+      "p": "M0",
+      "d": "M0",
+      "prefill": [
+        0,
+        2
+      ],
+      "outputs": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "id": "R2",
+      "arrival": 1,
+      "L": 2048,
+      "K": 6,
+      "baseline": "PD",
+      "path": "PD",
+      "p": "P0",
+      "d": "D0",
+      "prefill": [
+        1,
+        5
+      ],
+      "outputs": [
+        5,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "kv": [
+        4,
+        5
+      ],
+      "handoff_wait": [
+        5,
+        6
+      ],
+      "first_gap": [
+        5,
+        7
+      ]
+    },
+    {
+      "id": "R3",
+      "arrival": 2,
+      "L": 512,
+      "K": 5,
+      "baseline": "M",
+      "path": "M",
+      "p": "M1",
+      "d": "M1",
+      "prefill": [
+        2,
+        4
+      ],
+      "outputs": [
+        4,
+        5,
+        6,
+        7,
+        8
+      ]
+    },
+    {
+      "id": "R4",
+      "arrival": 3,
+      "L": 3072,
+      "K": 5,
+      "baseline": "PD",
+      "path": "PD",
+      "p": "P0",
+      "d": "D0",
+      "prefill": [
+        5,
+        9
+      ],
+      "outputs": [
+        9,
+        11,
+        12,
+        13,
+        14
+      ],
+      "kv": [
+        8,
+        9
+      ],
+      "handoff_wait": [
+        9,
+        10
+      ],
+      "first_gap": [
+        9,
+        11
+      ],
+      "queue": [
+        3,
+        5
+      ]
+    },
+    {
+      "id": "R5",
+      "arrival": 4,
+      "L": 256,
+      "K": 4,
+      "baseline": "M",
+      "path": "M",
+      "p": "M0",
+      "d": "M0",
+      "prefill": [
+        4,
+        6
+      ],
+      "outputs": [
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "id": "R6",
+      "arrival": 5,
+      "L": 2048,
+      "K": 2,
+      "baseline": "PD",
+      "path": "M",
+      "p": "M1",
+      "d": "M1",
+      "prefill": [
+        5,
+        9
+      ],
+      "outputs": [
+        9,
+        10
+      ],
+      "reason": "pd_first_gap_unavailable_spillover"
+    }
+  ]
+}

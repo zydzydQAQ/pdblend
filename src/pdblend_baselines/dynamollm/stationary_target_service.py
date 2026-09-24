@@ -98,7 +98,7 @@ def read_golden(bootstrap,identity):
 @target_router.post(TARGET_PREFIX+'{operation}')
 async def target_operation(request:Request,operation:str):
     from pdblend_runtime import serve
-    from pdblend.online.native_control import validate_state
+    from .native_state import validate_state
     bootstrap=request.app.state.dynamo_target_bootstrap;c=bootstrap.config
     p=await request.json()
     try:

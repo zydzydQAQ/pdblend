@@ -5,3 +5,7 @@ __pycache__
 results
 datasets
 *.tar.zst
+.venv
+.venv-*
+artifacts
+models

@@ -121,6 +121,46 @@ def test_unmatched_identities_never_get_pd_savings(key,value):
     assert rows[1]['comparison_system_count']==1
 
 
+def test_equal_numeric_identity_types_keep_failed_slo_baselines_in_five_system_cohort():
+    rows = [row(system, rate_scale=1.) for system in
+            ('mixed', 'distserve', 'ecoserve', 'dynamollm', 'pdblend')]
+    rows[0].update(seed=701.)
+    rows[1].update(duration_s=150, rate_scale=1, slo_ttft_s=1,
+                   successful_requests=99, failed_requests=1)
+    rows[3].update(duration_s=150)
+    originals = deepcopy(rows)
+    run(rows)
+    assert rows[-1]['comparison_complete_five_systems']
+    assert rows[-1]['available_baseline_systems'] == ['distserve', 'dynamollm', 'ecoserve', 'mixed']
+    assert not rows[1]['analysis_slo_pass'] and not rows[1]['rank_eligible']
+    assert rows[1]['comparison_system_count'] == 5
+    for before, after in zip(originals, rows):
+        for key in ('seed', 'duration_s', 'rate_scale', 'slo_ttft_s', 'slo_tpot_s',
+                    'energy_service_j', 'successful_requests', 'failed_requests'):
+            assert type(after[key]) is type(before[key]) and after[key] == before[key]
+
+
+@pytest.mark.parametrize('key,left,right', [
+    ('duration_s', 150., 151),
+    ('duration_s', 150., 150.00000000000003),
+    ('rate_scale', 1., 1.0000000000000002),
+    ('seed', 2**53, 2**53+1),
+    ('seed', float(2**53), 2**53+1),
+    ('slo_ttft_s', 1., 1.0000000000000002),
+    ('slo_tpot_s', .1, .10000000000000002),
+])
+def test_numeric_identity_does_not_round_distinct_values(key, left, right):
+    from pdblend.bench.comparison_recorded import _identity
+    assert _identity(row('mixed', **{key:left})) != _identity(row('pdblend', **{key:right}))
+
+
+@pytest.mark.parametrize('key', ['duration_s', 'rate_scale', 'seed', 'slo_ttft_s', 'slo_tpot_s'])
+@pytest.mark.parametrize('value', [True, False, '1', float('nan'), float('inf')])
+def test_numeric_identity_rejects_boolean_string_or_nonfinite_value(key, value):
+    from pdblend.bench.comparison_recorded import _identity
+    assert _identity(row('pdblend', **{key:value})) is None
+
+
 def test_qualified_complete_cohort_parity_with_strict_ranking():
     systems=['mixed','distserve','ecoserve','dynamollm','pdblend']
     rows=[row(system,evidence_valid=True,formal_eligible=True,baseline_frozen=system!='pdblend',
@@ -203,3 +243,56 @@ def test_bound_receipt_without_metrics_is_failed_not_promoted(tmp_path):
     value=next(r for r in csv.DictReader(out.open()) if r['system']=='pdblend' and r['receipt_path'])
     assert value['status']=='failed' and value['measurement_usable']=='False'
     assert value['energy_service_j']=='' and value['ttft_p99_s']=='' and value['energy_rank']==''
+
+
+def test_missing_energy_preserves_measured_requests_and_slo_but_never_ranks():
+    baseline = row('mixed', energy_service_j=None)
+    candidate = row('pdblend', energy_service_j=80.)
+    run([baseline, candidate])
+    assert baseline['status'] == 'measured' and baseline['measurement_usable']
+    assert baseline['analysis_slo_pass'] and not baseline['analysis_energy_usable']
+    assert baseline['energy_service_j'] is None and baseline['energy_rank'] == ''
+    assert baseline['energy_unusable_reason'] == 'missing_recorded_service_energy'
+    assert candidate['pdblend_saving_vs_best_feasible_baseline'] is None
+
+
+def test_fixed_baseline_and_first_complete_gap_ignore_slo_and_energy_magnitude():
+    old = row('mixed', energy_service_j=200., service_start_s=900., service_end_s=1050.)
+    cheaper = row('mixed', 'v2', energy_service_j=10.)
+    candidate = row('pdblend', energy_service_j=100.)
+    rows = [old, cheaper, candidate]
+    records = {r['receipt_path']: (dict(metrics={k: v for k, v in r.items() if k in metrics()}), {}) for r in rows}
+    campaign.rank_rows(rows)
+    analyze(rows, records, frozen_baselines={'mixed': old['receipt_sha256']})
+    assert old['frozen_baseline_selected'] and not cheaper['frozen_baseline_selected']
+    assert candidate['pdblend_saving_vs_best_feasible_baseline'] == .5
+    assert cheaper['energy_service_j'] == 10. and cheaper['energy_rank'] == ''
+
+    # The same revision can have an old sampling failure and a later supplement.
+    old = row('mixed', energy_service_j=None)
+    supplement = row('mixed', receipt_path='/mixed/supplement', receipt_sha256='supplement',
+        energy_service_j=180., service_start_s=1200., service_end_s=1350.,
+        successful_requests=99, failed_requests=1)
+    later = row('mixed', 'v3', energy_service_j=1., service_start_s=1400., service_end_s=1550.)
+    candidate = row('pdblend')
+    rows = [old, supplement, later, candidate]
+    records = {r['receipt_path']: (dict(metrics={k: v for k, v in r.items() if k in metrics()}), {}) for r in rows}
+    campaign.rank_rows(rows)
+    analyze(rows, records, frozen_baselines={})
+    assert supplement['frozen_baseline_selected'] and not later['frozen_baseline_selected']
+    assert supplement['comparison_status'] != 'ambiguous_attempts'
+    assert old['status'] == 'measured' and old['energy_service_j'] is None
+    assert not supplement['rank_eligible'] and candidate['best_feasible_baseline'] == ''
+
+
+def test_same_logical_point_specs_do_not_duplicate_historical_receipts(tmp_path):
+    session, source, out = exported_fixture(tmp_path)
+    spec = json.loads(source.read_text())
+    spec['points'].append(dict(spec['points'][0], revision='v2'))
+    write(source, spec)
+    campaign.export(source, out, session_roots=[session], analysis_policy=POLICY)
+    rows = list(csv.DictReader(out.open()))
+    actual = [r for r in rows if r['receipt_path']]
+    assert len(actual) == len({r['receipt_path'] for r in actual}) == 3
+    assert len([r for r in rows if r['point_id'] == 'mixed']) == 2
+    assert any(r['point_id'] == 'mixed' and r['revision'] == 'v2' and not r['receipt_path'] for r in rows)

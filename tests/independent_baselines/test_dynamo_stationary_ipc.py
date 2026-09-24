@@ -234,7 +234,7 @@ def worker_fixture(monkeypatch):
 
 @pytest.mark.parametrize('fault',['busy','stale','rank','generation','admission','dp'])
 def test_worker_uses_real_native_validator_and_actual_generation_before_pinning(monkeypatch,fault):
-    from pdblend.online.native_control import NativeControlError
+    from pdblend_baselines.dynamollm.native_state import NativeControlError
     plan,_,_,_,_=setup_owner();worker=worker_fixture(monkeypatch);drain=native_drain()
     expected=3
     if fault=='busy':drain['all_queue']=['still-serving']

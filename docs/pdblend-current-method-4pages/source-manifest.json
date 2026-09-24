@@ -1,0 +1,127 @@
+{
+  "snapshot_time_utc": "2026-09-24T15:23:54.369883+00:00",
+  "git_head": "032fcc32a67a73e5941a568a0296d35617d3453a",
+  "scope": "Current working tree including pre-existing uncommitted changes; snapshot at packaging, not a running-service version claim.",
+  "sources": [
+    {
+      "path": "src/pdblend/profile/collection/profiler.py",
+      "sha256": "c1342592de36725ca91e99979ad85197a2b3e19a01e0e055fd61aafdce5c7737"
+    },
+    {
+      "path": "src/pdblend/profile/collection/native_timing_audit.py",
+      "sha256": "56befa2f63c401aa3eba36d2dfaabb658d96873fe7734081d2fe9e8e802d451b"
+    },
+    {
+      "path": "src/pdblend/profile/collection/native_power_audit.py",
+      "sha256": "8a30d08894f4e2c4f837c655d01ecba2c0167f6dfb86fb92eb117be3b7e8ac74"
+    },
+    {
+      "path": "src/pdblend/profile/collection/native_runtime_audit.py",
+      "sha256": "1efabc97e44c5744e46d0f099a816b4414565fe244e5c69f1d9bb96c357127f9"
+    },
+    {
+      "path": "src/pdblend/profile/collection/native_handoff.py",
+      "sha256": "0d92accd100ae63d7ce76390cef2fed756bd761ca914a9a306390c978e01b702"
+    },
+    {
+      "path": "src/pdblend/profile/query/model.py",
+      "sha256": "5f6e74ca28e428689510671c2c8ff2866f8b3baf5b05d48039e4af52311bf92f"
+    },
+    {
+      "path": "src/pdblend/profile/query/native_timing.py",
+      "sha256": "99aad91b1495c8b9cc1cda0610932d5c44d20a4583a012dcfca4fee5aa61cd91"
+    },
+    {
+      "path": "src/pdblend/profile/query/native_power_components.py",
+      "sha256": "b476ab7c28501d2993cf89aa1ef88c8ac27364eb0531c3aeb99b86aa70ab5bb6"
+    },
+    {
+      "path": "src/pdblend/profile/query/native_composition.py",
+      "sha256": "b6717f9acd03c733dd40e4827a15782f3b0e651dd0fe789b0b2a57892d1e7308"
+    },
+    {
+      "path": "src/pdblend/profile/query/native_layout_model.py",
+      "sha256": "6a60b97d3dad5f1aca8db606ac91e501abc8521cf268045687ff0219cba57b75"
+    },
+    {
+      "path": "src/pdblend/profile/query/native_cycle_model.py",
+      "sha256": "80eb72cb4a617ceb43a2a4fb2cafa1461c2cc3e951f854260b9cae288aa8b0ed"
+    },
+    {
+      "path": "src/pdblend/profile/query/runtime.py",
+      "sha256": "04b48d5ccd64554484b33fda5396a790c7c399818929760a20e27aa81a9edba7"
+    },
+    {
+      "path": "src/pdblend/profile/query/versions.py",
+      "sha256": "f9c83ae2008b8ada175c5a80ac3dd7978b2ee4e40c3d410b30f14cd82d339805"
+    },
+    {
+      "path": "src/pdblend/profile/query/development_composite.py",
+      "sha256": "dd3ec36cc61ca3bfb5f222f9eee4efece1d385266b0e4a4c4df85bed3bd947d9"
+    },
+    {
+      "path": "src/pdblend/online/router.py",
+      "sha256": "f01e33a1638b4c28dca0cd2d964c4463e55abb8fdc8295f83acd4336542b9da1"
+    },
+    {
+      "path": "src/pdblend/online/server.py",
+      "sha256": "575da52b02df59329ba7334996032bb3018760ea1a31fca99947f61126093c2a"
+    },
+    {
+      "path": "src/pdblend/online/controller.py",
+      "sha256": "3d35604e5ebc164eae71989c5544953a8bb52a28adbc0cd6d01946ae9078ce81"
+    },
+    {
+      "path": "src/pdblend/online/shield.py",
+      "sha256": "88f4fdf8a8fdfe5f7ed22a30e50a9c196b65470c6c5624e7b3448fd8e2a3f8ea"
+    },
+    {
+      "path": "src/pdblend/online/deadline.py",
+      "sha256": "aa742c5a8aa8e8e2f10cfdfa1310fe8f2055b6a9256a4b46101184002116e528"
+    },
+    {
+      "path": "src/pdblend/online/energy_routing.py",
+      "sha256": "b5d743532f4b4a5a2f9743092b1797f5d4448301389b2ac66d12777032852083"
+    },
+    {
+      "path": "src/pdblend/online/policies.py",
+      "sha256": "bba3c4e58ed8ea06e79463206e0a4f1a03eb31b18ddb65bf0d1fb0b37a1f63eb"
+    },
+    {
+      "path": "src/pdblend/online/native_control.py",
+      "sha256": "9ca2ee31cb978e441514f1ec5c0fecd7cf39ed3897640c4bf215aad5dedeb4a3"
+    },
+    {
+      "path": "src/pdblend/online/gpu_actions.py",
+      "sha256": "528591d283086de1aeab0f856752e7e8d868922cdd5a153008b136c6f1796ecc"
+    },
+    {
+      "path": "src/pdblend/online/tp_runtime.py",
+      "sha256": "e6e5fb270c89745e5bc41628cac01bed918f783be1bcd22f03fc750fc281182d"
+    },
+    {
+      "path": "src/pdblend/online/tp_modes.py",
+      "sha256": "6bf93419839173078098dba639a79e0f2d9b6cbc035dc417ef962a14497bc5f0"
+    },
+    {
+      "path": "src/pdblend/online/resident_control.py",
+      "sha256": "fb9fb0520319a93ec55aa924ef97f1137c66e9da3e7e0d65225dc7579a195bb2"
+    },
+    {
+      "path": "src/pdblend/planner/pool.py",
+      "sha256": "a9bf3b56af7c8486665a45f17f65c0071694e6abe87c3c43c9c322f43ae6544c"
+    },
+    {
+      "path": "src/pdblend/planner/forecast.py",
+      "sha256": "dc3d5a5eb1487e8957c222126d14de3fa78b52e3ed76d5de7f43de5659f4c68c"
+    },
+    {
+      "path": "src/pdblend/planner/transitions.py",
+      "sha256": "ce605537c8b435c8ef5f096caccd88b07e329e8a57f6f4dca51f2866718eb828"
+    },
+    {
+      "path": "src/pdblend/planner/topology.py",
+      "sha256": "37eee75e3881f2e39e4f611605f9dcf87f117a9f17a1077a6f253e7b06d34521"
+    }
+  ]
+}

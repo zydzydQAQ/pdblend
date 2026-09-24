@@ -33,7 +33,8 @@ def test_shield_escalation_and_floor_wake_keep_all_plan_identity(level, floor):
 def test_identity_only_shield_copy_does_not_trigger_an_extra_hold_interval():
     current = bound_plan()
     candidate = Shield(SLO(5, .15), level=1).apply(current, Pressure(decode=True), 2520)
-    controller = NS(plan_now=current, _last_plan_change_s=99., min_plan_hold_s=30.)
+    controller = NS(plan_now=current, _last_plan_change_s=99., min_plan_hold_s=30., safety_recovery=False)
+    controller._is_safety_recovery = Controller._is_safety_recovery.__get__(controller)
     chosen, reason = Controller._gate_plan_change(controller, candidate, 100.)
     assert chosen is candidate and reason == 'unchanged'
     # A missing TP tag previously made an identical physical plan look changed.

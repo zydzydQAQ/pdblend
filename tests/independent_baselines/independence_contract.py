@@ -55,6 +55,12 @@ MEASUREMENT_IMPORTS = {
     "dynamollm/asset_preflight.py": {
         "pdblend.profile.sampling_epochs": {"SamplingEpochs"},
     },
+    "dynamollm/stationary_kv_probe.py": {
+        # run_owned only starts and cleans up native server processes, like
+        # resident_campaign, distserve/gpu_probe and ecoserve/auto_macro.
+        # Policy, routing, and native control stay baseline-owned.
+        "pdblend.engine.launcher": {"Fleet"},
+    },
 }
 
 

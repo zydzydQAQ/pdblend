@@ -147,7 +147,8 @@ def _files(attempt,manifest,execution,resolver):
 def capture_evidence(attempt,queue,out,*,path_map=()):
     """Create a NEW manifest after worker AND queue success; never overwrite."""
     attempt,out=Path(attempt).resolve(),Path(out).resolve()
-    if json.loads((attempt/'native-timing/completion.json').read_text()).get('schema')=='pdblend-native-timing-collection/v2':
+    if json.loads((attempt/'native-timing/completion.json').read_text()).get('schema') in (
+            'pdblend-native-timing-collection/v2', 'pdblend-native-timing-development-collection/v1'):
         from .native_timing_replay_v2 import capture_evidence as capture_v2
         return capture_v2(attempt,queue,out,path_map=path_map)
     need(not out.exists(),'refusing to overwrite timing replay evidence')
@@ -273,7 +274,8 @@ def replay_evidence(evidence_ref,*,path_map=()):
     """Verify every byte binding, then recompute all raw audits and NNLS fits."""
     from pdblend.bench.comparison_acceptance import _equal,_drained
     resolver=Resolver(path_map);evidence=resolver.read(evidence_ref)
-    if evidence.get('schema')=='pdblend-native-timing-replay-evidence/v2':
+    if evidence.get('schema') in ('pdblend-native-timing-replay-evidence/v2',
+                                  'pdblend-native-timing-development-replay-evidence/v1'):
         from .native_timing_replay_v2 import replay_evidence as replay_v2
         return replay_v2(evidence_ref,path_map=path_map)
     need(evidence.get('schema')==SCHEMA and evidence.get('formal_eligible') is False,'unknown timing replay evidence')

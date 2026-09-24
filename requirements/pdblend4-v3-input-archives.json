@@ -1,0 +1,19 @@
+{
+  "schema": "pdblend-v3-input-archives/v1",
+  "archives": [
+    {
+      "path": "inputs/pdblend4-v3-inputs.tar.gz",
+      "project_root": "/home/pdblend4",
+      "sha256": "6c2939a29ea85edfbca66ed148e2854219a7efc08d916b513998bf34aa197cf3",
+      "bytes": 1325724407,
+      "files": 4237
+    },
+    {
+      "path": "external/pdblend4-v3-inputs.tar.gz",
+      "project_root": "/home/pdblend",
+      "sha256": "feb628714ae0d2b47b176e085cd197f3e57318aad8e8b5b137a7f40017347338",
+      "bytes": 170981548,
+      "files": 1
+    }
+  ]
+}

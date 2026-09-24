@@ -1,0 +1,23 @@
+{
+  "schema": "pdblend-v3-model-verification/v1",
+  "models": [
+    {
+      "model": "Qwen2.5-7B-Instruct",
+      "files": 11,
+      "manifest_sha256": "87e5dd33ab2f86be8d84681232e6143c4d92fb44d7999022d9fa162124be8604",
+      "verified": true
+    },
+    {
+      "model": "Qwen2.5-14B-Instruct",
+      "files": 15,
+      "manifest_sha256": "6b512810062f067756974932f04aded9abf39f31b0199daaa8730bbaa92b1935",
+      "verified": true
+    },
+    {
+      "model": "Qwen2.5-32B-Instruct",
+      "files": 24,
+      "manifest_sha256": "6487a90fcb385df26f59f8128b996b556650eaf02c91fde8ed3f6b33156d9ad4",
+      "verified": true
+    }
+  ]
+}

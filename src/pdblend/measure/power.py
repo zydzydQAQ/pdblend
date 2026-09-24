@@ -81,6 +81,10 @@ class PowerSampler:
             dict(source_id=type(backend).__name__ + ':utilization_pct', unit='percent',
                  sensor_period_s=None)))
         self.frequency_samples: List[PowerRow] = []
+        self.frequency_readings: list[dict] = []
+        self.frequency_errors: list[dict] = []
+        self.frequency_requested = None
+        self._frequency_lock = threading.Lock()
         self.power_source = dict(getattr(backend, 'power_source', dict(schema=1,
             mode='unspecified', source_id=type(backend).__name__, field_id=None, unit='W')))
         self.power_metadata = []
@@ -94,6 +98,8 @@ class PowerSampler:
         self.utilization_readings = []
         self.utilization_errors = []
         self.frequency_samples = []
+        self.frequency_readings = []
+        self.frequency_errors = []
         self.power_metadata = []
         self.error = None
         self.error_at_s = None
@@ -114,12 +120,54 @@ class PowerSampler:
                 self.samples.append(sample)
                 self._read_utilization()
                 if self.sample_clocks:
-                    self.frequency_samples.append((sample[0],[self.backend.current_freq(g) for g in self.gpus]))
+                    self.capture_frequency(reason='periodic')
             except Exception as exc:
                 self.error = str(exc)
                 self.error_at_s = float(self._clock())
                 return
             self._stop.wait(self.interval)
+
+    def capture_frequency(self, requested=None, reason='explicit') -> list[dict]:
+        """Timestamp frequency reads themselves; optional failures keep energy alive.
+
+        Explicit transition snapshots share the lock with periodic reads, so
+        their numeric journal remains ordered. Every device keeps its actual
+        acquisition interval, including reads crossing a transition boundary.
+        """
+        with self._frequency_lock:
+            if requested is None and self.frequency_requested is not None:
+                requested = self.frequency_requested()
+            requested = requested or {}
+            rows = []
+            for gpu in self.gpus:
+                started = float(self._clock())
+                row = dict(gpu=gpu, requested_mhz=requested.get(gpu), reason=reason,
+                           read_started_s=started, source_id='gpu_backend:current_freq')
+                try:
+                    value = float(self.backend.current_freq(gpu))
+                    finished = float(self._clock())
+                    if not math.isfinite(value) or value < 0 or finished < started:
+                        raise ValueError('invalid frequency/acquisition interval')
+                    row.update(observed_mhz=value, read_finished_s=finished, t_s=finished, error=None)
+                    diagnostic = getattr(self.backend, 'clock_diagnostics', None)
+                    if diagnostic is not None:
+                        try:
+                            row.update(diagnostic(gpu))
+                        except Exception as exc:
+                            row['diagnostic_errors'] = {'read': str(exc)}
+                except Exception as exc:
+                    finished = float(self._clock())
+                    row.update(observed_mhz=None, read_finished_s=finished, t_s=finished, error=str(exc))
+                    self.frequency_errors.append(dict(row))
+                rows.append(row)
+            self.frequency_readings.extend(rows)
+            if rows and all(row.get('error') is None for row in rows):
+                timestamp = max(row['t_s'] for row in rows)
+                if not self.frequency_samples or timestamp > self.frequency_samples[-1][0]:
+                    self.frequency_samples.append((timestamp, [row['observed_mhz'] for row in rows]))
+                else:
+                    self.frequency_errors.append(dict(t_s=timestamp, error='nonincreasing frequency timestamp'))
+            return rows
 
     def _read_utilization(self) -> None:
         """A failed optional utilization read must not stop energy sampling."""

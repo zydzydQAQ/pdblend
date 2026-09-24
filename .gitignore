@@ -4,3 +4,10 @@ __pycache__/
 *.tar.zst
 .compare.csv.tmp
 /artifacts/predictors/*/
+.venv/
+*.egg-info/
+# Active queues, raw measurements and release validation stay outside Git.
+# Required immutable runtime inputs are shipped in the verified v3 asset pack.
+/results/
+/docs/pdblend-current-method-4pages/build/
+/docs/pdblend-current-method-4pages/**/build/

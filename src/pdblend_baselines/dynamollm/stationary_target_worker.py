@@ -6,7 +6,7 @@ import time
 import torch
 
 from pdblend_runtime.native_v1 import NativeWorker,NativeScheduler
-from pdblend.online.native_control import validate_state
+from .native_state import validate_state
 from .stationary_ipc import need,process_identity
 from .stationary_kv import _config_value
 from .stationary_kv_worker import DynamoStationaryKvWorkerExtension

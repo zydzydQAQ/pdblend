@@ -39,6 +39,22 @@ def observation_requested(point):
     return point.get('observation_scope') == SCOPE
 
 
+def isolated_observation_metering_requested(group):
+    """Require an explicit, uniform method identity for a new observation group."""
+    points = group.get('points', [])
+    modes = [group['engine_identity'].get('metering_execution'),
+             *(p.get('metering_execution') for p in points)]
+    if 'isolated_process' not in modes:
+        return False
+    _need(points and all(mode == 'isolated_process' for mode in modes)
+          and len({p.get('system') for p in points}) == 1
+          and all(p.get('system') in PROFILE_GAPS and observation_requested(p)
+                  and p.get('qualification_mode') == SCOPE
+                  and p.get('result_policy') == RESULT_POLICY for p in points),
+          'isolated observation meter requires matching explicit point/group identities')
+    return True
+
+
 def validate_observation_inputs(point, identity):
     """Validate identities and fixed work without granting profile qualification."""
     system = point.get('system')
@@ -264,6 +280,26 @@ def make_dynamo_adapter(out, *, base_port):
     adapter_module.ResidentSession = implementation.ResidentSession
 
     class ObservationAdapter(adapter_module.DynamoResidentAdapter):
+        async def _start_monitor(self, actual):
+            self.isolated_metering = isolated_observation_metering_requested(self.group)
+            if not self.isolated_metering:
+                return await super()._start_monitor(actual)
+            from .isolated_comparison_meter import IsolatedComparisonMeter
+            from .comparison_meter_preflight import qualify_startup_snapshot
+            self.monitor = IsolatedComparisonMeter(range(8), actual).start()
+            # The native engines have not loaded yet. Exercise the actual child
+            # and preserve its identity without changing cadence or integration.
+            await asyncio.sleep(2.3)
+            snapshot = self.monitor.snapshot()
+            method = self.monitor.method_receipt()
+            write_power_archive(self.out/'metering-startup-power.json', snapshot)
+            write_new(self.out/'metering-method-startup.json', method)
+            checked = qualify_startup_snapshot(snapshot, method, actual)
+            checked.update(raw_power=binding(self.out/'metering-startup-power.json'),
+                           method=binding(self.out/'metering-method-startup.json'))
+            write_new(self.out/'metering-startup-preflight.json', checked)
+            return self.monitor
+
         def _prepare(self, point):
             checked = validate_observation_inputs(point, self.identity)
             value = implementation._config(original.lease_config(checked['config'], self.base_port), 'comparison')
@@ -273,6 +309,23 @@ def make_dynamo_adapter(out, *, base_port):
 
         async def execute(self, point, out):
             self._point(point)
+            isolated = getattr(self, 'isolated_metering', False)
+            if isolated:
+                if point.get('metering_execution') != 'isolated_process':
+                    raise ValueError('Dynamo window differs from bound isolated meter identity')
+                self.monitor.begin_window()
+            try:
+                return await self._execute_observation(point, out)
+            except BaseException:
+                if isolated and self.monitor.method_receipt()['window_guard_active']:
+                    self.monitor.end_window()
+                # Session.close owns stopping/reaping the meter. Its caller
+                # quarantines this session; never restart it after a failure.
+                if isolated:
+                    write_new(Path(out)/'metering-method-failure.json', self.monitor.method_receipt())
+                raise
+
+        async def _execute_observation(self, point, out):
             raw = await execute_native_observation(point, self.identity, out=out,
                                                    session=self.dynamo_session, base_port=self.base_port)
             reuse = getattr(self.dynamo_session, 'observation_reuse', None)
@@ -282,23 +335,43 @@ def make_dynamo_adapter(out, *, base_port):
             # execute_window already performs its own real all-rank boundary.
             # Never manufacture a fresh boundary for a quarantined/failed run.
             tail_end = time.time()
+            if getattr(self, 'isolated_metering', False):
+                self.monitor.end_window()
             await asyncio.sleep(.3)
             return finalize_observation(point, self.identity, out=out, native_result=raw,
                 snapshot=self.monitor.snapshot(), tail_end_s=tail_end,
                 startup=load_bound(binding(self.out/'qualification.json')),
                 reset=self.observation_reset,
                 drain=dict(passed=reuse['reuse_permitted'], observational_reuse=binding(Path(out)/'observation-reuse.json'),
-                           states=raw.get('resident_boundaries', {}).get('after', {})))
+                           states=raw.get('resident_boundaries', {}).get('after', {})),
+                metering_method=self.monitor.method_receipt() if getattr(self, 'isolated_metering', False) else None)
 
         async def reset(self, point):
             self.observation_reset = await super().reset(point)
             return self.observation_reset
 
+        async def close(self):
+            if self.close_receipt is not None:
+                return self.close_receipt
+            isolated = getattr(self, 'isolated_metering', False) and self.monitor is not None
+            if isolated and self.monitor.method_receipt()['window_guard_active']:
+                self.monitor.end_window()
+            receipt = await super().close()
+            if isolated:
+                method = self.monitor.method_receipt()
+                write_new(self.out/'metering-method-cleanup.json', method)
+                receipt.update(metering_execution='isolated_process',
+                               metering_method_cleanup=binding(self.out/'metering-method-cleanup.json'))
+                if method.get('child_alive') or method.get('child_exitcode') != 0:
+                    receipt['errors'].append('isolated meter child lacks clean exit evidence')
+                    receipt.update(passed=False, process_cleanup_verified=False)
+            return receipt
+
     return ObservationAdapter(out, base_port=base_port)
 
 
 def finalize_observation(point, identity, *, out, native_result, snapshot, tail_end_s,
-                         startup, reset, drain):
+                         startup, reset, drain, metering_method=None):
     """Reduce real raw evidence; never convert missing qualification into success.
 
     The caller takes the snapshot after a bracketing sample and owns cleanup.
@@ -324,6 +397,9 @@ def finalize_observation(point, identity, *, out, native_result, snapshot, tail_
     # Use serialized raw identity (not int-key in-memory mappings) for replay.
     native_result = load_bound(refs['native_result'])
     write_power_archive(out/'power.json', snapshot); refs['power'] = binding(out/'power.json')
+    if metering_method is not None:
+        write_new(out/'metering-method.json', metering_method)
+        refs['metering_method'] = binding(out/'metering-method.json')
     for key, names in [('events', ('events.jsonl.gz', 'events.jsonl')),
                        ('outcomes', ('outcomes.jsonl.gz', 'outcomes.jsonl', 'outcomes.json'))]:
         path = next((out/n for n in names if (out/n).is_file()), None)
@@ -363,6 +439,8 @@ def finalize_observation(point, identity, *, out, native_result, snapshot, tail_
             metrics.update({k: v for k, v in metering.items() if not isinstance(v, (dict, list))})
             metrics.update(tail_s=tail_end_s-origin-150, measurement_protocol_version=PROTOCOL,
                            gpu_util_coverage_fraction=metering['util_coverage_fraction'])
+            if metering_method is not None:
+                metrics['metering_execution'] = 'isolated_process'
             for i, uuid in enumerate(identity['fleet_gpu_uuids']):
                 gpu = metering['service']['utilization']['per_gpu'][uuid]
                 metrics.update({f'gpu{i}_uuid': uuid, f'gpu{i}_util_mean_pct': gpu.get('mean_pct'),

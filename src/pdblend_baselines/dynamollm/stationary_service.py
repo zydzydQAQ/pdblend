@@ -14,7 +14,7 @@ import time
 from fastapi import APIRouter, HTTPException, Request
 from starlette.responses import JSONResponse
 
-from pdblend.online.native_control import validate_state
+from .native_state import validate_state
 from .stationary_ipc import need
 
 

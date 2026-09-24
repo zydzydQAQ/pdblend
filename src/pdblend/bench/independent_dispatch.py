@@ -60,7 +60,9 @@ def validate(point, inputs):
         raise ValueError('missing_profile: own system profile required')
     for binding in inputs.get('profiles', []):
         profile = load_bound(binding)
-        key = profile.get('profile_key', {})
+        key = (profile.get('identity', {}) if system == 'pdblend'
+               and profile.get('kind') == 'pdblend_native_profile_selection_v1'
+               else profile.get('profile_key', {}))
         profile_model = profile.get('model_id', profile.get('model', key.get('model_id')))
         # Historical PD profiles store the actual weight directory. Match the
         # development loader's basename rule only for the explicit observation
@@ -94,7 +96,15 @@ def validate(point, inputs):
         gates.append(dict(path=binding['path'], sha256=binding['sha256'],
                           gate=receipt.get('gate'),
                           passed=receipt.get('formal_eligible') is True))
+    runtime_options = None
+    if system == 'pdblend':
+        from .pdblend_runtime_options import comparison_options
+        runtime_options = comparison_options(policy, inputs['system_config']['path'], point=point)
+        if (runtime_options['values']['experiment_mode'] != 'adaptive'
+                and point.get('observation_scope') != 'pdblend_profile_unqualified_evaluation/v1'):
+            raise ValueError('fixed all-M ablation requires an explicit diagnostic observation scope')
     return dict(system=system, native_runner=RUNNERS[system], trace=trace, config=policy,
+        **({'pdblend_runtime': runtime_options} if runtime_options is not None else {}),
         own_profile_count=len(profiles), qualification_bindings=gates,
         formal_eligible={g['gate'] for g in gates} >= REQUIRED_GATES and all(g['passed'] for g in gates),
         hardware_executed=False)
@@ -191,6 +201,14 @@ async def execute(point, inputs, resources: Resources, out: Path, *, runner_over
         from pdblend.control.planner import SLO
         if resources.pd_model is None or resources.pd_plan is None:
             raise ValueError('missing independent PDBlend model or deployed offline choice')
+        from .pdblend_runtime_options import CONTROL_OPTIONS, preflight_comparison_options
+        options = audit['pdblend_runtime']
+        from .run import offline_forecast
+        preflight_comparison_options(options, resources.pd_model, resources.pd_plan, resources.specs,
+            forecast=offline_forecast(request_rows(load_bound(inputs['planning_trace'])))
+                if options['values']['capacity_floor_path'] is not None else None,
+            slo=point['slo'])
+        values = options['values']
         prior = request_rows(load_bound(inputs['planning_trace']))
         out.mkdir(parents=True, exist_ok=True)
         return await runner(resources.fleet, resources.meter, resources.pd_model,
@@ -198,6 +216,15 @@ async def execute(point, inputs, resources: Resources, out: Path, *, runner_over
             resources.proxy_port, 10., 300., sampling_seed=701, initial_plan=resources.pd_plan,
             pool_models=resources.pd_pool_models, planning_trace=prior,
             observation_duration_s=duration,
+            joint_resident=values['joint_resident'],
+            incremental_energy_path=values['incremental_energy_path'],
+            transition_catalog_path=values['transition_catalog_path'],
+            capacity_floor_path=values['capacity_floor_path'],
+            transition_qualified_only=values['transition_qualified_only'],
+            pdblend_runtime={k: values[k] for k in CONTROL_OPTIONS},
+            capacity_workload_binding=options.get('capacity_workload_binding'),
+            runtime_requested=options['requested'], runtime_artifact_bindings=options['artifact_bindings'],
+            **({'fixed_plan': resources.pd_plan} if values['experiment_mode'] == 'freeze_initial_all_m' else {}),
             **({'comparison_wait_initial_plan': True} if observation else {}),
             **({'comparison_record_tokens': True} if resources.comparison_record_tokens else {}))
     raise AssertionError(system)

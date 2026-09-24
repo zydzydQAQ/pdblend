@@ -174,7 +174,8 @@ def test_pd_controller_uses_actual_engine_batch_limit(tmp_path,limit):
     from pdblend.planner.pool import Plan,SLO
     from pdblend.profile.query.model import PerfModel
     from pdblend.online.router import Router
-    fleet=SimpleNamespace(instances={str(i):SimpleNamespace(spec=SimpleNamespace(max_num_seqs=limit)) for i in range(8)})
+    fleet=SimpleNamespace(instances={str(i):SimpleNamespace(spec=SimpleNamespace(
+        max_num_seqs=limit, max_model_len=8192)) for i in range(8)})
     model=PerfModel.from_json(FIXTURE.read_text());router=Router(list(fleet.instances))
     plan=Plan({'M':8},2520,2520,2520,0,100.,1.,.1)
     ctl=_make_controller(fleet,router,None,model,get_policy('pdblend'),SLO(1.,.1),

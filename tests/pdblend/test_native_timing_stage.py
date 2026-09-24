@@ -88,6 +88,167 @@ def test_terminal_failed_supplement_reuses_exact_timing_without_relabeling_paren
         capture_evidence(x.attempt, x.queue, x.tmp/'legacy.json')
 
 
+def _operator_request(x, monkeypatch):
+    queue = deepcopy(x.queue_value)
+    queue['jobs']['timing-job'].update(status='running', lease_id='stage-lease')
+    queue['leases']['stage-lease']['status'] = 'active'
+    put(x.queue, queue)
+    (x.attempt/'execution.json').unlink(); (x.root/'completion.json').unlink()
+    monkeypatch.setattr(stage.time, 'time', lambda: x.end+.6)
+    try:
+        return stage.capture_operator_stop_request(x.attempt, x.queue, x.tmp/'operator-stop.json')
+    finally:
+        put(x.attempt/'execution.json', x.execution); put(x.root/'completion.json', x.final)
+        put(x.queue, x.queue_value)
+
+
+def test_operator_stop_preserves_completed_timing_without_supplement_receipt(staged, monkeypatch):
+    x = staged; request = _operator_request(x, monkeypatch)
+    final = deepcopy(x.final); final.pop('resident_request_cycles')
+    final['error'] = final['phase_events'][-1]['error'] = 'CancelledError()'
+    put(x.root/'completion.json', final)
+    ref = stage.capture_terminal_evidence(x.attempt, x.queue, x.tmp/'stopped.json', operator_stop_ref=request)
+    result = stage.replay_terminal_evidence(ref)
+    assert result['timing_component_reusable'] and result['supported_fit'] == x.v2_fitted
+    assert result['parent_job_status'] == 'failed' and not result['parent_job_succeeded']
+    assert result['physical_cleanup_verified'] and result['queue_terminal_verified']
+    assert result['later_independent_failure']['kind'] == 'operator_requested_stop_observed_cancellation'
+    assert not result['whole_job_result_modified'] and not result['full_profile_qualified']
+    assert not result['formal_eligible'] and not result['auxiliary_power_qualifies_power_component']
+    assert 'DO-NOT-COPY' not in Path(request['path']).read_text()
+    assert json.loads((x.attempt/'execution.json').read_text()) == x.execution
+    with pytest.raises(ValueError, match='actual bound completion'):
+        stage.capture_terminal_evidence(x.attempt, x.queue, x.tmp/'no-request.json')
+
+
+def test_operator_stop_rejects_rebound_wrong_identity_late_request_or_unsafe_cleanup(staged, monkeypatch):
+    x = staged; request = _operator_request(x, monkeypatch)
+    original = json.loads(Path(request['path']).read_text())
+    final = deepcopy(x.final); final.pop('resident_request_cycles')
+    final['error'] = final['phase_events'][-1]['error'] = 'CancelledError()'
+    for index, mutation in enumerate(('source','input','stage','attempt','lease','reason','retrospective',
+                                      'before_stage','wrong_error','wrong_phase','busy_cleanup','killed')):
+        value = deepcopy(original); changed = deepcopy(final); execution = deepcopy(x.execution)
+        if mutation in ('source','input','stage','attempt'):
+            key = {'source':'source_manifest','input':'input_manifest','stage':'timing_stage','attempt':'attempt_manifest'}[mutation]
+            value[key]['sha256'] = '0'*64
+        elif mutation == 'lease': value['lease_id'] = 'another-lease'
+        elif mutation == 'reason': value['reason'] = 'generic_failure_rescue'
+        elif mutation == 'retrospective': value['requested_s'] = x.end+2.1
+        elif mutation == 'before_stage': value['requested_s'] = x.end
+        elif mutation == 'wrong_error': changed['error'] = changed['phase_events'][-1]['error'] = "RuntimeError('other failure')"
+        elif mutation == 'wrong_phase': changed['failed_phase'] = 'timing'
+        elif mutation == 'busy_cleanup': changed['physical_cleanup']['observations'][0]['devices'][0]['compute_pids'] = [55]
+        else: execution.update(returncode=-9, error='RuntimeError: process exited -9')
+        changed_ref = put(x.tmp/f'operator-mutation-{index}.json', value)
+        put(x.root/'completion.json', changed); put(x.attempt/'execution.json', execution)
+        with pytest.raises(ValueError):
+            stage.capture_terminal_evidence(x.attempt,x.queue,x.tmp/f'stop-rejected-{index}.json',operator_stop_ref=changed_ref)
+        assert not (x.tmp/f'stop-rejected-{index}.json').exists()
+
+
+def test_operator_request_is_preterminal_and_replays_original_raw(staged, monkeypatch):
+    x = staged
+    with pytest.raises(ValueError, match='after terminal'):
+        stage.capture_operator_stop_request(x.attempt, x.queue, x.tmp/'too-late.json')
+    sample = next((x.root/'samples').glob('*.json')); sample.write_bytes(sample.read_bytes()+b' ')
+    with pytest.raises(ValueError, match='checksum|bytes'):
+        _operator_request(x, monkeypatch)
+    assert not (x.tmp/'operator-stop.json').exists()
+
+
+def test_operator_stop_snapshot_assignment_race_requires_actual_sigint_delivery(staged, monkeypatch):
+    x = staged
+    manifest=json.loads((x.attempt/'manifest.json').read_text())
+    manifest['payload']['container_name']='timing-job'
+    manifest_ref=put(x.attempt/'manifest.json',manifest)
+    document=json.loads(Path(x.stage_ref['path']).read_text());document['attempt_manifest']=manifest_ref
+    x.stage_ref=put(Path(x.stage_ref['path']),document);x.final['resident_timing_stage']=x.stage_ref
+    x.queue_value['jobs']['timing-job']['payload']=manifest['payload']
+    request=_operator_request(x,monkeypatch)
+    final=deepcopy(x.final);final.pop('resident_timing_stage');final.pop('resident_request_cycles')
+    final.update(active_phase='timing_snapshot',failed_phase='timing_snapshot',error='KeyboardInterrupt()')
+    final['phase_events']=final['phase_events'][:3]
+    final['phase_events'][-1].update(status='failed',finished_s=x.end+.8,error='KeyboardInterrupt()')
+    put(x.root/'completion.json',final)
+    delivery=dict(request=request,stage=x.stage_ref,status='signal_sent',signal='SIGINT',signal_sent=True,
+        returncode=0,whole_job_success_claimed=False,command=['docker','kill','--signal=SIGINT','timing-job'],
+        stdout='timing-job\n',stderr='',requested_s=x.end+.65,completed_s=x.end+.7)
+    delivery_ref=put(x.tmp/'signal-delivery.json',delivery)
+    ref=stage.capture_terminal_evidence(x.attempt,x.queue,x.tmp/'snapshot-stopped.json',
+        operator_stop_ref=request,operator_delivery_ref=delivery_ref)
+    result=stage.replay_terminal_evidence(ref)
+    assert result['timing_component_reusable'] and not result['parent_job_succeeded']
+    assert result['later_independent_failure']['snapshot_assignment_interrupted']
+    assert result['physical_cleanup_verified'] and not result['whole_job_result_modified']
+    assert json.loads((x.root/'completion.json').read_text())==final
+    with pytest.raises(ValueError):
+        stage.capture_terminal_evidence(x.attempt,x.queue,x.tmp/'missing-delivery.json',operator_stop_ref=request)
+    for index, mutation in enumerate(('request','stage','container','signal','not_sent','returncode','late','ordinary_error')):
+        changed=deepcopy(delivery);changed_final=deepcopy(final)
+        if mutation in ('request','stage'):changed[mutation]['sha256']='0'*64
+        elif mutation=='container':changed['command'][-1]='different-container'
+        elif mutation=='signal':changed['signal']='SIGTERM'
+        elif mutation=='not_sent':changed['signal_sent']=False
+        elif mutation=='returncode':changed['returncode']=1
+        elif mutation=='late':changed['requested_s']=x.end+.9
+        else:changed_final['error']=changed_final['phase_events'][-1]['error']="ValueError('snapshot audit failed')"
+        changed_ref=put(x.tmp/f'wrong-delivery-{index}.json',changed);put(x.root/'completion.json',changed_final)
+        with pytest.raises(ValueError):
+            stage.capture_terminal_evidence(x.attempt,x.queue,x.tmp/f'race-rejected-{index}.json',
+                operator_stop_ref=request,operator_delivery_ref=changed_ref)
+
+
+@pytest.mark.parametrize('layer', ['revision', 'collection', 'raw_window'])
+def test_operator_stop_follows_layout_cancellation_wrappers(staged, monkeypatch, layer):
+    x = staged; plan = {'points': [{'purpose': 'training', 'frequency_mhz': 1500}]}
+    inputs = json.loads(Path(x.inputs_ref['path']).read_text())
+    inputs.pop('request_cycle_plan'); inputs.update(phase_order=['timing','layout_energy'],
+        layout_energy_plan=put(x.tmp/'layout-plan.json', plan))
+    x.inputs_ref = put(Path(x.inputs_ref['path']), inputs)
+    manifest = json.loads((x.attempt/'manifest.json').read_text()); manifest['payload']['input_manifest'] = x.inputs_ref
+    manifest_ref = put(x.attempt/'manifest.json', manifest)
+    document = json.loads(Path(x.stage_ref['path']).read_text()); saved = json.loads(Path(document['report']['path']).read_text())
+    saved['phase_order'] = inputs['phase_order']
+    document.update(input_manifest=x.inputs_ref, attempt_manifest=manifest_ref,
+        report=put(Path(document['report']['path']), saved))
+    x.stage_ref = put(Path(x.stage_ref['path']), document)
+    x.final.update(phase_order=inputs['phase_order'], resident_timing_stage=x.stage_ref,
+        active_phase='layout_energy', failed_phase='layout_energy')
+    x.final.pop('resident_request_cycles'); x.final['phase_events'][-1]['phase'] = 'layout_energy'
+    x.final['error'] = x.final['phase_events'][-1]['error'] = (
+        "ValueError('layout-energy supplement failed its collection or safe restoration boundary')")
+    revision = dict(schema='pdblend-native-layout-revision/v1',plan_sha256=digest(plan),
+        started_s=x.end+.5,finished_s=x.end+1.9,status='failed',error='CancelledError()',
+        operational_failure=True,safe_restore_passed=True)
+    if layer != 'revision':
+        child = dict(schema='pdblend-native-layout-energy-collection/v1',phase='training',
+            plan_sha256=digest(plan),started_s=x.end+.6,finished_s=x.end+1.8,
+            collection_complete=False,operational_failure=True,error='CancelledError()')
+        if layer == 'raw_window':
+            raw = dict(schema='pdblend-native-request-cycle-window/v1',system='pdblend',
+                hardware_executed=True,status='failed',error='CancelledError()',plan_sha256=digest(plan),point=plan['points'][0])
+            child['windows'] = [dict(raw=put(x.root/'layout-energy/training/windows/00.json',raw),audit={'passed':False})]
+            child['error'] = "ValueError('native layout raw collection invalid: incomplete')"
+        revision.update(error="ValueError('layout training operationally incomplete')",
+            training=put(x.root/'layout-energy/training/completion.json',child))
+    x.final['resident_layout_energy'] = put(x.root/'layout-energy/completion.json', revision)
+    x.queue_value['jobs']['timing-job']['payload'] = manifest['payload']
+    request = _operator_request(x,monkeypatch)
+    ref = stage.capture_terminal_evidence(x.attempt,x.queue,x.tmp/'layout-stop.json',operator_stop_ref=request)
+    result = stage.replay_terminal_evidence(ref)
+    assert result['timing_component_reusable'] and not result['parent_job_succeeded']
+    assert result['later_independent_failure']['kind'] == 'operator_requested_stop_observed_cancellation'
+    if layer == 'raw_window':
+        raw['error'] = "RuntimeError('unrelated measurement failure')"
+        child['windows'][0]['raw'] = put(x.root/'layout-energy/training/windows/00.json',raw)
+        revision['training'] = put(x.root/'layout-energy/training/completion.json',child)
+        x.final['resident_layout_energy'] = put(x.root/'layout-energy/completion.json',revision)
+        put(x.root/'completion.json',x.final)
+        with pytest.raises(ValueError,match='actual cancellation'):
+            stage.capture_terminal_evidence(x.attempt,x.queue,x.tmp/'not-cancellation.json',operator_stop_ref=request)
+
+
 
 def test_terminal_cannot_add_or_change_frequency_identity_after_frozen_stage(staged):
     x=staged

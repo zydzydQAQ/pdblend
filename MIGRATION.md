@@ -1,55 +1,47 @@
-# 三模型迁移与复现
+# pdblend4-v3 迁移范围
 
-当前入口是 [README](README.md)、[实时状态](results/2026-09-23/status/current.md)和
-[队列恢复手册](RESTART.md)。本轮工作负载统一 seed 701；profiler 每点三次窗口重复仍保留。
+新 8×L20 的完整执行顺序见 [RESTART.md](RESTART.md)。该手册是本分支的部署入口；
+旧技能中 CUDA 12.8 / vLLM 0.9.2 / V0 八文件补丁的命令不适用于这里。
 
-## 必须一并迁移的内容
+## 源码与大文件分别交付
 
-- 工程源码、Dockerfile、引擎补丁，以及每个实验引用的冻结源码和 manifest。
-- 当前 Docker 镜像，校验 image ID 为
-  `sha256:1c2d0bf96dfa752394a6aa4b5398a6105dcf060936a484a89729dcab6f9d9acc`。
-  它绑定 vLLM 0.10.1.1、Torch 2.7.1、CUDA 12.8.1；同名 tag 或重新构建成功不能代替身份校验。
-- `/home/models/Qwen2.5-{7B,14B,32B}-Instruct` 的权重、配置、tokenizer 和验证凭据。
-- 三模型分别 tokenize 的 prepared 数据及其 manifest、原始语料和各模型独立 predictor。
-- 各系统独立 profile、原始 samples、训练/holdout 计划、校准版本和全部引用证据。
-- queue、attempt、租约历史、原始请求/SSE、功率、动作、清理记录和归档索引。
-- `results/runs.csv`、`profile_points.csv` 与历史删除身份 CSV；`raw_pruned` 历史行不再具有原始证据。
+- Git 分支 `pdblend4-v3`：当前维护源码、独立 baseline、测试、日期脚本、Dockerfile、引擎补丁、
+  依赖锁、镜像/模型/输入身份清单、文档和历史删除索引。可以从源码机导出的 Git bundle 克隆。
+- `/home/pdblend4-v3-release/image/`：当前 Docker 的真实导出包和 SHA 收据。不是根目录旧镜像包。
+- `/home/pdblend4-v3-release/inputs/`：被复现入口实际读取的不可变文件闭包；含旧 profile、三模型轨迹、
+  配置、冻结源码以及 baseline predictor。不会打包活动 queue、lease 或 stop 文件。
+- `/home/pdblend4-v3-release/external/`：baseline 真实到达记录的外部依赖，恢复到 `/home/pdblend` 下原路径。
+- `/home/models/`：Qwen 三模型、BERT 与相关清单，单独 rsync；目标机全量验证模型 SHA。
+- `/home/pdblend4-v3-release/validation/`：本次实际检查记录；不能代替目标机硬件与性能验收。
 
-不要把整个 results 当缓存删除。失败 attempt 也可能含当前校准引用的唯一有效样本。
-原始 artifact 带绝对路径和 checksum；迁移优先保留原路径。改变路径时建立新的映射和验证
-凭据，不直接修改已冻结 manifest。旧唯一镜像迁移包仍须保留。
+主项目固定恢复到 `/home/pdblend4`，权重到 `/home/models`。这是现有 immutable artifact 的绝对路径
+约束。输入提取器拒绝不同根目录、符号链接和不同内容的覆盖；不改写历史 manifest 或伪造新校准。
+将项目迁往任意新根目录需要单独实现可验证的引用映射，本版不声称已支持。
 
-## 环境与恢复核验
+## 固定的真实环境
 
-目标机需要可用的 NVIDIA 驱动、Docker/NVIDIA container runtime 和锁频权限。先读取 GPU
-UUID、拓扑、显存、功率/频率能力及当前进程，确认与本轮 8×L20 的实际身份是否一致。
-镜像导入后用 `docker image inspect` 核验上述 image ID，再检查容器实际 Torch/vLLM/CUDA
-版本、引擎补丁 checksum 和三个模型/tokenizer hash。
+镜像的 CUDA base 是 12.8.1，实际引擎 Torch 是 2.7.1+cu126（CUDA 12.6），vLLM 是 0.10.1.1，
+使用 V1。宿主控制器 Torch 是 2.7.0+cu128，Transformers 是 4.51.3；两者分别锁定。
+`requirements/pdblend4-v3-image.json` 绑定镜像层/配置、依赖和补丁；归档收据另绑定导出 tar 的 SHA。
+镜像 save/load 保持系统层相同，联网重建只保证已锁定的源码/依赖输入，不承诺逐层相同。
 
-当前功能任务通过队列取得 GPU UUID、容器内索引、独立端口和 concurrency-environment。
-按 [RESTART](RESTART.md) 先核对已有 worker/lease，再恢复 worker；不能另外直接启动旧
-`results/v2` 矩阵占用同一批 GPU。容器、锁频和清理只能操作各自租约范围。
+宿主需可用驱动、Docker、NVIDIA Container Toolkit、Python 3.10 和实验锁频权限。
+bootstrap 新建项目 `.venv`，不复制旧虚拟环境。宿主完整 wheelhouse 未包含在交付中，安装需要联网。
+目标机环境验证包含八卡真实 BF16 CUDA 运算、Python 包、补丁和 pip 依赖检查。
 
-CPU 回归、真实引擎启动/输出、KV/取消/恢复检查、模型级 profile 校准和系统机制验收是不同
-阶段。PDBlend 只使用 PP1，7B/14B 的 TP1/2/4 和 32B 的 TP2/4 仍需各自证据；正式整机
-总能耗比较必须独占八卡。具体阻塞项以实时状态内的 receipt 和 scope 为准。
+## 新机实验与历史证据
 
-## Profile 复用
+复现入口默认冻结当前分支源码，采用新的 GPU UUID、queue、attempt 和执行源码 SHA；
+历史模式则使用每个系统原来绑定的冻结源码。保持原请求、seed701、150秒窗口、SLO及完整尾部，
+所有测量写入新输出，不接管源机仍运行的队列。
 
-按 system、model、TP、PP、角色、频率和实测覆盖域复用有效样本，只补缺失点。除这些
-维度外，还必须检查 image/source、GPU UUID/拓扑、模型/tokenizer、原始样本 checksum 和
-独立 holdout；相同 GPU 型号、相同 vLLM 版本两个条件不足以判定可以正式复用。
+旧 profile 以 development 方式复用，明确 `target_machine_calibrated=false` 与 `formal_eligible=false`。
+模型相同和 GPU 型号相同不足以继承 profile、锁频、能耗或完整系统资格。新机正式结论需要自己的
+校准、模型服务/KV/恢复检查、计量资格和独立实验。准备/CPU preflight 成功也不是 GPU 实验完成。
 
-显式选择 [校准版本](results/2026-09-23/calibration-versions-v1/report.md)，使用
-[`load_version`](src/pdblend/profile/versions.py) 的覆盖域和资格门禁。
-[最新补测审计](results/2026-09-23/incremental-wave-closeout-v1/report.md)的局部通过也不能
-扩大旧版本的可查询范围。换硬件、引擎或 workload 域后应评估受影响点并补测，不能跨模型
-或跨系统借用 profile，也不必无条件重跑所有已有测量。
+runtime 输入包不含全部 44 GiB 原始历史证据。完整历史复算仍需源机相应原件；不能把缺原始测量的
+包写成 full audit archive。既有失败 attempt 和已删除原始数据的记录原样保留，不补造或追认指标。
+旧 `results/v2` 清理保留于 `results/maintenance/2026-09-23-history-pruning-v6` 的逐文件身份索引；
+本次提交记录已有删除，不重新删除正在使用的原始实验数据。
 
-## 历史索引
-
-旧栈结果、混合 profile、半截断数据和 CPU replay 不参与新栈三模型正式排名。本轮已退役目录
-按[结果保留规则](docs/RESULTS.md)仅留历史指标/身份 CSV；有当前有效引用的原始证据继续保留。
-早期迁移说明完整保留于
-[归档](results/archive/docs-2026-09-23/MIGRATION-before-current-rewrite.md)，其中旧评测命令、
-profile 复用条件和全卡清理示例不适用于当前并行租约流程。
+旧文档保留于 `results/archive/docs-2026-09-23/`，仅作为历史说明。

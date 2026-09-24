@@ -1,0 +1,57 @@
+\section{在线算法：实例配对与 KV 交接}
+\label{sec:online}
+请求到达时，Router 固定它的 prefill 和 decode 归属，实例内每轮 token 的组批仍由引擎 scheduler 完成。设请求输入为 $L$ 个 token，最多输出 $K$ 个 token。M 路径选择同一个实例处理两阶段；PD 路径选择有序对 $(p,d)$，由 $p$ 处理 prompt，由 $d$ 继续生成。一个请求使用两个实例不意味着集群只有两个实例，P、D 池都可以具有多个副本。
+
+\subsection{候选路径与两个实例的选择}
+Router 首先读取当前已发布且允许接收新请求的角色表。P/D 配对要求两者是不同实例，模型、TP、PP、池标识与 generation 一致，且当前支持 PP=1；现有 KV 连接器不提供跨 TP 的形状重映射。由此得到所有兼容 P/D 对，而不是先独立选择 P 和 D 后再检查能否传输。
+
+在兼容对存在时，输入超过阈值 $\tau$ 的请求优先进入 PD 候选分支，其余优先进入 M。没有可用 M 时，短请求也可以进入 PD；没有完整 P/D 对时，长请求仍可使用 M。启用压力策略时，阈值还受其最短 PD 输入约束。$\tau$ 因而控制的是优先分支，不直接决定最终实例。
+
+Router 为实例 $i$ 维护两个代理负载：$U_i$ 为已分配但尚未观察到首 token 的 prompt token 总数，$N_i$ 为已分配且尚未结束的 decode 序列数。PD 派发时就增加 $U_p$ 和 $N_d$，使后续请求能看到尚在 prefill 的未来 D 负载。$U_i$ 不是逐 chunk 的精确剩余工作量，$N_i$ 也不等于引擎当前运行的 batch。基础负载规则在 M 中按 $(N_i,U_i)$ 选择，在兼容 PD 对中按 $(U_p,N_d,U_d)$ 进行字典序比较。
+
+当前标准入口默认启用 SLO 路由层。对优先分支中的全部候选，它先检查请求长度、准入状态和 KV 容量；PD 两端都按请求的 $L+K$ 预算进行代理侧准入记账，实际 KV block 仍由引擎分配。随后按各自当前控制频率查询 profile：P 排队时间由等待请求的 prefill 代价逐项累加，D 的代价结合已分配序列及其上下文上界估计。逐请求求和避免将多个短 prompt 合成一个超出测量域的虚构长 prompt。
+
+\subsection{将 KV 开销放入正确的延迟预算}
+PD 的代理协议先向 P 提交请求。P 完成 prefill 后生成并返回第一个 token，代理立即将它转发给客户端，再携带首 token、传输标识与 KV 相关元数据向 D 提交后续生成，剩余输出预算为 $K-1$。连接器可以在 P 执行过程中分层提交 KV；不能把整个拷贝过程视为首 token 之后才开始。D 侧收到所需 KV 后继续解码。若 $K=1$，预先转为仅在 P 生成的路径，不启动远程 KV 传输。
+
+\begin{samepage}
+设 $Q_p$ 为 P 端排队时间，$s=T_d(B,C,f_D)$ 为 D 单步时间，$h$ 为 P 首 token 到 D 首 token 的间隔。当 $K\ge2$ 时，普通 Router 预测：
+\begin{align}
+ \TTFT_{PD}&=Q_p+T_p(L,f_P),\\
+ \TPOT_{PD}&=\frac{h+(K-2)s}{K-1}.
+ \label{eq:handoff}
+\end{align}
+\end{samepage}
+$h$ 包括剩余 KV 交接、代理提交、D 排队/接收以及 D 的第一步，已测得该端点间隔时不能再加一次 $s$。当 $K=2$，TPOT 就等于整个交接间隔；输出较长时，该一次性成本才会被后续 token 分摊。这也解释了为何仅按输入长度判断 PD 是否有利会遗漏短输出的风险。M 的基础预测则为 $Q_m+T_p(L,f_M)+T_d(B,C,f_M)$；还要检查新增 prefill 是否使已有请求的首 token 或剩余输出预算超限。
+
+端点模型缺失时，较长输出沿用 $h=\max(T_x(L)+s,h_{\min})$ 的风险近似，$h_{\min}$ 是配置的交接下限，不是测量证据。两 token 输出要求匹配请求形状、频率与批大小的端点覆盖，才可判定 PD 满足 SLO。服务期间记录 P 首 token、D 首 token 与后续输出，形成实际交接和进度观测；这些日志本身不会自动扩展离线模型的合格范围。
+
+\begin{algorithm}[t]
+\caption{普通 Router 的请求分配}
+\label{alg:route}
+\small
+\begin{algorithmic}[1]
+\Require 请求 $(L,K)$、角色表、profile、SLO
+\State 根据阈值与兼容性生成优先候选集合
+\State 若优先 PD，同时生成 M 备用集合
+\State 删除长度、准入或 KV 容量不满足的候选
+\For{每个剩余候选}
+  \State 估计排队、计算、交接与已有请求的预算
+  \State 标记 profile 覆盖及 TTFT/TPOT 可行性
+\EndFor
+\If{优先集合中有满足 SLO 的候选}
+  \State 选择其中预测 TTFT 最小者
+\ElsIf{优先 PD 且存在满足 SLO 的 M}
+  \State 选择预测 TTFT 最小的 M
+\Else
+  \State 沿用容量允许的原分支，并标记 SLO 未证实
+  \State 原分支也无容量时返回无路由
+\EndIf
+\State 固定 $(p,d)$，更新 $U_p,N_d$，启动对应协议
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{安全回退与代价边界}
+算法\ref{alg:route}优先选择原分支中留有 TTFT/TPOT 安全余量的最小预测 TTFT 路径；仅在 PD 分支无安全候选而 M 可行时向 M 溢出。M 保护也覆盖已有请求，避免把新长 prompt 转给一个看似空闲、实际剩余输出预算不足的实例。若预测缺失或全部超限，当前实现仍可保留原分支中容量允许的路径，并显式标记 SLO 未证实；因此模型过滤并不等价于所有获准请求都获得 SLO 保证。已派发请求保持原实例归属；已提交引擎且清理状态不明的异常请求，需收到原生清理确认才释放记账。
+
+上述首间隔预算对应普通 Router。当前池级规划和跨 TP 的 ResidentRouter 仍保留将传输并入首步延迟的近似，尚未统一使用式\eqref{eq:handoff}。ResidentRouter 可显式启用增量能量排序：先检查覆盖、SLO 和容量，再比较加入该请求后的增量焦耳数；任一保留候选缺少合格能量证据时，整个候选集合回退到时间评分。纯 KV 拷贝能耗没有独立证据时，不另造一个精确数值；服务窗口能耗与已验证的路径增量能量承担相应计费。

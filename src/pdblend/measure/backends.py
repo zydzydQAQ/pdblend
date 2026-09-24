@@ -157,6 +157,22 @@ class PynvmlBackend:
         except (AttributeError,self._nvml.NVMLError):
             return False
 
+    def clock_diagnostics(self, gpu: int) -> dict:
+        """Read physical limits without treating a successful set call as proof."""
+        result = {}
+        queries = {
+            'throttle_reasons': lambda: int(self._nvml.nvmlDeviceGetCurrentClocksThrottleReasons(self._handle(gpu))),
+            'power_limit_w': lambda: float(self.power_limit_w(gpu)),
+            'temperature_c': lambda: float(self.temperature_c(gpu)),
+        }
+        for key, read in queries.items():
+            try:
+                result[key] = read()
+            except Exception as exc:
+                result[key] = None
+                result.setdefault('diagnostic_errors', {})[key] = str(exc)
+        return result
+
     def set_clock(self, gpu: int, freq: int) -> None:
         f = int(freq)
         if self._nvml is not None:

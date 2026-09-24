@@ -44,7 +44,11 @@ def load_bound(ref):
 
 
 def point_order(point):
-    return (MODELS.index(point['model_id']), SCALES.index(point['scale']),
+    scale = point['scale']
+    if type(scale) not in (int, float) or not math.isfinite(scale) or scale <= 0:
+        raise ValueError('comparison scale must be finite and positive')
+    return (MODELS.index(point['model_id']), SCALES.index(scale) if scale in SCALES else len(SCALES),
+            0. if scale in SCALES else scale,
             SYSTEM_ORDER.index(point['system']), list(DATASETS).index(point['dataset']))
 
 
@@ -204,13 +208,43 @@ def failed_session_points(path, report):
     return {p['name']:digest(p) for p in group['points']}
 
 
-def export(campaign_path, output, *, session_roots=(), qualification_evidence_ref=None, analysis_policy=None):
+def export(campaign_path, output, *, session_roots=(), qualification_evidence_ref=None, analysis_policy=None,
+           extension_manifests=(), baseline_inventory_ref=None):
     from .comparison_clock_evidence import annotate as clock_annotation
     from .comparison_recorded import POLICY as recorded_policy
     if analysis_policy not in (None, recorded_policy):
         raise ValueError('unknown comparison analysis policy: ' + str(analysis_policy))
     campaign_path = Path(campaign_path)
     campaign = json.loads(campaign_path.read_text())
+    from .comparison_export_provenance import point_columns, load_baseline_inventory, annotate_boundary
+    from .comparison_extension_export import load_extensions
+    extensions = load_extensions(campaign, extension_manifests=extension_manifests,
+                                 session_roots=session_roots, load_bound=load_bound)
+    inventory_ref = (baseline_inventory_ref or
+        campaign.get('baseline_comparison_policy', {}).get('frozen_baselines'))
+    inventory = load_baseline_inventory(inventory_ref, load_bound=load_bound) if inventory_ref else None
+    frozen_baselines = inventory['frozen_baselines'] if inventory is not None else {} if extensions else None
+    inventory_gaps = inventory['gaps'] if inventory is not None else None
+    from .comparison_trace_equivalence import read_registry, read_equivalence, annotate as trace_annotation
+    registry_ref = campaign.get('historical_baseline_registry')
+    registry = read_registry(registry_ref, load=load_bound) if registry_ref else []
+    trace_proofs = [(read_equivalence(ref, campaign, registry, load=load_bound), ref)
+                    for ref in campaign.get('trace_equivalence_refs', [])]
+    if registry:
+        frozen_baselines = dict(frozen_baselines or {})
+        for item in registry:
+            name, receipt_sha = item['point_spec']['name'], item['receipt']['sha256']
+            if name in frozen_baselines and frozen_baselines[name] != receipt_sha:
+                raise ValueError('historical registry conflicts with frozen baseline inventory')
+            frozen_baselines[name] = receipt_sha
+    points = []
+    point_specs = set()
+    for point in [*campaign['points'], *(p for item in extensions for p in item['points']),
+                  *(item['point_spec'] for item in registry)]:
+        key = (point['name'], digest(point))
+        if key not in point_specs:
+            point_specs.add(key)
+            points.append(point)
     receipts, seen, failed_sessions = {}, set(), {}
     for root in session_roots:
         for path in sorted(Path(root).glob('**/completion.json')):
@@ -224,6 +258,19 @@ def export(campaign_path, output, *, session_roots=(), qualification_evidence_re
                 continue
             seen.add(path)
             row = json.loads(path.read_text())
+            receipts.setdefault(row['point'], []).append((path, row))
+    for item in extensions:
+        for reference in item['receipts']:
+            path = Path(reference['path']).resolve()
+            if path not in seen:
+                row = load_bound(reference)
+                seen.add(path)
+                receipts.setdefault(row['point'], []).append((path, row))
+
+    for item in registry:
+        reference = item['receipt']; path = Path(reference['path']).resolve()
+        if path not in seen:
+            row = load_bound(reference); seen.add(path)
             receipts.setdefault(row['point'], []).append((path, row))
 
     gpu_util_fields = ('coverage_fraction', 'status', 'samples', 'missing_samples',
@@ -248,6 +295,7 @@ def export(campaign_path, output, *, session_roots=(), qualification_evidence_re
             window_warmup_included_in_reset=True,
             pdblend_window_engine_loads=None, pdblend_window_cumulative_engine_loads=None,
             pdblend_reset_engine_loads=None, pdblend_reset_cumulative_engine_loads=None,
+            **point_columns(p, inventory_gaps=inventory_gaps),
             **clock_annotation(p, {}),
             **{f'gpu{i}_util_{field}': None for i in range(8) for field in gpu_util_fields})
 
@@ -455,10 +503,15 @@ def export(campaign_path, output, *, session_roots=(), qualification_evidence_re
                     profile_missing_gates=gaps, observation_acceptance_path=str(audit_path),
                     observation_acceptance_sha256=artifacts[relative])
 
-    rows, recorded_results = [], {}
-    for current in campaign['points']:
+    rows, recorded_results, exported_receipts = [], {}, set()
+    for current in points:
         matched_current = False
         for path, receipt in receipts.get(current['name'], []):
+            if receipt.get('point_sha256') == digest(current):
+                matched_current = True
+            if path in exported_receipts:
+                continue
+            exported_receipts.add(path)
             artifacts = receipt.get('artifacts')
             if not isinstance(artifacts, dict) or not artifacts:
                 raise ValueError('window receipt lacks bound artifacts: ' + str(path))
@@ -524,6 +577,9 @@ def export(campaign_path, output, *, session_roots=(), qualification_evidence_re
                            failure_reason='profile_unqualified: ' + ';'.join(observation['profile_missing_gates']))
             row.update(costs(path, receipt))
             row.update(gpu_utilization(path, receipt, row))
+            from .comparison_client_diagnostics import annotate as client_diagnostics
+            row.update(client_diagnostics(path, receipt, point, result.get('metrics', {}),
+                                          active_run_id=campaign.get('run_id')))
             row.update(clock_annotation(point, result, receipt=receipt, receipt_path=path))
             recorded_results[str(path)] = (result, receipt)
             rows.append(row)
@@ -551,7 +607,11 @@ def export(campaign_path, output, *, session_roots=(), qualification_evidence_re
     rank_rows(rows)
     if analysis_policy == recorded_policy:
         from .comparison_recorded import analyze
-        analyze(rows, recorded_results)
+        trace_annotation(rows, trace_proofs)
+        analyze(rows, recorded_results, frozen_baselines=frozen_baselines)
+    for row in rows:
+        for item in extensions:
+            annotate_boundary(row, item['manifest'], item['manifest_ref'])
     if qualification_evidence_ref is not None:
         from .comparison_qualification_evidence import load_qualification_evidence,annotate
         qualification=load_qualification_evidence(qualification_evidence_ref,load_bound=load_bound,file_sha=file_sha)
@@ -750,6 +810,10 @@ def main():
                    help='Immutable historical component-attempt evidence for unmeasured blocked rows')
     p.add_argument('--analysis-policy', choices=['all_recorded_windows/v1'],
                    help='Interpret bound recorded windows as usable data while preserving strict audit diagnostics')
+    p.add_argument('--extension-manifest', type=Path, action='append', default=[],
+                   help='Verified immutable boundary manifest or latest pointer; may be repeated')
+    p.add_argument('--baseline-inventory', type=Path,
+                   help='Freeze comparison references to the recorded baseline inventory')
     args = parser.parse_args()
     if args.command == 'prepare':
         result = prepare(args.first_spec, args.out, args.corpus_root,
@@ -761,6 +825,7 @@ def main():
             from .comparison_hash_cache import UnchangedFileHashes
             _WATCH_DIGEST_CACHE = UnchangedFileHashes()
         qualification_ref=None;qualification_paths=[]
+        baseline_ref = binding(args.baseline_inventory) if args.baseline_inventory else None
         if args.qualification_evidence:
             from .comparison_qualification_evidence import load_qualification_evidence
             qualification_ref=binding(args.qualification_evidence)
@@ -782,13 +847,19 @@ def main():
                 '**/windows/*/receipt.json', '**/session/completion.json')
                 for p in Path(root).glob(pattern)), *(Path(root)/'completion.json' for root in roots
                                                     if (Path(root)/'completion.json').is_file())})
+            from .comparison_extension_export import extension_watch_paths
+            paths = sorted(set(paths) | set(extension_watch_paths(campaign,
+                extension_manifests=args.extension_manifest, session_roots=roots))
+                | ({Path(args.baseline_inventory)} if args.baseline_inventory else set()))
             current = tuple((str(p), p.stat().st_size, p.stat().st_mtime_ns) for p in paths)
             if current != previous or terminal:
                 if terminal and _WATCH_DIGEST_CACHE is not None:
                     _WATCH_DIGEST_CACHE.clear()
                 print(json.dumps(dict(export(campaign, args.out, session_roots=roots,
                                              qualification_evidence_ref=qualification_ref,
-                                             analysis_policy=args.analysis_policy),
+                                             analysis_policy=args.analysis_policy,
+                                             extension_manifests=args.extension_manifest,
+                                             baseline_inventory_ref=baseline_ref),
                                       campaign=str(campaign))), flush=True)
                 previous = current
             if terminal or not args.watch:

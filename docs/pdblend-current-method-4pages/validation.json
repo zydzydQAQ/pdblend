@@ -1,0 +1,35 @@
+{
+  "pdf": "pdblend-current-method.pdf",
+  "sha256": "b474aa8f23dab2c23babd01eb13acd8cef5d877dda2b2895faa33335d27488a8",
+  "pages": 4,
+  "columns": 2,
+  "nominal_body_pt": 11,
+  "major_sections": 3,
+  "adaptive_subsections": 3,
+  "algorithms": 2,
+  "numbered_equations": 7,
+  "overfull_boxes": 0,
+  "missing_glyphs": 0,
+  "unresolved_references": 0,
+  "page_details": [
+    {
+      "page": 1,
+      "text_characters": 1932
+    },
+    {
+      "page": 2,
+      "text_characters": 1753
+    },
+    {
+      "page": 3,
+      "text_characters": 1755
+    },
+    {
+      "page": 4,
+      "text_characters": 1532
+    }
+  ],
+  "scope": "Document build and source analysis only; no GPU experiment or service-code changes.",
+  "standalone_compile_identical_text": true,
+  "visual_review": "Four rendered pages inspected for columns, formulas, algorithm boxes and whitespace."
+}
