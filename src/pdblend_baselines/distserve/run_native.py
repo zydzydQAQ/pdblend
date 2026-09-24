@@ -6,7 +6,7 @@ GPUs, and does not qualify a complete profile, PP deployment or energy ranking.
 from __future__ import annotations
 import argparse
 import asyncio
-from dataclasses import asdict
+from dataclasses import fields
 import hashlib
 import json
 import math
@@ -15,6 +15,13 @@ import time
 
 from .request_runtime import DistServeRuntime
 from .runtime import MappedDistServeTransport
+from pdblend.results.journal import CompactJournal, payload_receipt
+
+
+def result_receipt(value):
+    """Keep scheduling/KV receipts without copying the accumulated SSE again."""
+    return {item.name:getattr(value,item.name) for item in fields(value)
+            if item.name not in ('events','token_ids')}
 
 
 def load_trace(path):
@@ -40,11 +47,11 @@ async def execute(args):
             or trace['requests'][-1]['arrival_s'] >= duration):
         raise ValueError('positive observation duration must contain all trace arrivals')
     args.out.mkdir(parents=True, exist_ok=True)
-    if any((args.out/name).exists() for name in ('events.jsonl', 'completion.json')):
+    if any((args.out/name).exists() for name in ('events.jsonl', 'events.jsonl.gz', 'completion.json')):
         raise FileExistsError('refusing to overwrite DistServe execution evidence')
-    raw = (args.out/'events.jsonl').open('x')
+    raw = CompactJournal(args.out/'events.jsonl.gz')
     def journal(event, **fields):
-        raw.write(json.dumps(dict(event=event, **fields), allow_nan=False)+'\n'); raw.flush()
+        raw.write(dict(event=event, **fields))
     transport = MappedDistServeTransport(args.prefill_url, args.decode_url,
         prefill_address=args.prefill_address, decode_address=args.decode_address)
     runtime = DistServeRuntime(transport, tp=args.tp, pp=args.pp, max_batch_size=args.max_batch_size,
@@ -83,14 +90,17 @@ async def execute(args):
                 outcome.update(ok=value.status == 'completed' and value.tokens == row['max_tokens']
                                and terminal and steps == expected,
                                terminal_observed=terminal, native_receipts_complete=steps == expected,
-                               result=asdict(value))
+                               result=result_receipt(value))
             except Exception as exc:
                 outcome.update(ok=False, error=repr(exc))
-                if rid in runtime.results: outcome['result'] = asdict(runtime.results[rid])
+                if rid in runtime.results: outcome['result'] = result_receipt(runtime.results[rid])
             outcome['finished_s'] = time.time()
             arrivals = [event['received_s'] for event in outcome['events'] for token in event['token_ids']]
             outcome['ttft_s'] = arrivals[0]-outcome['submitted_s'] if arrivals else None
             outcome['tpot_s'] = ((arrivals[-1]-arrivals[0])/(len(arrivals)-1) if len(arrivals)>1 else None)
+            outcome.update(payload_receipt(outcome.pop('events'),journal_path='events.jsonl.gz',request_id=rid))
+            if 'result' in outcome:
+                outcome['result'].pop('events',None);outcome['result'].pop('token_ids',None)
             result['outcomes'].append(outcome)
         tasks = [asyncio.create_task(request(index, row)) for index, row in enumerate(trace['requests'])]
         await asyncio.gather(*tasks)
@@ -113,7 +123,8 @@ async def execute(args):
         if cleanup: result.update(status='failed', complete=False)
         result.update(cleanup_errors=cleanup, quarantined_roles=sorted(runtime.quarantined), finished_s=time.time())
         raw.close()
-        result['events_sha256'] = hashlib.sha256((args.out/'events.jsonl').read_bytes()).hexdigest()
+        result['journal_path']='events.jsonl.gz'
+        result['events_sha256'] = hashlib.sha256((args.out/'events.jsonl.gz').read_bytes()).hexdigest()
         (args.out/'trace.json').write_text(json.dumps(trace, allow_nan=False)+'\n')
         (args.out/'completion.json').write_text(json.dumps(result, indent=2, allow_nan=False)+'\n')
     return result

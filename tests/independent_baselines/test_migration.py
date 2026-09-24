@@ -22,6 +22,7 @@ def test_migrated_core_sources_are_exact_and_independent():
     ("pdblend.profile.model", "PerfModel"),
     ("pdblend.profile.decode_fit", "fit_candidate"),
     ("pdblend.profile.profiler", "Profiler"),
+    ("pdblend.results.journal", "CompactJournal"),
 ])
 def test_measurement_permission_cannot_import_policy_or_fitted_models(module, symbol):
     for path in ("dynamollm/policy.py", "dynamollm/profile_epochs.py", "distserve/stage_collect.py"):
@@ -36,6 +37,24 @@ def test_measurement_permissions_cannot_expand_by_wildcard_or_importer():
         assert_independent_imports("import pdblend.profile.sampling_epochs as p", "dynamollm/profile_epochs.py")
     with pytest.raises(AssertionError):
         assert_independent_imports("from pdblend.engine.launcher import Fleet", "dynamollm/policy.py")
+
+
+@pytest.mark.parametrize('changed', ['mixed/policy.py','mixed_policy.py'])
+def test_relocated_policy_and_compatibility_bytes_are_both_bound(tmp_path,monkeypatch,changed):
+    import pdblend_baselines.cpu as module
+    root=Path(module.__file__).parent
+    original=json.loads((root/'migration-manifest.json').read_text())
+    (tmp_path/'mixed').mkdir()
+    for name in ('mixed/policy.py','mixed_policy.py'):
+        (tmp_path/name).write_bytes((root/name).read_bytes())
+    manifest=dict(adapter_files=[row for row in original['adapter_files'] if row['path']=='mixed_policy.py'],
+                  relocations=original['relocations'])
+    (tmp_path/'migration-manifest.json').write_text(json.dumps(manifest))
+    monkeypatch.setattr(module,'__file__',str(tmp_path/'cpu.py'))
+    assert module.verify_migration()['explicit_relocations']==['mixed_policy.py']
+    (tmp_path/changed).write_text('# stale or replaced implementation\n')
+    with pytest.raises(ValueError,match='mixed_policy.py'):
+        module.verify_migration()
 
 
 @pytest.mark.parametrize("model", MODEL_GEOMETRY)

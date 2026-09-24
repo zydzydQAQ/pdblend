@@ -40,16 +40,17 @@ def load_bound(binding):
 def validate(point, inputs):
     """Read-only; reject substituted traces/profiles before any engine launch."""
     system = point['system']
-    if system not in RUNNERS or point.get('seed') != 701 or point.get('duration_s') != 300:
-        raise ValueError('active comparison requires a supported native system and seed701/300s')
+    duration = point.get('duration_s')
+    if system not in RUNNERS or point.get('seed') != 701 or duration not in (150, 300):
+        raise ValueError('active comparison requires a supported native system and seed701/150s or 300s')
     trace = load_bound(inputs['trace'])
     if (trace.get('seed') != point['seed'] or trace.get('model_id') != point['model_id']
-            or trace.get('dataset') != point['dataset'] or trace.get('duration_s') != 300
+            or trace.get('dataset') != point['dataset'] or trace.get('duration_s') != duration
             or trace.get('selection_split') != 'evaluation' or trace.get('slo') != point['slo']
             or trace.get('rate_rps') != point['rate_rps'] or not trace.get('requests')):
         raise ValueError('shared frozen evaluation trace identity differs')
     for row in trace['requests']:
-        if not 0 <= row['arrival_s'] < 300 or not row['prompt'] or not 2 <= row['max_tokens'] <= 512:
+        if not 0 <= row['arrival_s'] < duration or not row['prompt'] or not 2 <= row['max_tokens'] <= 512:
             raise ValueError('invalid evaluation request')
     policy = load_bound(inputs['system_config'])
     if policy.get('system') != system or policy.get('model_id') != point['model_id']:
@@ -60,8 +61,16 @@ def validate(point, inputs):
     for binding in inputs.get('profiles', []):
         profile = load_bound(binding)
         key = profile.get('profile_key', {})
+        profile_model = profile.get('model_id', profile.get('model', key.get('model_id')))
+        # Historical PD profiles store the actual weight directory. Match the
+        # development loader's basename rule only for the explicit observation
+        # scope; default/formal and every baseline retain their exact identity.
+        scope = 'pdblend_profile_unqualified_evaluation/v1'
+        if (system == 'pdblend' and point.get('observation_scope') == scope
+                and point.get('qualification_mode') == scope and isinstance(profile_model, str)):
+            profile_model = Path(profile_model).name
         if (profile.get('system', key.get('system')) != system
-                or profile.get('model_id', profile.get('model', key.get('model_id'))) != point['model_id']):
+                or profile_model != point['model_id']):
             raise ValueError('cross-system or cross-model profile is forbidden')
         profiles.append(profile)
     if system in ('pdblend','distserve'):
@@ -102,6 +111,8 @@ class Resources:
     pd_pool_models: Any = None
     pd_planning_trace: Any = None
     proxy_port: int = 18080
+    dynamo_session: Any = None
+    comparison_record_tokens: bool = False
 
 
 def request_rows(trace):
@@ -117,8 +128,10 @@ async def execute(point, inputs, resources: Resources, out: Path, *, runner_over
     and cleanup. Tests inject native runners to verify routing independently of
     CUDA; production imports the exact module named in RUNNERS.
     """
-    audit = validate(point, inputs)
-    if not audit['formal_eligible']:
+    from .comparison_pdblend_observation import observation_requested, validate_observation_inputs
+    observation = observation_requested(point)
+    audit = validate_observation_inputs(point, inputs) if observation else validate(point, inputs)
+    if not observation and not audit['formal_eligible']:
         raise ValueError('inconclusive: qualification receipts do not authorize this formal point')
     system, trace, config = audit['system'], audit['trace'], audit['config']
     out = Path(out)
@@ -144,12 +157,17 @@ async def execute(point, inputs, resources: Resources, out: Path, *, runner_over
         from pdblend_baselines.dynamollm.validation import preflight
         # Preserve original controller periods even though this short window
         # cannot qualify the 1800-second ScaleInst mechanism by itself.
-        receipt = preflight(config, mode='functional', duration_s=duration, seed=701)
+        config = dict(config, dynamo_require_full_mechanisms=True)
+        receipt = preflight(config, mode='comparison', duration_s=duration, seed=701)
         if not receipt.get('ready'):
             raise ValueError('Dynamo native preflight failed: '+json.dumps(receipt))
         out.mkdir(parents=True, exist_ok=True)
+        if resources.dynamo_session is not None:
+            from pdblend_baselines.dynamollm.run_v1 import execute_on_resident
+            return await execute_on_resident(config, load_trace(trace_path, duration), output=out,
+                duration_s=duration, mode='comparison', receipt=receipt, session=resources.dynamo_session)
         return await runner(config, load_trace(trace_path, duration), output=out,
-                            duration_s=duration, mode='functional', receipt=receipt)
+                            duration_s=duration, mode='comparison', receipt=receipt)
     if system == 'distserve':
         choice = load_bound(inputs['offline_choice'])
         pairs = choice['deployment']['pairs']
@@ -179,5 +197,7 @@ async def execute(point, inputs, resources: Resources, out: Path, *, runner_over
             get_policy('pdblend'), SLO(slo['ttft_s'], slo['tpot_s']), request_rows(trace), [], out,
             resources.proxy_port, 10., 300., sampling_seed=701, initial_plan=resources.pd_plan,
             pool_models=resources.pd_pool_models, planning_trace=prior,
-            observation_duration_s=duration)
+            observation_duration_s=duration,
+            **({'comparison_wait_initial_plan': True} if observation else {}),
+            **({'comparison_record_tokens': True} if resources.comparison_record_tokens else {}))
     raise AssertionError(system)

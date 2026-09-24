@@ -70,3 +70,33 @@ def test_short_and_long_disconnected_shapes_do_not_cover_unobserved_heterogeneit
 def test_disk_surface_requires_raw_sample_and_measurement_receipt_bindings(tmp_path):
     path=tmp_path/'surface.json';path.write_text(json.dumps(fitted()))
     with pytest.raises(ValueError,match='raw sample'):StageSurface.load(path)
+
+
+def test_surface_sample_bindings_remain_auditable_after_container_output_move(tmp_path,monkeypatch):
+    import hashlib
+    from pdblend_baselines.distserve import stage_collect
+    sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+    root=tmp_path/'container-output';root.mkdir()
+    original=fitted();bindings=[]
+    # Isolate relocation from the native-window parser, tested by collector
+    # tests. The fitter still rebuilds every stored row and rejects tampering.
+    monkeypatch.setattr(stage_collect,'rows_from_window',lambda raw:raw['derived_rows'])
+    train=[dict(r,purpose='training') for r in original['training']]
+    hold=[dict(r,purpose='holdout') for r in original['holdout']]
+    for i,row in enumerate(train+hold):
+        path=root/f'window-{i}.json'
+        path.write_text(json.dumps(dict(status='measured',window_id=row['window_id'],
+                                       capability=original['identity'],derived_rows=[row])))
+        bindings.append(dict(path=path.name,sha256=sha(path)))
+    external=root/'external.json';external.write_text(json.dumps(dict(passed=True)))
+    receipt=root/'qualification.json'
+    receipt.write_text(json.dumps(dict(passed=True,external_interference_path=external.name,
+                                      external_interference_sha256=sha(external))))
+    qualification=dict(passed=True,receipt_path=receipt.name,receipt_sha256=sha(receipt))
+    artifact=fit_surface(train,hold,identity=original['identity'],raw_bindings=bindings,
+                         measurement_qualification=qualification)
+    (root/'surface.json').write_text(json.dumps(artifact))
+    moved=tmp_path/'host-results';root.rename(moved)
+    assert StageSurface.load(moved/'surface.json').artifact['qualified']
+    (moved/'window-0.json').write_text('{}')
+    with pytest.raises(ValueError,match='checksum'):StageSurface.load(moved/'surface.json')

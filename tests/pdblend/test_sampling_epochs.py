@@ -88,3 +88,18 @@ def test_failed_epoch_immediately_interrupts_pending_wave_barrier(tmp_path, monk
         with pytest.raises(RuntimeError, match='native rank crashed'):
             await asyncio.wait_for(waiting, .5)
     asyncio.run(check())
+
+
+def test_failure_broadcast_preserves_first_cause_without_recursive_error_growth(tmp_path, monkeypatch):
+    a,b = members(tmp_path, monkeypatch)
+    a.fail(ValueError('actual clock mismatch'))
+    for _ in range(10):
+        with b._state() as state:
+            with pytest.raises(RuntimeError) as caught:
+                b._check(state)
+        b.fail(caught.value)
+        a.fail(RuntimeError('secondary cleanup not verified'))
+    state = json.loads((a.root/'epoch-state.json').read_text())
+    assert state['errors']['a']['error'] == "ValueError('actual clock mismatch')"
+    assert 'epoch-state.json' in state['errors']['b']['error']
+    assert len(json.dumps(state['errors'])) < 2000

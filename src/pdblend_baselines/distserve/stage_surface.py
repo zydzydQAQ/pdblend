@@ -131,7 +131,7 @@ def fit_surface(training, holdout, *, identity, raw_bindings, measurement_qualif
             cell = dict(frequency_mhz=frequency,role=role,status='missing_profile')
             cells.append(cell)
             if not train or not test: continue
-            vertices = sorted({tuple(coverage_features(row['lengths'])) for row in train})
+            vertices = [list(vertex) for vertex in sorted({tuple(coverage_features(row['lengths'])) for row in train})]
             hull = _Hull(vertices)
             latency, errors = _fit(train, 'latency_ms')
             power_train = [r for r in train if r.get('power_w', 0)>0]
@@ -195,18 +195,23 @@ class StageSurface:
     @classmethod
     def load(cls, path, **kwargs):
         artifact=json.loads(Path(path).read_text())
-        audit_surface(artifact)
+        audit_surface(artifact,base_dir=Path(path).parent)
         return cls(artifact, **kwargs)
 
 
-def audit_surface(artifact):
+def audit_surface(artifact, *, base_dir=None):
     if not artifact.get('raw_bindings'):
         raise ValueError('independent raw sample bindings are absent')
     from .stage_collect import rows_from_window
+    def resolve(path):
+        value=Path(path)
+        if value.is_absolute():return value
+        if base_dir is None:raise ValueError('relative profile artifact requires its owning directory')
+        return Path(base_dir)/value
     training,holdout=[],[]
     windows=set()
     for binding in artifact['raw_bindings']:
-        path=Path(binding['path'])
+        path=resolve(binding['path'])
         if hashlib.sha256(path.read_bytes()).hexdigest()!=binding['sha256']:
             raise ValueError('independent raw sample checksum differs')
         raw=json.loads(path.read_text())
@@ -224,11 +229,14 @@ def audit_surface(artifact):
         raise ValueError('fitted training/holdout rows differ from bound raw measurements')
     qualification=artifact['measurement_qualification']
     path=qualification.get('receipt_path')
-    if not path or hashlib.sha256(Path(path).read_bytes()).hexdigest()!=qualification.get('receipt_sha256'):
+    if not path or hashlib.sha256(resolve(path).read_bytes()).hexdigest()!=qualification.get('receipt_sha256'):
         raise ValueError('measurement qualification receipt binding differs')
-    receipt=json.loads(Path(path).read_text())
+    receipt=json.loads(resolve(path).read_text())
     if receipt.get('passed') is not True or qualification.get('passed') is not True:
         raise ValueError('independent measurement qualification has not passed')
+    external=resolve(receipt['external_interference_path'])
+    if hashlib.sha256(external.read_bytes()).hexdigest()!=receipt['external_interference_sha256']:
+        raise ValueError('external interference evidence checksum differs')
     rebuilt=fit_surface(artifact['training'],artifact['holdout'],identity=artifact['identity'],
         raw_bindings=artifact['raw_bindings'],measurement_qualification=qualification)
     if rebuilt!=artifact:raise ValueError('stage surface differs from independent training/holdout reconstruction')

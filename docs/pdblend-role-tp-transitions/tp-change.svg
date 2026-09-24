@@ -1,0 +1,290 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="2720" viewBox="0 0 1800 2720" role="img">
+<title>TP change：PD 和 Mixed 的 TP 增减与副本 merge / split</title>
+<desc>GPU 与引擎边界明确的 PDblend 角色和张量并行变换示意；所有案例为布局示例，不是 GPU 实测。</desc>
+<defs><marker id="a" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#4c6270"/></marker></defs>
+<rect width="1800" height="2720" fill="white"/>
+<text x="60" y="70.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="43" font-weight="700" fill="#172c3a" text-anchor="start">TP change｜PD 与 Mixed 的 TP 增减</text>
+<text x="60" y="112.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="26" font-weight="400" fill="#985329" text-anchor="start">目标重建机制：当前 slow_reshard_tp 运行入口尚未支持；以下为结构与步骤示意。</text>
+<rect x="60" y="143" width="92" height="62" fill="#d7ebdd" stroke="none" stroke-width="1.5"/>
+<rect x="60" y="143" width="92" height="62" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="106.0" y="171.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">P · i</text>
+<text x="106.0" y="196.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">GPU</text>
+<text x="170" y="182.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="24" font-weight="400" fill="#172c3a" text-anchor="start">Prefill</text>
+<rect x="380" y="143" width="92" height="62" fill="#d8e7f7" stroke="none" stroke-width="1.5"/>
+<rect x="380" y="143" width="92" height="62" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="426.0" y="171.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">D · i</text>
+<text x="426.0" y="196.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">GPU</text>
+<text x="490" y="182.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="24" font-weight="400" fill="#172c3a" text-anchor="start">Decode</text>
+<rect x="700" y="143" width="46.0" height="62" fill="#d7ebdd" stroke="none" stroke-width="1.5"/>
+<rect x="746.0" y="143" width="46.0" height="62" fill="#d8e7f7" stroke="none" stroke-width="1.5"/>
+<rect x="700" y="143" width="92" height="62" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="746.0" y="171.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">M · i</text>
+<text x="746.0" y="196.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">GPU</text>
+<text x="810" y="182.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="24" font-weight="400" fill="#172c3a" text-anchor="start">Mixed：本地 P+D</text>
+<rect x="1160" y="143" width="92" height="62" fill="#edf0f2" stroke="none" stroke-width="1.5"/>
+<rect x="1160" y="143" width="92" height="62" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="1206.0" y="171.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">F · i</text>
+<text x="1206.0" y="196.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">可分配</text>
+<text x="1270" y="169.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="400" fill="#172c3a" text-anchor="start">F：已释放、可重新分配</text>
+<text x="1270" y="200.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="21" font-weight="400" fill="#4c6270" text-anchor="start">不等同于物理断电</text>
+<text x="60" y="245.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="25" font-weight="400" fill="#172c3a" text-anchor="start">主四图保持引擎数量不变：从空闲池取卡 / 向空闲池还卡。例子均为同模型、PP=1。</text>
+<path d="M900,280 L900,1420" fill="none" stroke="#c9d3da" stroke-width="1.5"/>
+<text x="80" y="306.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="30" font-weight="700" fill="#172c3a" text-anchor="start">1  PD 两端的 TP 增加</text>
+<text x="80" y="348.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="25" font-weight="400" fill="#4c6270" text-anchor="start">TP1 → TP2</text>
+<rect x="135" y="376" width="124" height="108" fill="none" stroke="#172c3a" stroke-width="2"/>
+<text x="197.0" y="401.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="700" fill="#172c3a" text-anchor="middle">P · TP1</text>
+<rect x="147" y="413" width="100" height="60" fill="#d7ebdd" stroke="none" stroke-width="1.5"/>
+<rect x="147" y="413" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="197.0" y="441.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">P · G0</text>
+<text x="197.0" y="466.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">W</text>
+<rect x="455" y="376" width="124" height="108" fill="none" stroke="#172c3a" stroke-width="2"/>
+<text x="517.0" y="401.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="700" fill="#172c3a" text-anchor="middle">D · TP1</text>
+<rect x="467" y="413" width="100" height="60" fill="#d8e7f7" stroke="none" stroke-width="1.5"/>
+<rect x="467" y="413" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="517.0" y="441.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">D · G2</text>
+<text x="517.0" y="466.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">W</text>
+<path d="M274,442 L436,442" fill="none" stroke="#4c6270" stroke-width="2.3" marker-end="url(#a)" stroke-dasharray="6 5"/>
+<text x="355" y="426.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="400" fill="#4c6270" text-anchor="middle">KV</text>
+<rect x="280" y="488" width="95" height="60" fill="#edf0f2" stroke="none" stroke-width="1.5"/>
+<rect x="280" y="488" width="95" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="327.5" y="516.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">F · G1</text>
+<text x="327.5" y="541.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">可分配</text>
+<rect x="389" y="488" width="95" height="60" fill="#edf0f2" stroke="none" stroke-width="1.5"/>
+<rect x="389" y="488" width="95" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="436.5" y="516.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">F · G3</text>
+<text x="436.5" y="541.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">可分配</text>
+<path d="M409,565 L409,612" fill="none" stroke="#4c6270" stroke-width="2.3" marker-end="url(#a)"/>
+<rect x="135" y="630" width="238" height="108" fill="none" stroke="#172c3a" stroke-width="2"/>
+<text x="254.0" y="655.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="700" fill="#172c3a" text-anchor="middle">P · TP2</text>
+<rect x="147" y="667" width="100" height="60" fill="#d7ebdd" stroke="none" stroke-width="1.5"/>
+<rect x="147" y="667" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="197.0" y="695.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">P · G0</text>
+<text x="197.0" y="720.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">r0 · W0</text>
+<rect x="261" y="667" width="100" height="60" fill="#d7ebdd" stroke="none" stroke-width="1.5"/>
+<rect x="261" y="667" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="311.0" y="695.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">P · G1</text>
+<text x="311.0" y="720.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">r1 · W1</text>
+<path d="M197,727 L197,753" fill="none" stroke="#4c6270" stroke-width="1.5"/>
+<path d="M311,727 L311,753" fill="none" stroke="#4c6270" stroke-width="1.5"/>
+<path d="M199,752 L309,752" fill="none" stroke="#4c6270" stroke-width="2.3" marker-end="url(#a)" marker-start="url(#a)"/>
+<text x="254.0" y="780.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">TP collective</text>
+<rect x="455" y="630" width="238" height="108" fill="none" stroke="#172c3a" stroke-width="2"/>
+<text x="574.0" y="655.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="700" fill="#172c3a" text-anchor="middle">D · TP2</text>
+<rect x="467" y="667" width="100" height="60" fill="#d8e7f7" stroke="none" stroke-width="1.5"/>
+<rect x="467" y="667" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="517.0" y="695.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">D · G2</text>
+<text x="517.0" y="720.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">r0 · W0</text>
+<rect x="581" y="667" width="100" height="60" fill="#d8e7f7" stroke="none" stroke-width="1.5"/>
+<rect x="581" y="667" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="631.0" y="695.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">D · G3</text>
+<text x="631.0" y="720.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">r1 · W1</text>
+<path d="M517,727 L517,753" fill="none" stroke="#4c6270" stroke-width="1.5"/>
+<path d="M631,727 L631,753" fill="none" stroke="#4c6270" stroke-width="1.5"/>
+<path d="M519,752 L629,752" fill="none" stroke="#4c6270" stroke-width="2.3" marker-end="url(#a)" marker-start="url(#a)"/>
+<text x="574.0" y="780.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">TP collective</text>
+<path d="M386,696 L442,696" fill="none" stroke="#4c6270" stroke-width="2.3" marker-end="url(#a)" stroke-dasharray="6 5"/>
+<text x="415" y="677.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#4c6270" text-anchor="middle">KV</text>
+<text x="80" y="819.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="400" fill="#172c3a" text-anchor="start">活动 GPU：2 → 4；P、D 仍各 1 个引擎。</text>
+<text x="965" y="306.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="30" font-weight="700" fill="#172c3a" text-anchor="start">2  Mixed 实例的 TP 增加</text>
+<text x="965" y="348.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="25" font-weight="400" fill="#4c6270" text-anchor="start">TP1 → TP2</text>
+<rect x="1145" y="401" width="124" height="108" fill="none" stroke="#172c3a" stroke-width="2"/>
+<text x="1207.0" y="426.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="700" fill="#172c3a" text-anchor="middle">M · TP1</text>
+<rect x="1157" y="438" width="50.0" height="60" fill="#d7ebdd" stroke="none" stroke-width="1.5"/>
+<rect x="1207.0" y="438" width="50.0" height="60" fill="#d8e7f7" stroke="none" stroke-width="1.5"/>
+<rect x="1157" y="438" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="1207.0" y="466.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">M · G0</text>
+<text x="1207.0" y="491.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">W</text>
+<text x="1320" y="471.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="28" font-weight="400" fill="#172c3a" text-anchor="middle">+</text>
+<rect x="1363" y="434" width="100" height="62" fill="#edf0f2" stroke="none" stroke-width="1.5"/>
+<rect x="1363" y="434" width="100" height="62" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="1413.0" y="462.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">F · G1</text>
+<text x="1413.0" y="487.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">可分配</text>
+<path d="M1304,544 L1304,601" fill="none" stroke="#4c6270" stroke-width="2.3" marker-end="url(#a)"/>
+<rect x="1185" y="629" width="238" height="108" fill="none" stroke="#172c3a" stroke-width="2"/>
+<text x="1304.0" y="654.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="700" fill="#172c3a" text-anchor="middle">M · TP2</text>
+<rect x="1197" y="666" width="50.0" height="60" fill="#d7ebdd" stroke="none" stroke-width="1.5"/>
+<rect x="1247.0" y="666" width="50.0" height="60" fill="#d8e7f7" stroke="none" stroke-width="1.5"/>
+<rect x="1197" y="666" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="1247.0" y="694.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">M · G0</text>
+<text x="1247.0" y="719.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">r0 · W0</text>
+<rect x="1311" y="666" width="50.0" height="60" fill="#d7ebdd" stroke="none" stroke-width="1.5"/>
+<rect x="1361.0" y="666" width="50.0" height="60" fill="#d8e7f7" stroke="none" stroke-width="1.5"/>
+<rect x="1311" y="666" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="1361.0" y="694.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">M · G1</text>
+<text x="1361.0" y="719.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">r1 · W1</text>
+<path d="M1247,726 L1247,752" fill="none" stroke="#4c6270" stroke-width="1.5"/>
+<path d="M1361,726 L1361,752" fill="none" stroke="#4c6270" stroke-width="1.5"/>
+<path d="M1249,751 L1359,751" fill="none" stroke="#4c6270" stroke-width="2.3" marker-end="url(#a)" marker-start="url(#a)"/>
+<text x="1304.0" y="779.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">TP collective</text>
+<text x="965" y="819.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="400" fill="#172c3a" text-anchor="start">活动 GPU：1 → 2；仍是 1 个 Mixed 引擎。</text>
+<path d="M60,861 L1740,861" fill="none" stroke="#c9d3da" stroke-width="1.5"/>
+<text x="80" y="910.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="30" font-weight="700" fill="#172c3a" text-anchor="start">3  PD 两端的 TP 减少</text>
+<text x="80" y="952.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="25" font-weight="400" fill="#4c6270" text-anchor="start">TP2 → TP1</text>
+<rect x="135" y="980" width="238" height="108" fill="none" stroke="#172c3a" stroke-width="2"/>
+<text x="254.0" y="1005.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="700" fill="#172c3a" text-anchor="middle">P · TP2</text>
+<rect x="147" y="1017" width="100" height="60" fill="#d7ebdd" stroke="none" stroke-width="1.5"/>
+<rect x="147" y="1017" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="197.0" y="1045.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">P · G0</text>
+<text x="197.0" y="1070.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">r0 · W0</text>
+<rect x="261" y="1017" width="100" height="60" fill="#d7ebdd" stroke="none" stroke-width="1.5"/>
+<rect x="261" y="1017" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="311.0" y="1045.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">P · G1</text>
+<text x="311.0" y="1070.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">r1 · W1</text>
+<path d="M197,1077 L197,1103" fill="none" stroke="#4c6270" stroke-width="1.5"/>
+<path d="M311,1077 L311,1103" fill="none" stroke="#4c6270" stroke-width="1.5"/>
+<path d="M199,1102 L309,1102" fill="none" stroke="#4c6270" stroke-width="2.3" marker-end="url(#a)" marker-start="url(#a)"/>
+<text x="254.0" y="1130.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">TP collective</text>
+<rect x="455" y="980" width="238" height="108" fill="none" stroke="#172c3a" stroke-width="2"/>
+<text x="574.0" y="1005.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="700" fill="#172c3a" text-anchor="middle">D · TP2</text>
+<rect x="467" y="1017" width="100" height="60" fill="#d8e7f7" stroke="none" stroke-width="1.5"/>
+<rect x="467" y="1017" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="517.0" y="1045.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">D · G2</text>
+<text x="517.0" y="1070.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">r0 · W0</text>
+<rect x="581" y="1017" width="100" height="60" fill="#d8e7f7" stroke="none" stroke-width="1.5"/>
+<rect x="581" y="1017" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="631.0" y="1045.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">D · G3</text>
+<text x="631.0" y="1070.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">r1 · W1</text>
+<path d="M517,1077 L517,1103" fill="none" stroke="#4c6270" stroke-width="1.5"/>
+<path d="M631,1077 L631,1103" fill="none" stroke="#4c6270" stroke-width="1.5"/>
+<path d="M519,1102 L629,1102" fill="none" stroke="#4c6270" stroke-width="2.3" marker-end="url(#a)" marker-start="url(#a)"/>
+<text x="574.0" y="1130.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">TP collective</text>
+<path d="M386,1046 L442,1046" fill="none" stroke="#4c6270" stroke-width="2.3" marker-end="url(#a)" stroke-dasharray="6 5"/>
+<text x="415" y="1027.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="19" font-weight="400" fill="#4c6270" text-anchor="middle">KV</text>
+<path d="M409,1134 L409,1181" fill="none" stroke="#4c6270" stroke-width="2.3" marker-end="url(#a)"/>
+<rect x="135" y="1199" width="124" height="108" fill="none" stroke="#172c3a" stroke-width="2"/>
+<text x="197.0" y="1224.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="700" fill="#172c3a" text-anchor="middle">P · TP1</text>
+<rect x="147" y="1236" width="100" height="60" fill="#d7ebdd" stroke="none" stroke-width="1.5"/>
+<rect x="147" y="1236" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="197.0" y="1264.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">P · G0</text>
+<text x="197.0" y="1289.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">W</text>
+<rect x="455" y="1199" width="124" height="108" fill="none" stroke="#172c3a" stroke-width="2"/>
+<text x="517.0" y="1224.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="700" fill="#172c3a" text-anchor="middle">D · TP1</text>
+<rect x="467" y="1236" width="100" height="60" fill="#d8e7f7" stroke="none" stroke-width="1.5"/>
+<rect x="467" y="1236" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="517.0" y="1264.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">D · G2</text>
+<text x="517.0" y="1289.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">W</text>
+<path d="M274,1265 L436,1265" fill="none" stroke="#4c6270" stroke-width="2.3" marker-end="url(#a)" stroke-dasharray="6 5"/>
+<text x="355" y="1249.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="400" fill="#4c6270" text-anchor="middle">KV</text>
+<rect x="280" y="1311" width="95" height="60" fill="#edf0f2" stroke="none" stroke-width="1.5"/>
+<rect x="280" y="1311" width="95" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="327.5" y="1339.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">F · G1</text>
+<text x="327.5" y="1364.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">可分配</text>
+<rect x="389" y="1311" width="95" height="60" fill="#edf0f2" stroke="none" stroke-width="1.5"/>
+<rect x="389" y="1311" width="95" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="436.5" y="1339.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">F · G3</text>
+<text x="436.5" y="1364.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">可分配</text>
+<text x="80" y="1423.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="400" fill="#172c3a" text-anchor="start">活动 GPU：4 → 2；G1、G3 归还资源池。</text>
+<text x="965" y="910.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="30" font-weight="700" fill="#172c3a" text-anchor="start">4  Mixed 实例的 TP 减少</text>
+<text x="965" y="952.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="25" font-weight="400" fill="#4c6270" text-anchor="start">TP2 → TP1</text>
+<rect x="1185" y="1005" width="238" height="108" fill="none" stroke="#172c3a" stroke-width="2"/>
+<text x="1304.0" y="1030.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="700" fill="#172c3a" text-anchor="middle">M · TP2</text>
+<rect x="1197" y="1042" width="50.0" height="60" fill="#d7ebdd" stroke="none" stroke-width="1.5"/>
+<rect x="1247.0" y="1042" width="50.0" height="60" fill="#d8e7f7" stroke="none" stroke-width="1.5"/>
+<rect x="1197" y="1042" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="1247.0" y="1070.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">M · G0</text>
+<text x="1247.0" y="1095.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">r0 · W0</text>
+<rect x="1311" y="1042" width="50.0" height="60" fill="#d7ebdd" stroke="none" stroke-width="1.5"/>
+<rect x="1361.0" y="1042" width="50.0" height="60" fill="#d8e7f7" stroke="none" stroke-width="1.5"/>
+<rect x="1311" y="1042" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="1361.0" y="1070.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">M · G1</text>
+<text x="1361.0" y="1095.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">r1 · W1</text>
+<path d="M1247,1102 L1247,1128" fill="none" stroke="#4c6270" stroke-width="1.5"/>
+<path d="M1361,1102 L1361,1128" fill="none" stroke="#4c6270" stroke-width="1.5"/>
+<path d="M1249,1127 L1359,1127" fill="none" stroke="#4c6270" stroke-width="2.3" marker-end="url(#a)" marker-start="url(#a)"/>
+<text x="1304.0" y="1155.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">TP collective</text>
+<path d="M1304,1175 L1304,1205" fill="none" stroke="#4c6270" stroke-width="2.3" marker-end="url(#a)"/>
+<rect x="1145" y="1233" width="124" height="108" fill="none" stroke="#172c3a" stroke-width="2"/>
+<text x="1207.0" y="1258.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="700" fill="#172c3a" text-anchor="middle">M · TP1</text>
+<rect x="1157" y="1270" width="50.0" height="60" fill="#d7ebdd" stroke="none" stroke-width="1.5"/>
+<rect x="1207.0" y="1270" width="50.0" height="60" fill="#d8e7f7" stroke="none" stroke-width="1.5"/>
+<rect x="1157" y="1270" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="1207.0" y="1298.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">M · G0</text>
+<text x="1207.0" y="1323.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">W</text>
+<text x="1320" y="1303.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="28" font-weight="400" fill="#172c3a" text-anchor="middle">+</text>
+<rect x="1363" y="1266" width="100" height="62" fill="#edf0f2" stroke="none" stroke-width="1.5"/>
+<rect x="1363" y="1266" width="100" height="62" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="1413.0" y="1294.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">F · G1</text>
+<text x="1413.0" y="1319.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">可分配</text>
+<text x="965" y="1423.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="400" fill="#172c3a" text-anchor="start">活动 GPU：2 → 1；G1 归还资源池。</text>
+<path d="M60,1470 L1740,1470" fill="none" stroke="#c9d3da" stroke-width="1.5"/>
+<text x="60" y="1506.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="27" font-weight="700" fill="#287343" text-anchor="start">A</text>
+<text x="112" y="1506.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="29" font-weight="700" fill="#172c3a" text-anchor="start">一般式：所有增减方向与单侧 P / D 变换</text>
+<text x="80" y="1560.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="30" font-weight="700" fill="#172c3a" text-anchor="start">R(t) + (u−t)F  ⇄  R(u)</text>
+<text x="80" y="1604.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="400" fill="#172c3a" text-anchor="start">R∈{P,D,M}；u&gt;t；一个引擎占用 t → u 张 GPU。</text>
+<text x="80" y="1654.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="30" font-weight="700" fill="#172c3a" text-anchor="start">PD(t) + 2(u−t)F  ⇄  PD(u)</text>
+<text x="80" y="1698.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="400" fill="#172c3a" text-anchor="start">PD(t) = P(t) + D(t)；双侧对称扩缩。</text>
+<text x="80" y="1743.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="400" fill="#4c6270" text-anchor="start">1⇄2、2⇄4、1⇄4 同理；目标必须满足模型和显存约束。</text>
+<text x="970" y="1560.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="27" font-weight="700" fill="#172c3a" text-anchor="start">只改变 P 或只改变 D 的 TP</text>
+<text x="970" y="1605.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="400" fill="#172c3a" text-anchor="start">P(t) → P(u)：新请求必须配已就绪的 D(u)。</text>
+<text x="970" y="1639.04" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="400" fill="#172c3a" text-anchor="start">D(t) → D(u)：新请求必须配已就绪的 P(u)。</text>
+<text x="970" y="1673.08" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="400" fill="#172c3a" text-anchor="start">增加和减少均适用；原对端可重建或换成兼容对端。</text>
+<text x="970" y="1707.12" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="400" fill="#172c3a" text-anchor="start">当前不支持 P(1)→D(2) 或 P(2)→D(1) 接力。</text>
+<text x="970" y="1741.16" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="400" fill="#172c3a" text-anchor="start">配对还要求 model / PP / pool / generation 一致。</text>
+<path d="M60,1818 L1740,1818" fill="none" stroke="#c9d3da" stroke-width="1.5"/>
+<text x="60" y="1854.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="27" font-weight="700" fill="#287343" text-anchor="start">B</text>
+<text x="112" y="1854.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="29" font-weight="700" fill="#172c3a" text-anchor="start">固定 GPU 数的实例 merge / split</text>
+<text x="1740" y="1853.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="400" fill="#4c6270" text-anchor="end">副本数变化；不是主四图中的取卡 / 还卡</text>
+<rect x="82" y="1910" width="47.0" height="68" fill="#d7ebdd" stroke="none" stroke-width="1.5"/>
+<rect x="129.0" y="1910" width="47.0" height="68" fill="#d8e7f7" stroke="none" stroke-width="1.5"/>
+<rect x="82" y="1910" width="94" height="68" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="129.0" y="1938.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">M · G0</text>
+<text x="129.0" y="1963.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">TP1</text>
+<rect x="193" y="1910" width="47.0" height="68" fill="#d7ebdd" stroke="none" stroke-width="1.5"/>
+<rect x="240.0" y="1910" width="47.0" height="68" fill="#d8e7f7" stroke="none" stroke-width="1.5"/>
+<rect x="193" y="1910" width="94" height="68" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="240.0" y="1938.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">M · G1</text>
+<text x="240.0" y="1963.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">TP1</text>
+<path d="M326,1946 L438,1946" fill="none" stroke="#4c6270" stroke-width="2.3" marker-end="url(#a)" marker-start="url(#a)"/>
+<rect x="474" y="1890" width="238" height="108" fill="none" stroke="#172c3a" stroke-width="2"/>
+<text x="593.0" y="1915.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="700" fill="#172c3a" text-anchor="middle">M · TP2</text>
+<rect x="486" y="1927" width="50.0" height="60" fill="#d7ebdd" stroke="none" stroke-width="1.5"/>
+<rect x="536.0" y="1927" width="50.0" height="60" fill="#d8e7f7" stroke="none" stroke-width="1.5"/>
+<rect x="486" y="1927" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="536.0" y="1955.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">M · G0</text>
+<text x="536.0" y="1980.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">r0 · W0</text>
+<rect x="600" y="1927" width="50.0" height="60" fill="#d7ebdd" stroke="none" stroke-width="1.5"/>
+<rect x="650.0" y="1927" width="50.0" height="60" fill="#d8e7f7" stroke="none" stroke-width="1.5"/>
+<rect x="600" y="1927" width="100" height="60" fill="none" stroke="#172c3a" stroke-width="1.5"/>
+<text x="650.0" y="1955.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="700" fill="#172c3a" text-anchor="middle">M · G1</text>
+<text x="650.0" y="1980.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">r1 · W1</text>
+<path d="M536,1987 L536,2013" fill="none" stroke="#4c6270" stroke-width="1.5"/>
+<path d="M650,1987 L650,2013" fill="none" stroke="#4c6270" stroke-width="1.5"/>
+<path d="M538,2012 L648,2012" fill="none" stroke="#4c6270" stroke-width="2.3" marker-end="url(#a)" marker-start="url(#a)"/>
+<text x="593.0" y="2040.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="20" font-weight="400" fill="#4c6270" text-anchor="middle">TP collective</text>
+<text x="80" y="2043.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="26" font-weight="700" fill="#172c3a" text-anchor="start">2 × M(TP1) ⇄ 1 × M(TP2)</text>
+<text x="80" y="2090.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="400" fill="#172c3a" text-anchor="start">4M(1) ⇄ 2M(2) ⇄ M(4)；反向 split 需加载完整副本。</text>
+<text x="940" y="1918.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="29" font-weight="700" fill="#172c3a" text-anchor="start">2P(1) + 2D(1)  ⇄  P(2) + D(2)</text>
+<text x="940" y="1964.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="24" font-weight="400" fill="#172c3a" text-anchor="start">P 侧单独合并、D 侧单独合并；共 4 张 GPU。</text>
+<text x="940" y="1999.52" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="24" font-weight="400" fill="#172c3a" text-anchor="start">合并后是 P、D 两个 TP2 组，不是一个 TP4。</text>
+<text x="940" y="2043.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="24" font-weight="400" fill="#172c3a" text-anchor="start">通式：n × R(t) ⇄ m × R(u)，n·t = m·u。</text>
+<text x="940" y="2090.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="400" fill="#4c6270" text-anchor="start">保持单实例时缩 TP 释放卡；另建完整副本才是 split。</text>
+<path d="M60,2132 L1740,2132" fill="none" stroke="#c9d3da" stroke-width="1.5"/>
+<text x="60" y="2168.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="27" font-weight="700" fill="#287343" text-anchor="start">C</text>
+<text x="112" y="2168.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="29" font-weight="700" fill="#172c3a" text-anchor="start">所有 TP 变换共用的重建流程</text>
+<rect x="80" y="2205" width="370" height="90" fill="#f3f6f7" stroke="#c9d3da" stroke-width="1.5"/>
+<text x="265" y="2241.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="26" font-weight="700" fill="#172c3a" text-anchor="middle">1  预检 / 锁卡</text>
+<text x="265" y="2275.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="21" font-weight="400" fill="#4c6270" text-anchor="middle">同模型、目标拓扑、HBM</text>
+<path d="M461,2250 L493,2250" fill="none" stroke="#4c6270" stroke-width="2.3" marker-end="url(#a)"/>
+<rect x="506" y="2205" width="370" height="90" fill="#f3f6f7" stroke="#c9d3da" stroke-width="1.5"/>
+<text x="691" y="2241.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="26" font-weight="700" fill="#172c3a" text-anchor="middle">2  关闭并排空</text>
+<text x="691" y="2275.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="21" font-weight="400" fill="#4c6270" text-anchor="middle">旧请求在原实例结束</text>
+<path d="M887,2250 L919,2250" fill="none" stroke="#4c6270" stroke-width="2.3" marker-end="url(#a)"/>
+<rect x="932" y="2205" width="370" height="90" fill="#f3f6f7" stroke="#c9d3da" stroke-width="1.5"/>
+<text x="1117" y="2241.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="26" font-weight="700" fill="#172c3a" text-anchor="middle">3  重建 / 加载</text>
+<text x="1117" y="2275.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="21" font-weight="400" fill="#4c6270" text-anchor="middle">释放旧资源；建立新 TP</text>
+<path d="M1313,2250 L1345,2250" fill="none" stroke="#4c6270" stroke-width="2.3" marker-end="url(#a)"/>
+<rect x="1358" y="2205" width="370" height="90" fill="#f3f6f7" stroke="#c9d3da" stroke-width="1.5"/>
+<text x="1543" y="2241.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="26" font-weight="700" fill="#172c3a" text-anchor="middle">4  验证 / 发布</text>
+<text x="1543" y="2275.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="21" font-weight="400" fill="#4c6270" text-anchor="middle">逐 rank 就绪后开放准入</text>
+<text x="80" y="2345.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="400" fill="#172c3a" text-anchor="start">排空屏障：所有旧 rank 的请求、活跃 KV、pending transfer 均为 0；旧 TP 的活跃 KV 不迁入新 TP。</text>
+<text x="80" y="2388.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="400" fill="#172c3a" text-anchor="start">重建：workers / TP communicator → 加载已验证权重分片 → 空 KV 池 → 输出与取消 / KV 清理探针。</text>
+<text x="80" y="2431.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="23" font-weight="400" fill="#172c3a" text-anchor="start">失败：保持关闭，重建并验证旧布局；恢复不确定则隔离 GPU。其他实例只能在自身容量内继续服务。</text>
+<text x="80" y="2497.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="25" font-weight="700" fill="#172c3a" text-anchor="start">权重与通信</text>
+<text x="290" y="2497.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="400" fill="#172c3a" text-anchor="start">W 为可分片权重；TP2：W → {W0,W1}。P、D 各自模型完整；KV 与组内 collective 不同。</text>
+<text x="80" y="2540.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="25" font-weight="700" fill="#172c3a" text-anchor="start">每卡显存</text>
+<text x="290" y="2540.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="400" fill="#172c3a" text-anchor="start">可分片权重约 W/t + 复制张量 + KV + workspace + 通信 / 加载峰值；缩 TP 前必须装得下。</text>
+<text x="80" y="2583.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="25" font-weight="700" fill="#172c3a" text-anchor="start">边界</text>
+<text x="290" y="2583.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="400" fill="#172c3a" text-anchor="start">TP∈{1,2,4}、PP=1 还需模型/profile 校验；切换已有不同 TP 常驻池，仅改变路由，不等于重建 TP。</text>
+<text x="80" y="2626.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="22" font-weight="400" fill="#4c6270" text-anchor="start">TP2 KV 对应：P/r0 → D/r0，P/r1 → D/r1；目标布局发布后，仅新请求使用这条兼容 KV 路径。</text>
+<text x="60" y="2676.0" font-family="DiagramSans, Noto Sans CJK SC, sans-serif" font-size="21" font-weight="400" fill="#4c6270" text-anchor="start">PDblend · 目标变换设计，未声称在线 TP 重分片已实现或经 GPU 验证 · 2026-09-23 · 详见 README。</text>
+</svg>

@@ -28,6 +28,7 @@ def verify_migration() -> dict:
     root = Path(__file__).resolve().parent
     manifest = json.loads((root / "migration-manifest.json").read_text())
     adapted = {row['path']: row for row in manifest.get('adaptations', [])}
+    relocated = {row['path']: row for row in manifest.get('relocations', [])}
     failed = []
     for row in manifest.get('core_files', []) + manifest.get('adapter_files', []):
         adaptation = adapted.get(row['path'])
@@ -40,12 +41,22 @@ def verify_migration() -> dict:
                     not adaptation.get('reason')):
                 failed.append(row['path'] + ': original lineage')
             expected = adaptation['sha256']
-        if hashlib.sha256((root / row['path']).read_bytes()).hexdigest() != expected:
+        current=(root / row['path']).resolve()
+        relocation=relocated.get(row['path'])
+        if relocation:
+            target=(root / relocation['target']).resolve()
+            if (not target.is_relative_to(root) or not current.is_relative_to(root)
+                    or relocation.get('original_sha256')!=expected or not relocation.get('reason')
+                    or hashlib.sha256(current.read_bytes()).hexdigest()!=relocation.get('compatibility_sha256')):
+                failed.append(row['path']+': relocation binding')
+            current=target
+        if hashlib.sha256(current.read_bytes()).hexdigest() != expected:
             failed.append(row['path'])
     if failed:
         raise ValueError("migrated core checksum mismatch: " + ", ".join(failed))
     return {"verified_files": len(manifest.get("core_files", [])) + len(manifest.get("adapter_files", [])),
             "source_identity_verified": True, "explicit_adaptations": sorted(adapted),
+            "explicit_relocations": sorted(relocated),
             "hardware_qualified": False}
 
 

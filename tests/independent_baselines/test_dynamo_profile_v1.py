@@ -67,8 +67,9 @@ def test_resume_checks_raw_checksums_and_exact_identity(tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('unsupported', [False, True])
 @pytest.mark.parametrize('external,epoch', [(False,False), (True,False), (False,True)])
-async def test_collector_executes_three_repeats_and_holdout_with_one_resident_engine(tmp_path, monkeypatch, external, epoch):
+async def test_collector_executes_three_repeats_and_holdout_with_one_resident_engine(tmp_path, monkeypatch, external, epoch, unsupported):
     calls = []
     monkeypatch.setattr(profile_v1, 'model_identity', lambda path: dict(model='Qwen2.5-32B-Instruct'))
     class Telemetry:
@@ -111,7 +112,8 @@ async def test_collector_executes_three_repeats_and_holdout_with_one_resident_en
     async def golden(*args, **kwargs): return {}
     monkeypatch.setattr(profile_v1, 'collect_golden', golden)
     args = SimpleNamespace(model=tmp_path/'model',tp=2,gpus=[0,1],out=tmp_path/'profile',resume=False,
-        base_port=17000,batches=[1],freqs=[900],inputs=[128],outputs=[16],settle=2,measure=5,label_corpus_root=None,
+        base_port=17000,batches=[16] if unsupported else [1],freqs=[900],
+        inputs=[7168] if unsupported else [128],outputs=[16],settle=2,measure=5,label_corpus_root=None,
         existing_url='http://resident:17000' if external else None)
     if epoch:
         from pdblend_baselines.dynamollm import profile_epochs
@@ -129,10 +131,23 @@ async def test_collector_executes_three_repeats_and_holdout_with_one_resident_en
         args.sampling_member='dynamo-32b'
     result = await profile_v1.collect(args)
     assert calls.count('model-load') == int(not external) and calls.count('model-close') == int(not external)
-    assert calls.count('measurement-stop') == int(external)
-    assert [row[1] for row in calls if isinstance(row, tuple)] == [0,1,2,3]
+    assert calls.count('measurement-stop') == int(external and not unsupported)
+    assert [row[1] for row in calls if isinstance(row, tuple)] == ([] if unsupported else [0,1,2,3])
     assert not result['coverage']['all_six_frequencies']
     assert not result['hardware_qualified'] and not result['formal_eligible']
+    if unsupported:
+        completion = json.loads((args.out/'completion.json').read_text())
+        assert completion['status'] == 'inconclusive' and not completion['complete']
+        assert completion['points'] == 0 and len(completion['unsupported_points']) == 1
+        refusal = completion['unsupported_points'][0]
+        assert refusal['capacity']['actual_total_kv_tokens'] == 8192
+        assert refusal['capacity']['required_kv_tokens'] == 16*(7168+16)
+        assert sha(refusal['evidence_path']) == refusal['evidence_sha256']
+        assert not refusal['capacity']['measured']
+        assert not list((args.out/'cells').glob('*.json'))
+        if epoch:
+            assert calls.index('epoch-retire') < calls.index('native-drain') < calls.index('model-close') < calls.index('epoch-released')
+        return
     if epoch:
         from pdblend.experimentation.worker import receipt
         proofs=receipt(args.out,['completion.json','epoch-drain.json','epoch-release.json'])
@@ -140,6 +155,13 @@ async def test_collector_executes_three_repeats_and_holdout_with_one_resident_en
         assert calls.index('epoch-retire') < calls.index('native-drain') < calls.index('model-close') < calls.index('epoch-released')
     own = PaperProfiles.load(args.out/'profile.json')
     assert own.query(2,900,128,144,1).decode_s == pytest.approx(.01)
+
+
+@pytest.mark.parametrize('capacity', [None, 0, -1, True, 8192.])
+def test_profile_never_submits_when_actual_native_capacity_is_absent(capacity):
+    with pytest.raises(ValueError, match='actual positive native KV capacity'):
+        profile_v1.capacity_limit(dict(batch=1,input_tokens=128,output_tokens=16),
+                                  dict(total_kv_tokens=capacity))
 
 
 def test_optional_natural_label_never_uses_reference_count_and_records_censoring():

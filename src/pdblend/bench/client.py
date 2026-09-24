@@ -16,6 +16,8 @@ from typing import Optional, Sequence
 import aiohttp
 
 from ..proxy.sse import StreamScan
+from pdblend.engine.carry import SSEEvents
+from pdblend.online.sse import TerminalStream
 
 MAX_INPUT, MAX_OUTPUT, CONTEXT = 7168, 512, 8192
 SLOS = {"alpaca": (1.0, 0.10), "sharegpt": (5.0, 0.15), "longbench": (15.0, 0.20)}
@@ -49,16 +51,27 @@ class Outcome:
     decode: str = ""
     error: Optional[str] = None
     sampling_seed: Optional[int] = None
+    # Appended fields keep historical positional construction compatible.
+    scheduled_s: Optional[float] = None
+    last_token_s: Optional[float] = None
+    terminal_s: Optional[float] = None
+    terminal: Optional[bool] = None
+    token_events: list[dict] = field(default_factory=list)
+    token_events_complete: bool = False
 
     @property
     def ttft_s(self):
-        return None if self.first_token_s is None else self.first_token_s - self.submitted_s
+        origin = self.submitted_s if self.scheduled_s is None else self.scheduled_s
+        return None if self.first_token_s is None else self.first_token_s - origin
 
     @property
     def tpot_s(self):
-        if self.first_token_s is None or self.finished_s is None or self.completion_tokens < 2:
+        # Old artifacts did not record the last token. Keep their legacy
+        # property readable; the comparison reducer never uses this fallback.
+        last = self.finished_s if self.last_token_s is None and self.terminal is None else self.last_token_s
+        if self.first_token_s is None or last is None or self.completion_tokens < 2:
             return None
-        return (self.finished_s - self.first_token_s) / (self.completion_tokens - 1)
+        return (last - self.first_token_s) / (self.completion_tokens - 1)
 
 
 # ---- corpus -------------------------------------------------------------------------------------
@@ -154,6 +167,7 @@ def trace_summary(reqs: list[Request]) -> dict:
     q = nearest_rank
     return dict(requests=len(reqs), duration_s=reqs[-1].arrival_s, mean_rps=len(reqs) / max(reqs[-1].arrival_s, 1e-9),
                 input_mean=sum(ins) / len(ins), input_p50=q(ins, 0.5), input_p95=q(ins, 0.95),
+                input_min=min(ins), input_max=max(ins), output_min=min(outs), output_max=max(outs),
                 output_mean=sum(outs) / len(outs), output_p50=q(outs, 0.5), output_p95=q(outs, 0.95))
 
 
@@ -169,21 +183,27 @@ def nearest_rank(values: Sequence[float], percentile: float):
 # ---- replay -------------------------------------------------------------------------------------
 class LoadClient:
     def __init__(self, proxy_url: str, timeout_s: float = 300.0, concurrency: int = 2048,
-                 sampling_seed: int | None = None):
-        self.args = (proxy_url, timeout_s, concurrency, sampling_seed)
+                 sampling_seed: int | None = None, token_diagnostics: bool = False):
+        self.args = (proxy_url, timeout_s, concurrency, sampling_seed, token_diagnostics)
         self.url = proxy_url.rstrip("/") + "/v1/completions"
         self.timeout = aiohttp.ClientTimeout(total=timeout_s, sock_read=timeout_s)
         self.sem = asyncio.Semaphore(concurrency)
         self.outcomes: list[Outcome] = []
+        self.replay_started_s: Optional[float] = None
+        self.replay_finished_s: Optional[float] = None
 
     async def _one(self, session: aiohttp.ClientSession, req: Request, t0: float) -> Outcome:
+        from .comparison_metrics import event_token_count
         body = dict(model="m", prompt=req.prompt, max_tokens=req.max_tokens, temperature=0.0,
                     ignore_eos=True, stream=True, request_id=f"r{req.idx}")
         sampling_seed = None if self.args[3] is None else int(self.args[3])
         if sampling_seed is not None:
             body["seed"] = sampling_seed
+        if self.args[4]:
+            body['pdblend_token_diagnostics'] = True
         out = Outcome(req.idx, req.arrival_s, req.input_tokens, req.max_tokens, time.time(),
-                      sampling_seed=sampling_seed)
+                      sampling_seed=sampling_seed, scheduled_s=t0 + req.arrival_s, terminal=False)
+        scan = StreamScan()
         try:
             async with self.sem, session.post(self.url, json=body) as resp:
                 out.path = resp.headers.get("X-PDBlend-Path", "")
@@ -192,30 +212,43 @@ class LoadClient:
                 if resp.status != 200:
                     out.error = f"{resp.status}: {(await resp.text())[:200]}"
                 else:
-                    scan = StreamScan()
+                    parser = SSEEvents()
+                    terminal = TerminalStream(req.max_tokens, prompt_tokens=req.input_tokens)
+                    cumulative = 0
                     async for chunk in resp.content.iter_any():
-                        _, n = scan.feed(chunk)
-                        if n and out.first_token_s is None:
-                            out.first_token_s = time.time()
-                        if b'"error"' in chunk:
-                            for line in chunk.split(b"\n"):
-                                if line.startswith(b"data:") and b'"error"' in line:
-                                    try:
-                                        event = json.loads(line[5:].strip())
-                                    except ValueError:
-                                        continue
-                                    if "error" in event and not event.get("choices"):
-                                        out.error = str(event["error"])[:200]
-                        if scan.done:
+                        received = time.time()
+                        scan.feed(chunk)
+                        terminal.feed(chunk)
+                        for event in parser.feed(chunk):
+                            count, exact, cumulative = event_token_count(event, cumulative)
+                            if count:
+                                out.first_token_s = received if out.first_token_s is None else out.first_token_s
+                                out.last_token_s = received
+                                out.token_events.append(dict(received_s=received, count=count, exact=exact))
+                            if (event.get('finished') is True or any(c.get('finish_reason') is not None
+                                                                    for c in event.get('choices', []))):
+                                out.terminal_s = received
+                        if parser.done:
+                            if out.terminal_s is None:
+                                out.terminal_s = received
                             break
-                    out.completion_tokens = scan.completion_tokens()
-        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+                    out.completion_tokens = terminal.completion_tokens()
+                    if out.completion_tokens != req.max_tokens:
+                        raise ValueError('ignore_eos workload requires the full requested token budget')
+                    out.terminal = True
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as exc:
             out.error = repr(exc)
+        if not out.terminal:
+            out.completion_tokens = (sum(e['count'] for e in out.token_events)
+                if out.token_events and all(e['exact'] for e in out.token_events) else scan.completion_tokens())
+        out.token_events_complete = (all(e['exact'] for e in out.token_events)
+                                     and sum(e['count'] for e in out.token_events) == out.completion_tokens)
         out.finished_s = time.time()
         return out
 
     async def replay(self, reqs: list[Request], progress_every_s: float = 30.0) -> list[Outcome]:
         t0 = time.time()
+        self.replay_started_s = t0
         tasks = []
         last = t0
         async with aiohttp.ClientSession(timeout=self.timeout, connector=aiohttp.TCPConnector(limit=0, keepalive_timeout=3.0)) as session:
@@ -229,6 +262,7 @@ class LoadClient:
                     print(f"[load] t={time.time()-t0:6.1f}s sent={len(tasks)} done={done}", flush=True)
                     last = time.time()
             self.outcomes = list(await asyncio.gather(*tasks))
+        self.replay_finished_s = time.time()
         return self.outcomes
 
     async def replay_detached(self, reqs: list[Request], progress_every_s: float = 30.0) -> list[Outcome]:
@@ -246,14 +280,20 @@ class LoadClient:
             return parent.recv()
 
         try:
-            self.outcomes = await asyncio.get_running_loop().run_in_executor(None, receive)
+            packet = await asyncio.get_running_loop().run_in_executor(None, receive)
+            self.outcomes = packet['outcomes']
+            self.replay_started_s = packet['started_s']
+            self.replay_finished_s = packet['finished_s']
         finally:
             proc.join()
+            parent.close()
         return self.outcomes
 
 
 def _replay_worker(args: tuple, reqs: list[Request], progress_every_s: float, conn) -> None:
-    conn.send(asyncio.run(LoadClient(*args).replay(reqs, progress_every_s)))
+    client = LoadClient(*args)
+    outcomes = asyncio.run(client.replay(reqs, progress_every_s))
+    conn.send(dict(outcomes=outcomes, started_s=client.replay_started_s, finished_s=client.replay_finished_s))
     conn.close()
 
 

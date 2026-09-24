@@ -11,10 +11,32 @@ MEASUREMENT_IMPORTS = {
     "resident_campaign.py": {
         "pdblend.engine.launcher": {"Fleet"},
         "pdblend.bench.metering": {"Gpus"},
+        "pdblend.results.power_archive": {"write_power_archive"},
     },
     "ecoserve/auto_macro.py": {
         "pdblend.engine.launcher": {"Fleet"},
         "pdblend.bench.metering": {"Gpus"},
+        "pdblend.results.journal": {"CompactJournal", "payload_receipt"},
+        "pdblend.results.power_archive": {"write_power_archive"},
+    },
+    "ecoserve/run_native.py": {
+        "pdblend.results.journal": {"CompactJournal", "payload_receipt"},
+    },
+    "mixed/run_native.py": {
+        "pdblend.bench.client": {"Request", "nearest_rank"},
+        "pdblend.results.journal": {"CompactJournal", "payload_receipt", "file_sha256"},
+    },
+    "distserve/run_native.py": {
+        "pdblend.results.journal": {"CompactJournal", "payload_receipt"},
+    },
+    "distserve/deployment.py": {
+        "pdblend.results.journal": {"CompactJournal", "payload_receipt"},
+    },
+    "dynamollm/run_v1.py": {
+        "pdblend.results.journal": {"CompactJournal", "file_sha256"},
+    },
+    "dynamollm/transition_evidence.py": {
+        "pdblend.results.journal": {"iter_journal"},
     },
     "distserve/gpu_probe.py": {
         "pdblend.bench.gates": {"random_prompt"},

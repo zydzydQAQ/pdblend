@@ -23,6 +23,8 @@ from pdblend_runtime.probe import NativeSpec
 from pdblend_runtime.cleanup import cleanup_owned
 from pdblend.engine.launcher import Fleet
 from pdblend.bench.metering import Gpus
+from pdblend.results.journal import CompactJournal, payload_receipt
+from pdblend.results.power_archive import write_power_archive
 
 
 def specs_and_config(model, tp, gpus, base_port, profile):
@@ -61,16 +63,20 @@ def verify_inputs(args):
 
 class EvidenceObserver:
     def __init__(self, out):
-        self.raw = (out/'events.jsonl').open('x')
+        self.raw = CompactJournal(out/'events.jsonl.gz')
         self.rows, self.held, self.continuity, self.observation_tasks = [], {}, [], []
         self.runtime = self.transport = None
 
     def emit(self, kind, **fields):
         fields.setdefault('at_s', time.time())
         row = dict(kind=kind, **fields)
+        self.raw.write(row)
+        # Qualification needs token IDs and separate client/native clocks,
+        # not a copy of cumulative decoded text for every observation.
+        if isinstance(row.get('payload'), dict):
+            row = dict(row, payload={key:value for key,value in row['payload'].items()
+                                    if key not in ('text', 'choices')})
         self.rows.append(row)
-        self.raw.write(json.dumps(row, allow_nan=False)+'\n')
-        self.raw.flush()
         if self.runtime and kind in ('eco_engine_output', 'eco_admission'):
             for iid, buffer in self.runtime.controller.buffers.items():
                 for rid, event in buffer.pending:
@@ -201,7 +207,8 @@ async def execute_window(config, endpoints, trace, out, duration=300):
                 async with aclosing(runtime.handle(dict(prompt=prompt,max_tokens=count,seed=701,
                                                         temperature=0,ignore_eos=True),rid)) as stream:
                     async for event in stream:
-                        row['events'].append(event)
+                        row['events'].append({key:value for key,value in event.items()
+                                              if key not in ('text', 'choices')})
                         observer.emit('eco_client_sse',request_id=rid,payload=event)
                 native = transport.engine_outputs.get(rid,[])
                 row['token_ids'], row['native_token_ids'] = tokens(row['events']), tokens(native)
@@ -212,6 +219,9 @@ async def execute_window(config, endpoints, trace, out, duration=300):
                 row['error'] = repr(exc)
             finally:
                 row['finished_s'] = time.time()
+                row.update(payload_receipt(row.pop('events'), journal_path='events.jsonl.gz', request_id=rid))
+                row.pop('token_ids', None)
+                row.pop('native_token_ids', None)
                 result['outcomes'].append(row)
                 observer.emit('eco_request_outcome',**row)
         tasks = [asyncio.create_task(request(i,*row)) for i,row in enumerate(rows)]
@@ -249,13 +259,13 @@ async def execute_window(config, endpoints, trace, out, duration=300):
         checks['controller_healthy'] = not runtime.controller.failure and not runtime.controller.quarantined
         checks['no_execution_or_cleanup_error'] = not result.get('error') and not result['cleanup_errors']
         result.update(checks=checks,automatic_actions=actions,continuity=observer.continuity,
-                      held_packets=list(observer.held.values()),journal_path='events.jsonl',journal_rows=len(observer.rows),
+                      held_packets=list(observer.held.values()),journal_path='events.jsonl.gz',journal_rows=len(observer.rows),
                       automatic_commits=[observer.rows[row['commit_index']] for row in actions])
         qualified = all(checks.values())
         result.update(status='passed' if qualified else 'inconclusive',complete=qualified,
                       automatic_policy_status='passed' if qualified else 'inconclusive')
         observer.raw.close()
-        result['events_sha256'] = sha(out/'events.jsonl')
+        result['events_sha256'] = sha(out/'events.jsonl.gz')
         (out/'completion.json').write_text(json.dumps(result,indent=2,allow_nan=False)+'\n')
     return result
 
@@ -291,7 +301,7 @@ async def execute_owned(args,specs,config,identity):
                    utilization_samples=sampler.utilization_samples,power_metadata=sampler.power_metadata,
                    error=sampler.error,gpu_ids=args.gpus,gpu_uuids=os.environ.get('PDBLEND_GPU_UUIDS'),
                    formal_eligible=False,energy_comparable=False)
-        (args.out/'power.json').write_text(json.dumps(power,allow_nan=False)+'\n')
+        write_power_archive(args.out/'power.json',power)
         result['power_sha256']=sha(args.out/'power.json')
         if result['cleanup_errors'] or sampler.error or len(sampler.samples)<2 or not sampler.frequency_samples:
             result.update(status='inconclusive',complete=False)

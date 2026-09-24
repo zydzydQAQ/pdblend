@@ -1,0 +1,18 @@
+{
+  "pdf": "pdblend-profiler.pdf",
+  "pages": 4,
+  "sha256": "ebe5c23045c33153aa775605d478f77789e6c2e986ea27793ff82cb05073199a",
+  "four_subsections": true,
+  "numbered_equations": 11,
+  "vector_process_figure": true,
+  "unresolved_references": 0,
+  "overfull_boxes": 0,
+  "missing_characters": 0,
+  "out_of_page_text": 0,
+  "numeric_evidence": "data/example.json",
+  "source_identity_checked_by_version_loader": true,
+  "independent_formula_review": "Completed; clarified B>=4 interpolation and group power normalization.",
+  "visual_review": "All four rendered pages and process diagram inspected.",
+  "example_scope": "Existing component queries plus original timing holdouts; Mixed is a hypothetical algebraic composition, not a GPU measurement.",
+  "no_new_gpu_experiment": true
+}

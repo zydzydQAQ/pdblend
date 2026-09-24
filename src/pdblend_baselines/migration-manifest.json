@@ -183,6 +183,16 @@
     "Unadapted core files remain byte-identical to independent local implementations. Explicit adaptations retain checksum-verified original artifacts and target hashes; no GPU qualification follows from migration.",
     "Stage profiling hooks are copied for adaptation; current V1 worker compatibility is not granted."
   ],
+  "relocations": [
+    {
+      "compatibility_sha256": "145ff1a3f53c9fea50507cb3ebbd09652a3ccd04f09b55e53a00daf12c3e92ad",
+      "hardware_qualified": false,
+      "original_sha256": "cd853d41dc487ad12086b2ca98854898cc0f62a054318067e15a4dd7c6fbf486",
+      "path": "mixed_policy.py",
+      "reason": "Responsibility-based layout; canonical Mixed policy remains byte-identical and the old path aliases the same module object.",
+      "target": "mixed/policy.py"
+    }
+  ],
   "schema": 2,
   "source_root": "/home/pdblend/src/pdblend_baselines",
   "target_engine": "vllm-0.10.1.1",

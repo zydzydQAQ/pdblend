@@ -82,7 +82,8 @@ async def test_repeat_restores_clock_after_boundary_and_rejects_epoch_change(tmp
 
 
 @pytest.mark.asyncio
-async def test_probe_uses_own_collector_three_repeats_with_barrier(tmp_path, monkeypatch):
+@pytest.mark.parametrize('probe_seconds', [5., 8.])
+async def test_probe_uses_own_collector_three_repeats_with_barrier(tmp_path, monkeypatch, probe_seconds):
     windows, barriers = [], []
     async def measured(*args, **kwargs):
         await kwargs['before_measure']()
@@ -91,6 +92,7 @@ async def test_probe_uses_own_collector_three_repeats_with_barrier(tmp_path, mon
     monkeypatch.setattr(profile_v1,'measure_window',measured)
     monkeypatch.setattr(profile_v1,'reduce_window',lambda *a,**kw:dict(iteration_s=.01,power_w=123.))
     class Wave:
+        qualification_measure_s = probe_seconds
         def write(self, phase, data): barriers.append(('write',phase))
         async def wait(self, phase): barriers.append(('wait',phase))
     owner = object.__new__(profile_epochs.DynamoEpochs)
@@ -100,7 +102,7 @@ async def test_probe_uses_own_collector_three_repeats_with_barrier(tmp_path, mon
     facade = profile_epochs.QualificationFacade(tmp_path,dict(gpu_uuids={'0':'GPU-own'}))
     result = await owner.probe(facade,'parallel',Wave())
     assert [row['repeat'] for row in windows] == [0,1,2]
-    assert all(row['settle_s']==2 and row['measure_s']==5 for row in windows)
+    assert all(row['settle_s']==2 and row['measure_s']==probe_seconds for row in windows)
     assert len(barriers)==6 and len(result['artifacts'])==3
     assert result['instances'][0]['step_seconds']==.01
     assert result['point']['batch']==1

@@ -62,7 +62,7 @@ def main(argv=None):
     parser.add_argument('--gpus', type=integers, required=True)
     parser.add_argument('--initial-tp', type=int, required=True)
     parser.add_argument('--base-port', type=int, default=19000)
-    parser.add_argument('--mode', choices=('functional','primitive','full'), default='functional')
+    parser.add_argument('--mode', choices=('functional','primitive','full','comparison'), default='functional')
     parser.add_argument('--duration', type=float, default=100)
     parser.add_argument('--weekly-history', type=Path)
     parser.add_argument('--history-mapping', type=Path)

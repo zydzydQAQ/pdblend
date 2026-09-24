@@ -59,7 +59,8 @@ class DynamoEpochs:
                     wave.write(marker, dict(time=time.time(), instances=[self.iid]))
                     await wave.wait(marker)
             window = await measure_window(self.transport, self.telemetry, self.iid, point,
-                repeat=repeat, settle_s=2., measure_s=5., ownership=self.ownership,
+                repeat=repeat, settle_s=2., measure_s=wave.qualification_measure_s,
+                ownership=self.ownership,
                 before_measure=before_measure)
             metric = reduce_window(window, tp=self.transport.instances[self.iid]['tp'],
                                    batch=point['batch'], frequency=point['frequency_mhz'])

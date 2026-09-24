@@ -14,6 +14,7 @@ class BackendError(Exception):
 
 
 INSTANT_POWER_SOURCE_ID = 'nvml:field:186:scope:0:mW'
+GPU_UTILIZATION_SOURCE_ID = 'nvml:nvmlDeviceGetUtilizationRates:gpu:percent'
 
 
 def physical_gpu(gpu: int) -> str:
@@ -273,10 +274,40 @@ class PynvmlBackend:
         return float(_smi_query('enforced.power.limit',gpu))
 
     def utilization_pct(self, gpu: int) -> float:
+        return self.utilization_reading(gpu)['gpu_util_pct']
+
+    def gpu_uuid(self, gpu: int) -> str:
+        """Resolve the actual device, independently of the lease's claimed UUID."""
         if self._nvml is not None:
-            return float(self._nvml.nvmlDeviceGetUtilizationRates(
-                self._handle(gpu)).gpu)
-        return float(_smi_query("utilization.gpu", gpu))
+            value = self._nvml.nvmlDeviceGetUUID(self._handle(gpu))
+            return value.decode() if isinstance(value, bytes) else str(value)
+        return _smi_query('uuid', gpu)
+
+    @property
+    def utilization_source(self):
+        return dict(source_id=GPU_UTILIZATION_SOURCE_ID if self._nvml is not None
+                    else 'nvidia-smi:utilization.gpu:percent', unit='percent',
+                    semantics='time with at least one GPU kernel executing; not SM occupancy',
+                    sensor_period_s=None, sensor_period_note='product-dependent; not the polling interval')
+
+    def utilization_reading(self, gpu: int) -> dict:
+        """Read kernel-busy percentage with its own host acquisition times.
+
+        NVML returns a recent sensor-period average, not a timestamped SM
+        occupancy counter. Do not borrow the power reading's timestamp.
+        """
+        started = float(self._power_clock())
+        if self._nvml is not None:
+            value = float(self._nvml.nvmlDeviceGetUtilizationRates(self._handle(gpu)).gpu)
+        else:
+            value = float(_smi_query('utilization.gpu', gpu))
+        finished = float(self._power_clock())
+        if (not math.isfinite(value) or not 0 <= value <= 100
+                or not all(math.isfinite(t) for t in (started, finished)) or finished < started):
+            raise BackendError('invalid GPU utilization reading or acquisition time')
+        return dict(gpu_util_pct=value, t_s=finished, read_started_s=started,
+                    read_finished_s=finished, source_id=self.utilization_source['source_id'],
+                    return_code=0, error=None)
 
 
 def get_backend(name: str = "pynvml") -> GpuBackend:

@@ -11,6 +11,7 @@ MODELS = {
     'Qwen2.5-14B-Instruct': (1, 2, 4),
     'Qwen2.5-32B-Instruct': (2, 4),
 }
+COMPARISON_DURATIONS = (150, 300)
 
 
 def preflight(config, *, mode='functional', duration_s=100, seed=701):
@@ -22,7 +23,7 @@ def preflight(config, *, mode='functional', duration_s=100, seed=701):
     model = config.get('model_id')
     if seed != 701:
         missing['seed'] = 'this campaign uses workload seed 701 only'
-    if mode not in ('functional', 'primitive', 'full'):
+    if mode not in ('functional', 'primitive', 'full', 'comparison'):
         missing['mode'] = 'unknown execution mode'
     if model not in MODELS:
         missing['model'] = 'explicit supported Qwen2.5 target required'
@@ -70,7 +71,7 @@ def preflight(config, *, mode='functional', duration_s=100, seed=701):
         evidence['profile_sha256'] = profile.fingerprint
     except (KeyError, OSError, ValueError, TypeError) as exc:
         missing['missing_profile'] = str(exc)
-    if mode in ('primitive', 'full'):
+    if mode in ('primitive', 'full', 'comparison'):
         if not config.get('goldens'):
             missing['missing_golden'] = 'same-target-TP native golden receipts required'
         for tp_key, golden in config.get('goldens', {}).items():
@@ -91,9 +92,11 @@ def preflight(config, *, mode='functional', duration_s=100, seed=701):
         if (not primitive.get('source_ids') or not primitive.get('target_layout')
                 or len(primitive.get('target_shapes', [])) != len(primitive.get('target_layout', []))):
             missing['primitive_plan'] = 'explicit source identities, target GPUs and shapes required'
-    if mode == 'full':
-        if duration_s < 1890:
+    if mode in ('full', 'comparison'):
+        if mode == 'full' and duration_s < 1890:
             missing['duration'] = 'full hierarchy needs >=1890 real seconds'
+        if mode == 'comparison' and duration_s not in COMPARISON_DURATIONS:
+            missing['duration'] = 'comparison requires 150 or 300 real seconds'
         if not config.get('dynamo_shape_demands'):
             missing['missing_shape_profile'] = 'frozen shape demands required'
         if not config.get('dynamo_transition_costs'):
@@ -103,6 +106,31 @@ def preflight(config, *, mode='functional', duration_s=100, seed=701):
             evidence['weekly_history'] = receipt
         except (KeyError, OSError, ValueError, TypeError) as exc:
             missing['missing_history'] = str(exc)
+    if mode == 'comparison':
+        # A short run keeps the complete controller but cannot establish long
+        # control periods itself. Its own prior qualifications must be bound.
+        for kind in ('workload_coverage', 'original_cycle_mechanisms'):
+            try:
+                binding = config[kind+'_receipt']
+                path = Path(binding['path'])
+                value = json.loads(path.read_text())
+                if (sha(path) != binding['sha256'] or value.get('status') != 'passed'
+                        or value.get('system') != 'dynamollm' or value.get('model_id') != model
+                        or value.get('formal_eligible') is not True):
+                    raise ValueError('independent qualified '+kind+' receipt required')
+                if kind == 'workload_coverage' and (
+                        value.get('trace_sha256') != sha(config['trace'])
+                        or value.get('profile_sha256') != evidence.get('profile_sha256')
+                        or value.get('predictor_manifest_sha256') != evidence.get('predictor_manifest_sha256')
+                        or value.get('max_num_seqs') != config.get('max_num_seqs',16)):
+                    raise ValueError('workload coverage identity or batch limit differs')
+                if kind == 'original_cycle_mechanisms' and (
+                        value.get('periods_s') != PERIODS
+                        or value.get('original_weight_retention_implemented') is not True):
+                    raise ValueError('original-period control and weight retention remain unqualified')
+                evidence[kind+'_sha256'] = sha(path)
+            except (KeyError, OSError, ValueError, TypeError) as exc:
+                missing['missing_'+kind] = str(exc)
     return dict(ready=not missing, status='ready' if not missing else 'inconclusive',
                 missing_evidence=missing, evidence=evidence, system='dynamollm',
                 model_id=model, mode=mode, seed=seed, periods_s=dict(PERIODS),

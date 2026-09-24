@@ -1,0 +1,3651 @@
+{
+  "label": "Current source; synthetic CPU example, not measured GPU results",
+  "policy": {
+    "name": "pdblend",
+    "fixed_mixed": false,
+    "allow_dvfs": true,
+    "allow_pd": true,
+    "allow_park": [
+      "L1",
+      "off"
+    ],
+    "shield": true,
+    "freeze": false,
+    "warm_start": true,
+    "margin": 0.08,
+    "ported": false,
+    "history_s": 0.0,
+    "description": "full: PD/M pools, DVFS, parking, shield",
+    "bootstrap_forecast": true,
+    "plan_hold_s": 30.0,
+    "down_plan_votes": 2,
+    "home_margin": 0.01,
+    "min_m_instances": 4,
+    "dynamic_m_floor": false,
+    "low_load_min_m_instances": 2,
+    "m_floor_pressure_enter": 0.75,
+    "m_floor_pressure_exit": 0.55,
+    "m_floor_stable_windows": 2,
+    "m_floor_hold_s": 30.0,
+    "pd_pressure_enter": 0.75,
+    "pd_pressure_exit": 0.55,
+    "pd_route_hold_s": 30.0,
+    "pd_route_stable_windows": 2,
+    "shield_protect_s": 0.0,
+    "transition_cooldown_s": 0.0
+  },
+  "config": {
+    "slots": 8,
+    "slo": {
+      "ttft_s": 1,
+      "tpot_s": 0.02,
+      "safety": 0.85
+    },
+    "freqs": [
+      900,
+      1200,
+      1500,
+      1800,
+      2100,
+      2520
+    ],
+    "rho_max": 0.7,
+    "dwell_s": 60.0,
+    "margin": 0.08,
+    "allow_pd": true,
+    "allow_park": [
+      "L1",
+      "off"
+    ],
+    "allow_dvfs": true,
+    "fixed_mixed": false,
+    "min_active": 1,
+    "max_num_seqs": 256,
+    "peak_batch_cap": 160,
+    "max_num_batched_tokens": 8192,
+    "rho_decode": 0.92,
+    "tail_target": 0.9,
+    "min_pd_input_tokens": 256.0,
+    "min_m_instances": 4,
+    "pressure_controls": false,
+    "pd_pressure_active": false,
+    "pd_min_input_tokens": 1024,
+    "pure_pd_min_input_tokens": 2048,
+    "capacity_floors": [],
+    "memoize_roles": true,
+    "transition_estimator": null
+  },
+  "rows": {
+    "A_current": {
+      "feasible": true,
+      "plan": {
+        "counts": {
+          "M": 8
+        },
+        "f_P": 2520,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 0,
+        "power_w": 1016.0387682573275,
+        "ttft_s": 0.21257483966959098,
+        "tpot_s": 0.014975706031533757,
+        "detail": {
+          "M": {
+            "power_w": 1016.0387682573275,
+            "ttft_s": 0.21257483966959098,
+            "tpot_s": 0.014975706031533757,
+            "batch": 2.156410074289888,
+            "busy": 0.162238464,
+            "tpot_miss": 0.007293991711795539,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "energy_model": "composed_unqualified"
+          },
+          "forecast": {
+            "pd_output_mean": null,
+            "mixed_output_mean": 64,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "mixed_floor": 4
+          },
+          "transition_cost": {
+            "provenance": "no_state_change",
+            "energy_j": 0.0,
+            "qualified": true
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      },
+      "switch_j": 0.0,
+      "total_energy_j": 60962.326095439654
+    },
+    "B_mixed6": {
+      "feasible": true,
+      "plan": {
+        "counts": {
+          "M": 6,
+          "off": 2
+        },
+        "f_P": 2520,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 0,
+        "power_w": 894.6118229115614,
+        "ttft_s": 0.2168948257836151,
+        "tpot_s": 0.01632598538081595,
+        "detail": {
+          "M": {
+            "power_w": 826.6118229115614,
+            "ttft_s": 0.2168948257836151,
+            "tpot_s": 0.01632598538081595,
+            "batch": 3.1345592032286134,
+            "busy": 0.216317952,
+            "tpot_miss": 0.034291175055244955,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "energy_model": "composed_unqualified"
+          },
+          "forecast": {
+            "pd_output_mean": null,
+            "mixed_output_mean": 64,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "mixed_floor": 4
+          },
+          "transition_cost": {
+            "qualified": false,
+            "provenance": "legacy_wake_and_clock_estimate",
+            "energy_j": 0.0
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      },
+      "switch_j": 0.0,
+      "total_energy_j": 53676.70937469368
+    },
+    "C_lowest_steady": {
+      "feasible": true,
+      "plan": {
+        "counts": {
+          "P": 2,
+          "D": 1,
+          "M": 4,
+          "off": 1
+        },
+        "f_P": 2520,
+        "f_D": 2520,
+        "f_M": 2100,
+        "tau": 1024,
+        "power_w": 875.67308831382,
+        "ttft_s": 0.2817648284016177,
+        "tpot_s": 0.015629465929809933,
+        "detail": {
+          "P": {
+            "power_w": 327.06487327317063,
+            "ttft_s": 0.2673108589565743,
+            "busy": 0.5954273280000002,
+            "pending_prefill_tokens": 0
+          },
+          "D": {
+            "power_w": 111.64921956493802,
+            "tpot_s": 0.014453969445043393,
+            "first_step_s": 0.014453969445043393,
+            "batch": 8.324609782469011,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0
+          },
+          "M": {
+            "power_w": 402.95899547571145,
+            "ttft_s": 0.05292664282708837,
+            "tpot_s": 0.015629465929809933,
+            "batch": 2.250574642514179,
+            "busy": 0.0418701312,
+            "tpot_miss": 2.6954660725664326e-11,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "energy_model": "composed_unqualified"
+          },
+          "forecast": {
+            "pd_output_mean": 64.0,
+            "mixed_output_mean": 64.0,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "mixed_floor": 4
+          },
+          "transition_cost": {
+            "qualified": false,
+            "provenance": "legacy_wake_and_clock_estimate",
+            "energy_j": 47.60000000000001
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      },
+      "switch_j": 47.60000000000001,
+      "total_energy_j": 52587.9852988292
+    },
+    "D_selected": {
+      "feasible": true,
+      "plan": {
+        "counts": {
+          "P": 2,
+          "D": 1,
+          "M": 4,
+          "off": 1
+        },
+        "f_P": 2520,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 1024,
+        "power_w": 875.7142554584968,
+        "ttft_s": 0.2817648284016177,
+        "tpot_s": 0.014453969445043393,
+        "detail": {
+          "P": {
+            "power_w": 327.06487327317063,
+            "ttft_s": 0.2673108589565743,
+            "busy": 0.5954273280000002,
+            "pending_prefill_tokens": 0
+          },
+          "D": {
+            "power_w": 111.64921956493802,
+            "tpot_s": 0.014453969445043393,
+            "first_step_s": 0.014453969445043393,
+            "batch": 8.324609782469011,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0
+          },
+          "M": {
+            "power_w": 403.00016262038827,
+            "ttft_s": 0.043864130995584685,
+            "tpot_s": 0.012841664712743037,
+            "batch": 1.8491732669646563,
+            "busy": 0.034891776000000006,
+            "tpot_miss": 0.0,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "energy_model": "composed_unqualified"
+          },
+          "forecast": {
+            "pd_output_mean": 64.0,
+            "mixed_output_mean": 64.0,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "mixed_floor": 4
+          },
+          "transition_cost": {
+            "qualified": false,
+            "provenance": "legacy_wake_and_clock_estimate",
+            "energy_j": 0.0
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      },
+      "switch_j": 0.0,
+      "total_energy_j": 52542.85532750981
+    },
+    "E_tau4096": {
+      "feasible": true,
+      "plan": {
+        "counts": {
+          "P": 2,
+          "D": 1,
+          "M": 4,
+          "off": 1
+        },
+        "f_P": 2100,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 4096,
+        "power_w": 893.4087722187335,
+        "ttft_s": 0.31737655232826567,
+        "tpot_s": 0.014620336843555763,
+        "detail": {
+          "P": {
+            "power_w": 271.911885155956,
+            "ttft_s": 0.304139106751072,
+            "busy": 0.48766648320000006,
+            "pending_prefill_tokens": 0
+          },
+          "D": {
+            "power_w": 102.6243763676134,
+            "tpot_s": 0.013237445577193712,
+            "first_step_s": 0.013237445577193712,
+            "batch": 3.8121881838067004,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0
+          },
+          "M": {
+            "power_w": 484.8725106951641,
+            "ttft_s": 0.11359343941580256,
+            "tpot_s": 0.014620336843555763,
+            "batch": 3.1579710631596276,
+            "busy": 0.1295994735,
+            "tpot_miss": 6.3924719846027616e-06,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "energy_model": "composed_unqualified"
+          },
+          "forecast": {
+            "pd_output_mean": 64.0,
+            "mixed_output_mean": 64.0,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "mixed_floor": 4
+          },
+          "transition_cost": {
+            "qualified": false,
+            "provenance": "legacy_wake_and_clock_estimate",
+            "energy_j": 47.60000000000001
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      },
+      "switch_j": 47.60000000000001,
+      "total_energy_j": 53652.126333124004
+    },
+    "F_mixed5": {
+      "feasible": false,
+      "plan": {
+        "counts": {
+          "M": 5,
+          "off": 3
+        },
+        "f_P": 2520,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 0,
+        "power_w": 834.149816808235,
+        "ttft_s": 0.22085256292944658,
+        "tpot_s": 0.01759561438978214,
+        "detail": {
+          "M": {
+            "power_w": 732.149816808235,
+            "ttft_s": 0.22085256292944658,
+            "tpot_s": 0.01759561438978214,
+            "batch": 4.053919361428269,
+            "busy": 0.2595815424,
+            "tpot_miss": 0.09283473721388456,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "energy_model": "composed_unqualified"
+          },
+          "forecast": {
+            "pd_output_mean": null,
+            "mixed_output_mean": 64,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "mixed_floor": 4
+          },
+          "transition_cost": {
+            "qualified": false,
+            "provenance": "legacy_wake_and_clock_estimate",
+            "energy_j": 0.0
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      },
+      "switch_j": 0.0,
+      "total_energy_j": 50048.9890084941
+    }
+  },
+  "stages": [
+    {
+      "output_tokens": 64,
+      "forecast": {
+        "rate_rps": 18,
+        "trend_rps": 0,
+        "input_mean": 1728,
+        "input_p95": 4096,
+        "output_mean": 64,
+        "inflight": 0,
+        "inputs": [
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096
+        ],
+        "outputs": [
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64
+        ],
+        "peak_rps": 0.0,
+        "completed_bins": 0,
+        "recent_rate_rps": 0.0,
+        "length_pairs": [
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ]
+        ],
+        "backlog": []
+      },
+      "current_rechecked": {
+        "counts": {
+          "M": 8
+        },
+        "f_P": 2520,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 0,
+        "power_w": 1016.0387682573275,
+        "ttft_s": 0.21257483966959098,
+        "tpot_s": 0.014975706031533757,
+        "detail": {
+          "M": {
+            "power_w": 1016.0387682573275,
+            "ttft_s": 0.21257483966959098,
+            "tpot_s": 0.014975706031533757,
+            "batch": 2.156410074289888,
+            "busy": 0.162238464,
+            "tpot_miss": 0.007293991711795539,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "energy_model": "composed_unqualified"
+          },
+          "forecast": {
+            "pd_output_mean": null,
+            "mixed_output_mean": 64,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "mixed_floor": 4
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      },
+      "current_feasible": true,
+      "feasible_candidates": 40,
+      "selected": {
+        "counts": {
+          "P": 2,
+          "D": 1,
+          "M": 4,
+          "off": 1
+        },
+        "f_P": 2520,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 1024,
+        "power_w": 875.7142554584968,
+        "ttft_s": 0.2817648284016177,
+        "tpot_s": 0.014453969445043393,
+        "detail": {
+          "P": {
+            "power_w": 327.06487327317063,
+            "ttft_s": 0.2673108589565743,
+            "busy": 0.5954273280000002,
+            "pending_prefill_tokens": 0
+          },
+          "D": {
+            "power_w": 111.64921956493802,
+            "tpot_s": 0.014453969445043393,
+            "first_step_s": 0.014453969445043393,
+            "batch": 8.324609782469011,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0
+          },
+          "M": {
+            "power_w": 403.00016262038827,
+            "ttft_s": 0.043864130995584685,
+            "tpot_s": 0.012841664712743037,
+            "batch": 1.8491732669646563,
+            "busy": 0.034891776000000006,
+            "tpot_miss": 0.0,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "energy_model": "composed_unqualified"
+          },
+          "forecast": {
+            "pd_output_mean": 64.0,
+            "mixed_output_mean": 64.0,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "mixed_floor": 4
+          },
+          "transition_cost": {
+            "qualified": false,
+            "provenance": "legacy_wake_and_clock_estimate",
+            "energy_j": 0.0
+          },
+          "objective": {
+            "horizon_s": 60.0,
+            "transition_energy_j": 0.0,
+            "total_energy_j": 52542.85532750981,
+            "retained_current": false
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      },
+      "roles_before": {
+        "G0": "M",
+        "G1": "M",
+        "G2": "M",
+        "G3": "M",
+        "G4": "M",
+        "G5": "M",
+        "G6": "M",
+        "G7": "M"
+      },
+      "roles_after": {
+        "G0": "M",
+        "G1": "M",
+        "G2": "M",
+        "G3": "M",
+        "G4": "P",
+        "G5": "P",
+        "G6": "D",
+        "G7": "off"
+      },
+      "switch_j": 0.0,
+      "horizon_cost_j": 52542.85532750981,
+      "pd_rps": 9.0,
+      "mixed_rps": 9.0,
+      "branch_pd": {
+        "rate_rps": 9.0,
+        "trend_rps": 0.0,
+        "input_mean": 3072.0,
+        "input_p95": 4096.0,
+        "output_mean": 64.0,
+        "inflight": 0,
+        "inputs": [
+          2048,
+          4096,
+          2048,
+          4096,
+          2048,
+          4096,
+          2048,
+          4096,
+          2048,
+          4096,
+          2048,
+          4096,
+          2048,
+          4096,
+          2048,
+          4096,
+          2048,
+          4096,
+          2048,
+          4096,
+          2048,
+          4096,
+          2048,
+          4096,
+          2048,
+          4096,
+          2048,
+          4096,
+          2048,
+          4096,
+          2048,
+          4096
+        ],
+        "outputs": [
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64
+        ],
+        "peak_rps": 0.0,
+        "completed_bins": 0,
+        "recent_rate_rps": 0.0,
+        "length_pairs": [
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ],
+          [
+            2048,
+            64
+          ],
+          [
+            4096,
+            64
+          ]
+        ],
+        "backlog": []
+      },
+      "branch_m": {
+        "rate_rps": 9.0,
+        "trend_rps": 0.0,
+        "input_mean": 384.0,
+        "input_p95": 512.0,
+        "output_mean": 64.0,
+        "inflight": 0,
+        "inputs": [
+          256,
+          512,
+          256,
+          512,
+          256,
+          512,
+          256,
+          512,
+          256,
+          512,
+          256,
+          512,
+          256,
+          512,
+          256,
+          512,
+          256,
+          512,
+          256,
+          512,
+          256,
+          512,
+          256,
+          512,
+          256,
+          512,
+          256,
+          512,
+          256,
+          512,
+          256,
+          512
+        ],
+        "outputs": [
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64,
+          64
+        ],
+        "peak_rps": 0.0,
+        "completed_bins": 0,
+        "recent_rate_rps": 0.0,
+        "length_pairs": [
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ],
+          [
+            256,
+            64
+          ],
+          [
+            512,
+            64
+          ]
+        ],
+        "backlog": []
+      }
+    },
+    {
+      "output_tokens": 128,
+      "forecast": {
+        "rate_rps": 18,
+        "trend_rps": 0,
+        "input_mean": 1728,
+        "input_p95": 4096,
+        "output_mean": 128,
+        "inflight": 0,
+        "inputs": [
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096
+        ],
+        "outputs": [
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128
+        ],
+        "peak_rps": 0.0,
+        "completed_bins": 0,
+        "recent_rate_rps": 0.0,
+        "length_pairs": [
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            4096,
+            128
+          ]
+        ],
+        "backlog": []
+      },
+      "current_rechecked": {
+        "counts": {
+          "P": 2,
+          "D": 1,
+          "M": 4,
+          "off": 1
+        },
+        "f_P": 2520,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 1024,
+        "power_w": 916.4376355358265,
+        "ttft_s": 0.28559201203841256,
+        "tpot_s": 0.01828115308183826,
+        "detail": {
+          "P": {
+            "power_w": 327.06487327317063,
+            "ttft_s": 0.2673108589565743,
+            "busy": 0.5954273280000002,
+            "pending_prefill_tokens": 0
+          },
+          "D": {
+            "power_w": 137.11420543304823,
+            "tpot_s": 0.01828115308183826,
+            "first_step_s": 0.01828115308183826,
+            "batch": 21.057102716524117,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0
+          },
+          "M": {
+            "power_w": 418.25855682960764,
+            "ttft_s": 0.04430535593188314,
+            "tpot_s": 0.01328288964904149,
+            "batch": 3.8254275654177428,
+            "busy": 0.034891776000000006,
+            "tpot_miss": 0.0,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "energy_model": "composed_unqualified"
+          },
+          "forecast": {
+            "pd_output_mean": 128.0,
+            "mixed_output_mean": 128.0,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "mixed_floor": 4
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      },
+      "current_feasible": false,
+      "feasible_candidates": 17,
+      "selected": {
+        "counts": {
+          "P": 2,
+          "D": 1,
+          "M": 4,
+          "off": 1
+        },
+        "f_P": 2100,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 4096,
+        "power_w": 927.670087906747,
+        "ttft_s": 0.31891803199376173,
+        "tpot_s": 0.015575795234309084,
+        "detail": {
+          "P": {
+            "power_w": 271.911885155956,
+            "ttft_s": 0.304139106751072,
+            "busy": 0.48766648320000006,
+            "pending_prefill_tokens": 0
+          },
+          "D": {
+            "power_w": 112.02239620725304,
+            "tpot_s": 0.01477892524268973,
+            "first_step_s": 0.01477892524268973,
+            "batch": 8.51119810362652,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0
+          },
+          "M": {
+            "power_w": 509.73580654353793,
+            "ttft_s": 0.11454889780655589,
+            "tpot_s": 0.015575795234309084,
+            "batch": 6.728639837389419,
+            "busy": 0.1295994735,
+            "tpot_miss": 2.456834254556857e-07,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "energy_model": "composed_unqualified"
+          },
+          "forecast": {
+            "pd_output_mean": 128.0,
+            "mixed_output_mean": 128.0,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "mixed_floor": 4
+          },
+          "transition_cost": {
+            "qualified": false,
+            "provenance": "legacy_wake_and_clock_estimate",
+            "energy_j": 47.60000000000001
+          },
+          "objective": {
+            "horizon_s": 60.0,
+            "transition_energy_j": 47.599999999998545,
+            "total_energy_j": 55707.80527440482,
+            "retained_current": false
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      },
+      "roles_before": {
+        "G0": "M",
+        "G1": "M",
+        "G2": "M",
+        "G3": "M",
+        "G4": "P",
+        "G5": "P",
+        "G6": "D",
+        "G7": "off"
+      },
+      "roles_after": {
+        "G0": "M",
+        "G1": "M",
+        "G2": "M",
+        "G3": "M",
+        "G4": "P",
+        "G5": "P",
+        "G6": "D",
+        "G7": "off"
+      },
+      "switch_j": 47.60000000000001,
+      "horizon_cost_j": 55707.80527440482,
+      "pd_rps": 4.5,
+      "mixed_rps": 13.5,
+      "branch_pd": {
+        "rate_rps": 4.5,
+        "trend_rps": 0.0,
+        "input_mean": 4096.0,
+        "input_p95": 4096.0,
+        "output_mean": 128.0,
+        "inflight": 0,
+        "inputs": [
+          4096,
+          4096,
+          4096,
+          4096,
+          4096,
+          4096,
+          4096,
+          4096,
+          4096,
+          4096,
+          4096,
+          4096,
+          4096,
+          4096,
+          4096,
+          4096
+        ],
+        "outputs": [
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128
+        ],
+        "peak_rps": 0.0,
+        "completed_bins": 0,
+        "recent_rate_rps": 0.0,
+        "length_pairs": [
+          [
+            4096,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            4096,
+            128
+          ],
+          [
+            4096,
+            128
+          ]
+        ],
+        "backlog": []
+      },
+      "branch_m": {
+        "rate_rps": 13.5,
+        "trend_rps": 0.0,
+        "input_mean": 938.6666666666666,
+        "input_p95": 2048.0,
+        "output_mean": 128.0,
+        "inflight": 0,
+        "inputs": [
+          256,
+          512,
+          2048,
+          256,
+          512,
+          2048,
+          256,
+          512,
+          2048,
+          256,
+          512,
+          2048,
+          256,
+          512,
+          2048,
+          256,
+          512,
+          2048,
+          256,
+          512,
+          2048,
+          256,
+          512,
+          2048,
+          256,
+          512,
+          2048,
+          256,
+          512,
+          2048,
+          256,
+          512,
+          2048,
+          256,
+          512,
+          2048,
+          256,
+          512,
+          2048,
+          256,
+          512,
+          2048,
+          256,
+          512,
+          2048,
+          256,
+          512,
+          2048
+        ],
+        "outputs": [
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128,
+          128
+        ],
+        "peak_rps": 0.0,
+        "completed_bins": 0,
+        "recent_rate_rps": 0.0,
+        "length_pairs": [
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ],
+          [
+            256,
+            128
+          ],
+          [
+            512,
+            128
+          ],
+          [
+            2048,
+            128
+          ]
+        ],
+        "backlog": []
+      }
+    },
+    {
+      "output_tokens": 256,
+      "forecast": {
+        "rate_rps": 18,
+        "trend_rps": 0,
+        "input_mean": 1728,
+        "input_p95": 4096,
+        "output_mean": 256,
+        "inflight": 0,
+        "inputs": [
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096
+        ],
+        "outputs": [
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256
+        ],
+        "peak_rps": 0.0,
+        "completed_bins": 0,
+        "recent_rate_rps": 0.0,
+        "length_pairs": [
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ]
+        ],
+        "backlog": []
+      },
+      "current_rechecked": {
+        "counts": {
+          "P": 2,
+          "D": 1,
+          "M": 4,
+          "off": 1
+        },
+        "f_P": 2100,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 4096,
+        "power_w": 1016.6546698489356,
+        "ttft_s": 0.32353835942724524,
+        "tpot_s": 0.019399252676173272,
+        "detail": {
+          "P": {
+            "power_w": 271.911885155956,
+            "ttft_s": 0.304139106751072,
+            "busy": 0.48766648320000006,
+            "pending_prefill_tokens": 0
+          },
+          "D": {
+            "power_w": 139.6830552452901,
+            "tpot_s": 0.019399252676173272,
+            "first_step_s": 0.019399252676173272,
+            "batch": 22.34152762264505,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0
+          },
+          "M": {
+            "power_w": 571.0597294476895,
+            "ttft_s": 0.11695620852029959,
+            "tpot_s": 0.017983105948052785,
+            "batch": 15.535493842686197,
+            "busy": 0.1295994735,
+            "tpot_miss": 0.00015425233092025703,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "energy_model": "composed_unqualified"
+          },
+          "forecast": {
+            "pd_output_mean": 256.0,
+            "mixed_output_mean": 256.0,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "mixed_floor": 4
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      },
+      "current_feasible": false,
+      "feasible_candidates": 0,
+      "selected": {
+        "counts": {
+          "M": 8
+        },
+        "f_P": 2520,
+        "f_D": 2520,
+        "f_M": 2520,
+        "tau": 0,
+        "power_w": 1121.5166252745926,
+        "ttft_s": 0.21500671844181038,
+        "tpot_s": 0.017407584803753148,
+        "detail": {
+          "fallback": true,
+          "M": {
+            "power_w": 1121.5166252745926,
+            "ttft_s": 0.21500671844181038,
+            "tpot_s": 0.017407584803753148,
+            "batch": 10.025434588180998,
+            "busy": 0.162238464,
+            "tpot_miss": 0.004933120799396146,
+            "pending_prefill_tokens": 0,
+            "remaining_decode_tokens": 0,
+            "occupied_kv_tokens": 0,
+            "energy_model": "composed_unqualified"
+          },
+          "transition_cost": {
+            "qualified": false,
+            "provenance": "legacy_wake_and_clock_estimate",
+            "energy_j": 2094.4
+          }
+        },
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": ""
+      },
+      "roles_before": {
+        "G0": "M",
+        "G1": "M",
+        "G2": "M",
+        "G3": "M",
+        "G4": "P",
+        "G5": "P",
+        "G6": "D",
+        "G7": "off"
+      },
+      "roles_after": {
+        "G0": "M",
+        "G1": "M",
+        "G2": "M",
+        "G3": "M",
+        "G4": "M",
+        "G5": "M",
+        "G6": "M",
+        "G7": "M"
+      },
+      "switch_j": 2094.4,
+      "horizon_cost_j": 69385.39751647555,
+      "pd_rps": 0,
+      "mixed_rps": 18,
+      "branch_pd": null,
+      "branch_m": {
+        "rate_rps": 18,
+        "trend_rps": 0,
+        "input_mean": 1728,
+        "input_p95": 4096,
+        "output_mean": 256,
+        "inflight": 0,
+        "inputs": [
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096,
+          256,
+          512,
+          2048,
+          4096
+        ],
+        "outputs": [
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256,
+          256
+        ],
+        "peak_rps": 0.0,
+        "completed_bins": 0,
+        "recent_rate_rps": 0.0,
+        "length_pairs": [
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            512,
+            256
+          ],
+          [
+            2048,
+            256
+          ],
+          [
+            4096,
+            256
+          ]
+        ],
+        "backlog": []
+      }
+    }
+  ],
+  "route_example": {
+    "short": {
+      "request_id": "short-256",
+      "path": "M",
+      "prefill_instance": "G1",
+      "decode_instance": "G1",
+      "input_tokens": 256,
+      "max_tokens": 64,
+      "submitted_s": 1790212160.9863052,
+      "first_token_s": 1790212160.9864082,
+      "finished_s": 1790212160.9864714,
+      "completion_tokens": 64,
+      "tokens_so_far": 1,
+      "error": null,
+      "route_pressure": 0.0,
+      "route_reason": "m_capacity",
+      "tp": 1,
+      "pp": 1,
+      "pool_id": "",
+      "generation": 0,
+      "profile_key": "",
+      "last_token_s": 1790212160.9864082,
+      "terminal_state": "completed",
+      "engine_instances": [],
+      "route_estimate": {}
+    },
+    "long": {
+      "request_id": "long-2048",
+      "path": "PD",
+      "prefill_instance": "G5",
+      "decode_instance": "G6",
+      "input_tokens": 2048,
+      "max_tokens": 64,
+      "submitted_s": 1790212160.9863348,
+      "first_token_s": 1790212160.9864094,
+      "finished_s": 1790212160.9864736,
+      "completion_tokens": 64,
+      "tokens_so_far": 1,
+      "error": null,
+      "route_pressure": 0.0,
+      "route_reason": "threshold_pd",
+      "tp": 1,
+      "pp": 1,
+      "pool_id": "",
+      "generation": 0,
+      "profile_key": "",
+      "last_token_s": 1790212160.9864094,
+      "terminal_state": "completed",
+      "engine_instances": [],
+      "route_estimate": {}
+    },
+    "reserved": {
+      "G0": {
+        "role": "M",
+        "inflight_prefill_tokens": 0,
+        "inflight_seqs": 2,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G1": {
+        "role": "M",
+        "inflight_prefill_tokens": 256,
+        "inflight_seqs": 1,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G2": {
+        "role": "M",
+        "inflight_prefill_tokens": 0,
+        "inflight_seqs": 1,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G3": {
+        "role": "M",
+        "inflight_prefill_tokens": 0,
+        "inflight_seqs": 3,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G4": {
+        "role": "P",
+        "inflight_prefill_tokens": 4096,
+        "inflight_seqs": 0,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G5": {
+        "role": "P",
+        "inflight_prefill_tokens": 3072,
+        "inflight_seqs": 0,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G6": {
+        "role": "D",
+        "inflight_prefill_tokens": 0,
+        "inflight_seqs": 9,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G7": {
+        "role": "parked",
+        "inflight_prefill_tokens": 0,
+        "inflight_seqs": 0,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      }
+    },
+    "after_first_token": {
+      "G0": {
+        "role": "M",
+        "inflight_prefill_tokens": 0,
+        "inflight_seqs": 2,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G1": {
+        "role": "M",
+        "inflight_prefill_tokens": 0,
+        "inflight_seqs": 1,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G2": {
+        "role": "M",
+        "inflight_prefill_tokens": 0,
+        "inflight_seqs": 1,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G3": {
+        "role": "M",
+        "inflight_prefill_tokens": 0,
+        "inflight_seqs": 3,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G4": {
+        "role": "P",
+        "inflight_prefill_tokens": 4096,
+        "inflight_seqs": 0,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G5": {
+        "role": "P",
+        "inflight_prefill_tokens": 1024,
+        "inflight_seqs": 0,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G6": {
+        "role": "D",
+        "inflight_prefill_tokens": 0,
+        "inflight_seqs": 9,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G7": {
+        "role": "parked",
+        "inflight_prefill_tokens": 0,
+        "inflight_seqs": 0,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      }
+    },
+    "after_finish": {
+      "G0": {
+        "role": "M",
+        "inflight_prefill_tokens": 0,
+        "inflight_seqs": 2,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G1": {
+        "role": "M",
+        "inflight_prefill_tokens": 0,
+        "inflight_seqs": 0,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G2": {
+        "role": "M",
+        "inflight_prefill_tokens": 0,
+        "inflight_seqs": 1,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G3": {
+        "role": "M",
+        "inflight_prefill_tokens": 0,
+        "inflight_seqs": 3,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G4": {
+        "role": "P",
+        "inflight_prefill_tokens": 4096,
+        "inflight_seqs": 0,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G5": {
+        "role": "P",
+        "inflight_prefill_tokens": 1024,
+        "inflight_seqs": 0,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G6": {
+        "role": "D",
+        "inflight_prefill_tokens": 0,
+        "inflight_seqs": 8,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      },
+      "G7": {
+        "role": "parked",
+        "inflight_prefill_tokens": 0,
+        "inflight_seqs": 0,
+        "accepting": true,
+        "tp": 1,
+        "pp": 1,
+        "pool_id": "",
+        "generation": 0,
+        "profile_key": "",
+        "model_id": ""
+      }
+    },
+    "kv_bytes": 117440512,
+    "transfer_ms": 28.4881024
+  },
+  "source_sha256": {
+    "src/pdblend/planner/pool.py": "e17bfb56a444a8068c7eb5c56ccfe62cf036f21adfcf68beaca426b512407752",
+    "src/pdblend/planner/forecast.py": "dc3d5a5eb1487e8957c222126d14de3fa78b52e3ed76d5de7f43de5659f4c68c",
+    "src/pdblend/planner/topology.py": "37eee75e3881f2e39e4f611605f9dcf87f117a9f17a1077a6f253e7b06d34521",
+    "src/pdblend/planner/native_layout.py": "fee3ae0f43be168b4e200c8dcb6dac96dea8214da4c015c67fec0c558698cf44",
+    "src/pdblend/online/policies.py": "bba3c4e58ed8ea06e79463206e0a4f1a03eb31b18ddb65bf0d1fb0b37a1f63eb",
+    "src/pdblend/online/controller.py": "62c8d788c609e9d49a174878e586c3bdc5b8d86a50a774418f693e835bf7e298",
+    "src/pdblend/online/router.py": "3f2336b51d724af5c01ceb4ba3bab737cf001f063e1cb08617e01ebf039f14cd",
+    "src/pdblend/online/shield.py": "fdac587b928b905e6498dd2ed1a954477c86d5eba5d99ca4031e66991ecbbc1b",
+    "src/pdblend/online/server.py": "bc35c0a3c5de52e0b37617bd009933c8214b7ff52e2953041f83e7a8201a1f64",
+    "src/pdblend/online/observations.py": "b3b403e6bdce88c88259e3c692ca3fa59a6b25f5056bacbb7eea8a7f4faabd68",
+    "src/pdblend/profile/query/model.py": "5f6e74ca28e428689510671c2c8ff2866f8b3baf5b05d48039e4af52311bf92f",
+    "src/pdblend/bench/run.py": "d66b142963b50cc8d8e22322e5178cdc137d830e778423b98a2f8e3ea62c72d8",
+    "tests/pdblend/synthetic.py": "9b2fbf398d493dbcb996819b761ebb03e39284250a21a5c361bec02a3de062f0"
+  },
+  "assertions_passed": true
+}

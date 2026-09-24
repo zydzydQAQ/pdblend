@@ -6,7 +6,6 @@ It is an explicitly bounded native deployment, not a full PP reproduction.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import asdict
 import hashlib
 import json
 import math
@@ -14,10 +13,11 @@ from pathlib import Path
 import time
 
 from pdblend_runtime.probe import NativeSpec
+from pdblend.results.journal import CompactJournal, payload_receipt
 from .native_audit import MODELS
 from .planning import best_config, binary_goodput, gpu_count
 from .request_runtime import DistServeRuntime
-from .run_native import load_trace
+from .run_native import load_trace, result_receipt
 from .runtime import MappedDistServeTransport
 from .simulator import OfficialSimulator
 from .stage_surface import StageSurface
@@ -140,10 +140,10 @@ async def execute_on_resident(plan,specs,trace_path,out,duration=300.,*,request_
     for row in plan['profiles']:
         if sha(row['path'])!=row['sha256']:raise ValueError('selected independent profile checksum changed')
     out=Path(out);out.mkdir(parents=True,exist_ok=False)
-    events=(out/'events.jsonl').open('x');runtimes=[]
+    events=CompactJournal(out/'events.jsonl.gz');runtimes=[]
     def journal(pair):
         def emit(event,**fields):
-            events.write(json.dumps(dict(event=event,replica=pair,**fields),allow_nan=False)+'\n');events.flush()
+            events.write(dict(event=event,replica=pair,**fields))
         return emit
     for pair in range(plan['selected']['replicas']):
         p,d=(by_id[f'dist-{pair}-{role}'] for role in ('P','D'))
@@ -182,7 +182,7 @@ async def execute_on_resident(plan,specs,trace_path,out,duration=300.,*,request_
                 steps={receipt['step'] for receipt in native.receipts}
                 expected_steps=({'prefill','release'} if row['max_tokens']==1 else
                                 {'prefill','expect_load','transfer','load_ack','release'})
-                outcome.update(result=asdict(native),native_receipts_complete=steps==expected_steps,
+                outcome.update(result=result_receipt(native),native_receipts_complete=steps==expected_steps,
                                ok=native.status=='completed' and native.tokens==row['max_tokens']
                                and bool(outcome['events'] and outcome['events'][-1].get('finished'))
                                and steps==expected_steps)
@@ -190,7 +190,11 @@ async def execute_on_resident(plan,specs,trace_path,out,duration=300.,*,request_
             arrivals=[event['received_s'] for event in outcome['events'] for _ in event['token_ids']]
             outcome['ttft_s']=arrivals[0]-outcome['scheduled_s'] if arrivals else None
             outcome['tpot_s']=(arrivals[-1]-arrivals[0])/(len(arrivals)-1) if len(arrivals)>1 else None
-            outcome['finished_s']=time.time();result['outcomes'].append(outcome)
+            outcome['finished_s']=time.time()
+            outcome.update(payload_receipt(outcome.pop('events'),journal_path='events.jsonl.gz',request_id=rid))
+            if 'result' in outcome:
+                outcome['result'].pop('events',None);outcome['result'].pop('token_ids',None)
+            result['outcomes'].append(outcome)
         tasks=[asyncio.create_task(request(i,row)) for i,row in enumerate(value['requests'])]
         await asyncio.gather(*tasks)
         await asyncio.sleep(max(0.,started+duration-time.monotonic()))
@@ -206,7 +210,8 @@ async def execute_on_resident(plan,specs,trace_path,out,duration=300.,*,request_
             try:await runtime.close()
             except BaseException as exc:result['cleanup_errors'].append(repr(exc))
         if result['cleanup_errors']:result.update(status='failed',complete=False)
-        events.close();result['events_sha256']=sha(out/'events.jsonl')
+        events.close();result['events_sha256']=sha(out/'events.jsonl.gz')
+        result['journal_path']='events.jsonl.gz'
         (out/'completion.json').write_text(json.dumps(result,indent=2,allow_nan=False)+'\n')
     return result
 

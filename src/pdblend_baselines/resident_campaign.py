@@ -26,6 +26,7 @@ from pdblend_runtime.probe import NativeSpec, generate
 from pdblend.engine.launcher import Fleet
 from pdblend.bench.metering import Gpus
 from pdblend_runtime.cleanup import cleanup_owned
+from pdblend.results.power_archive import write_power_archive
 from .distserve.run_native import execute as distserve_execute
 from .ecoserve.run_native import (execute as ecoserve_execute, validate_state,
                                  expected_identity, validate_profile, load_trace)
@@ -258,7 +259,7 @@ async def execute(*, model: str, tp: int, gpus: Iterable[int], base_port: int,
                                  power_source=getattr(sampler, 'power_source', {}),
                                  gpu_ids=list(gpus), gpu_uuids=os.environ.get('PDBLEND_GPU_UUIDS'),
                                  error=sampler.error, formal_eligible=False, energy_comparable=False)
-                    (out/'power.json').write_text(json.dumps(power, allow_nan=False)+'\n')
+                    write_power_archive(out/'power.json',power)
                     receipt['power_artifact_sha256'] = hashlib.sha256((out/'power.json').read_bytes()).hexdigest()
                     receipt['energy_j'] = sampler.total_energy_j()
                     receipt['energy_samples'] = len(sampler.samples)

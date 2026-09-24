@@ -13,6 +13,7 @@
 - 三模型分别 tokenize 的 prepared 数据及其 manifest、原始语料和各模型独立 predictor。
 - 各系统独立 profile、原始 samples、训练/holdout 计划、校准版本和全部引用证据。
 - queue、attempt、租约历史、原始请求/SSE、功率、动作、清理记录和归档索引。
+- `results/runs.csv`、`profile_points.csv` 与历史删除身份 CSV；`raw_pruned` 历史行不再具有原始证据。
 
 不要把整个 results 当缓存删除。失败 attempt 也可能含当前校准引用的唯一有效样本。
 原始 artifact 带绝对路径和 checksum；迁移优先保留原路径。改变路径时建立新的映射和验证
@@ -47,7 +48,8 @@ CPU 回归、真实引擎启动/输出、KV/取消/恢复检查、模型级 prof
 
 ## 历史索引
 
-`results/v2`、旧 `/home/pdblend` 结果、混合 profile、半截断数据和 CPU replay 仅作为历史
-或机制证据，不参与新栈三模型正式排名。早期迁移说明完整保留于
+旧栈结果、混合 profile、半截断数据和 CPU replay 不参与新栈三模型正式排名。本轮已退役目录
+按[结果保留规则](docs/RESULTS.md)仅留历史指标/身份 CSV；有当前有效引用的原始证据继续保留。
+早期迁移说明完整保留于
 [归档](results/archive/docs-2026-09-23/MIGRATION-before-current-rewrite.md)，其中旧评测命令、
 profile 复用条件和全卡清理示例不适用于当前并行租约流程。

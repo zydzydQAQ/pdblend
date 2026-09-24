@@ -1,0 +1,20 @@
+[
+  {
+    "figure": "role-change-tp1",
+    "width": 1800,
+    "height": 2500,
+    "pdf_pages": 1,
+    "searchable_characters": 2082,
+    "text_outside_canvas": [],
+    "overlapping_text": []
+  },
+  {
+    "figure": "tp-change",
+    "width": 1800,
+    "height": 2720,
+    "pdf_pages": 1,
+    "searchable_characters": 2106,
+    "text_outside_canvas": [],
+    "overlapping_text": []
+  }
+]

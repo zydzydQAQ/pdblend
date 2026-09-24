@@ -36,7 +36,8 @@ class ObservedTransport(MappedEcoServeTransport):
     async def stream(self, identifier, payload):
         rid = payload['request_id']
         async for event in super().stream(identifier, payload):
-            self.engine_outputs.setdefault(rid, []).append(event)
+            self.engine_outputs.setdefault(rid, []).append({key:value for key,value in event.items()
+                                                          if key not in ('text', 'choices')})
             self.journal('eco_native_sse', instance_id=identifier, request_id=rid, payload=event)
             yield event
 

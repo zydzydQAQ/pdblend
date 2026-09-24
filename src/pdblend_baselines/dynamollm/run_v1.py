@@ -23,7 +23,8 @@ from .policy import PERIODS
 from .reconfiguration import Transition
 from .runtime import DynamoController
 from .transport import V1Transport
-from .validation import MODELS, preflight
+from .validation import COMPARISON_DURATIONS, MODELS, preflight
+from pdblend.results.journal import CompactJournal, file_sha256
 
 
 async def collect_functional_profile_stage(config, output):
@@ -119,16 +120,18 @@ async def collect_functional_profile_stage(config, output):
 
 class Journal:
     def __init__(self, path):
-        self.path = Path(path)
+        self.path = Path(str(path)+'.gz') if Path(path).suffix != '.gz' else Path(path)
         self.rows = []
         self.power_samples = 0
         self.power_errors = 0
-        self.file = self.path.open('x')
+        self.file = CompactJournal(self.path)
 
     def __call__(self, event, **fields):
         row = dict(event=event, at_s=time.time(), **fields)
-        self.file.write(json.dumps(row, allow_nan=False) + '\n')
-        self.file.flush()
+        self.file.write(row)
+        if isinstance(row.get('payload'), dict):
+            row = dict(row, payload={key:value for key,value in row['payload'].items()
+                                    if key not in ('text','choices')})
         # High-frequency power samples live in the durable stream, not RAM.
         if event != 'dynamo_power':
             self.rows.append(row)
@@ -139,6 +142,9 @@ class Journal:
 
     def close(self):
         self.file.close()
+
+    def checkpoint(self):
+        self.file.checkpoint()
 
 
 async def _stop_profile_collectors(processes, *, terminate_timeout_s=10, kill_timeout_s=5):
@@ -202,13 +208,27 @@ def qualify(rows, outcomes, *, mode, duration_s):
                 failures.append('real_' + operation + '_action_missing')
         if not transitions:
             failures.append('real_weight_transition_missing')
+    if mode == 'comparison' and duration_s not in COMPARISON_DURATIONS:
+        failures.append('comparison_window_requires_150_or_300_seconds')
     return dict(status='passed' if not failures else 'inconclusive', complete=not failures,
                 failures=failures,
                 scope='development_' + mode, formal_eligible=False, hardware_qualified=False,
                 energy_comparable=False, complete_reproduction=False, periods_s=dict(PERIODS),
                 seed=701, requests=len(outcomes), routed_requests=len(routes & request_ids),
                 successful_requests=sum(row.get('ok') is True for row in outcomes),
-                completed_transitions=len(transitions))
+                completed_transitions=len(transitions),
+                short_window_dynamic_tp_benefit_claim=False)
+
+
+async def execute_on_resident(config, trace, *, session, output, duration_s=150,
+                              mode='comparison', receipt=None):
+    """Run a fresh controller on a caller-owned independent Dynamo session.
+
+    Session refusal never falls back silently. Close it and call ``execute``
+    with a new output directory for an independently owned launch instead.
+    """
+    return await session.execute_window(trace, config=config, output=output,
+        duration_s=duration_s, mode=mode, receipt=receipt)
 
 
 async def execute(config, trace, *, output, duration_s, mode, receipt):
@@ -279,6 +299,9 @@ async def execute(config, trace, *, output, duration_s, mode, receipt):
             finally:
                 await stream.aclose()
                 outcome['finished_s'] = time.time()
+                ids=outcome.pop('token_ids')
+                outcome.update(completion_tokens=len(ids),journal_path=journal.path.name,
+                    token_ids_sha256=hashlib.sha256(json.dumps(ids,separators=(',',':')).encode()).hexdigest())
                 outcomes.append(outcome)
                 journal('dynamo_outcome', **outcome)
 
@@ -340,9 +363,11 @@ async def execute(config, trace, *, output, duration_s, mode, receipt):
                       group_power_samples=journal.power_samples, group_power_errors=journal.power_errors,
                       gpu_uuids=telemetry.uuids if telemetry else {},
                       stationary_weight_bytes=0, original_weight_retention_implemented=False)
+        result.update(journal_path=journal.path.name,raw_schema='pdblend-journal-v1')
         if stage_receipt is not None:
             result['functional_profile_stage'] = stage_receipt
         journal.close()
+        result['events_sha256']=file_sha256(journal.path)
         save(output / 'outcomes.json', outcomes)
         save(output / 'completion.json', result)
     return result
@@ -355,13 +380,13 @@ def main(argv=None):
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--duration', type=float, default=100)
     parser.add_argument('--seed', type=int, default=701)
-    parser.add_argument('--mode', choices=('functional', 'primitive', 'full'), default='functional')
+    parser.add_argument('--mode', choices=('functional', 'primitive', 'full', 'comparison'), default='functional')
     parser.add_argument('--preflight-only', action='store_true')
     args = parser.parse_args(argv)
     if not math.isfinite(args.duration) or args.duration <= 0:
         parser.error('positive finite --duration required')
     args.out.mkdir(parents=True, exist_ok=True)
-    if (args.out / 'completion.json').exists() or (args.out / 'events.jsonl').exists():
+    if any((args.out/name).exists() for name in ('completion.json','events.jsonl','events.jsonl.gz')):
         raise FileExistsError('refusing to overwrite a Dynamo execution artifact')
     config = json.loads(args.config.read_text())
     # Queue workers bind a lease-local HTTP base port at launch.  Keeping this
@@ -384,7 +409,7 @@ def main(argv=None):
     if config.get('functional_profile_stage', {}).get('enabled') is True and args.mode != 'functional':
         parser.error('functional_profile_stage is only valid for --mode functional')
     config['tokenizer'] = config.get('model_path')
-    config['dynamo_require_full_mechanisms'] = args.mode == 'full'
+    config['dynamo_require_full_mechanisms'] = args.mode in ('full', 'comparison')
     config.setdefault('dynamo_reference_tp', 4)
     config.setdefault('base_port', 16000)
     receipt = preflight(config, mode=args.mode, duration_s=args.duration, seed=args.seed)

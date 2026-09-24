@@ -295,7 +295,7 @@ def main():
     parser.add_argument('--queue',type=Path,default=ROOT/'results/2026-09-22/three-model/queue.json')
     parser.add_argument('--registry',type=Path,default=ROOT/'results/2026-09-23/calibration-versions-v1/registry.json')
     parser.add_argument('--out',type=Path,default=ROOT/'results/2026-09-23/status')
-    parser.add_argument('--campaign',type=Path,default=ROOT/'results/2026-09-23/first-five-system-batch-v2/spec.json')
+    parser.add_argument('--campaign',type=Path,default=ROOT/'results/2026-09-23/first-five-system-batch-v3/spec.json')
     parser.add_argument('--watch',action='store_true',help='refresh until this queue has no running/queued jobs')
     parser.add_argument('--interval',type=float,default=30)
     args=parser.parse_args()

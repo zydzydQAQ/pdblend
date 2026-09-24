@@ -25,10 +25,13 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--out',type=Path,required=True)
     p.add_argument('--cohort-spec',type=Path,help='Existing final cohort.json shared with other independent profilers')
+    p.add_argument('--resume-short',action='append',default=[],metavar='MODEL=PATH')
     p.add_argument('--cache-manifest',type=Path,default=ROOT/'results/2026-09-23/quad-compiler-cache-archive/manifest.json')
     args=p.parse_args();out=args.out.resolve();out.mkdir(parents=True,exist_ok=False)
-    prep=subprocess.run(['/home/pdblend/.venv/bin/python','-B',str(ROOT/'scripts/2026-09-23_prepare_short_resident.py'),
-        '--out',str(out/'packages')],check=True,capture_output=True,text=True)
+    prepare_argv=['/home/pdblend/.venv/bin/python','-B',str(ROOT/'scripts/2026-09-23_prepare_short_resident.py'),
+        '--out',str(out/'packages')]
+    for value in args.resume_short:prepare_argv.extend(['--resume-short',value])
+    prep=subprocess.run(prepare_argv,check=True,capture_output=True,text=True)
     (out/'prepare.stdout').write_text(prep.stdout)
     review=json.loads((out/'packages/review.json').read_text())
     members={'pdblend-'+name.split('-')[0]:value for name,value in review['members'].items()}

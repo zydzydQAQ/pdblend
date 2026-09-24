@@ -31,8 +31,10 @@ def check(config):
     if config['kind']=='profile':
         points=measurement_points(SimpleNamespace(points_file=config['points_file'],tp=config['tp']),identity['model'])
         if len(config['gpus'])!=config['tp']:raise ValueError('exact TP-sized profile group required')
+        batches=sorted({p['batch'] for p in points})
         detail=dict(points=len(points),frequency_bins=sorted({p['frequency_mhz'] for p in points}),
-                    deferred_batches_above=1,holdout_repeats=1,training_repeats=3)
+                    batch_values=batches,deferred_batches_above=max(batches),
+                    holdout_repeats=1,training_repeats=3)
         if config.get('sampling_epoch_root'):
             from .profile_epochs import DynamoEpochs
             from pdblend.profile.sampling_epochs import SamplingEpochs

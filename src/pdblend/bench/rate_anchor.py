@@ -26,6 +26,7 @@ from .client import load_split, poisson_trace, SLOS
 from .metering import Gpus
 from .mixed_smoke import gpu_manifest
 from .native_mixed import execute
+from pdblend.results.power_archive import write_power_archive
 
 START_RATES = {'alpaca': 4., 'sharegpt': 1., 'longbench': .5}
 
@@ -202,7 +203,7 @@ async def run(args):
             meter.reset_all()
         if sampler is not None:
             sampler.stop()
-            write(args.out/'power.json', dict(samples=sampler.samples,
+            write_power_archive(args.out/'power.json', dict(samples=sampler.samples,
                 frequency_samples=sampler.frequency_samples, power_metadata=sampler.power_metadata,
                 power_source=sampler.power_source, error=sampler.error))
             result['total_calibration_energy_j'] = sampler.total_energy_j()

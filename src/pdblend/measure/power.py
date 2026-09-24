@@ -73,19 +73,30 @@ class PowerSampler:
         self._thread: Optional[threading.Thread] = None
         self.samples: List[PowerRow] = []
         self.utilization_samples: List[PowerRow] = []
+        # Legacy complete rows stay numeric. New consumers use individual
+        # device readings, including failed reads, rather than dropping peers.
+        self.utilization_readings: list[dict] = []
+        self.utilization_errors: list[dict] = []
+        self.utilization_source = dict(getattr(backend, 'utilization_source',
+            dict(source_id=type(backend).__name__ + ':utilization_pct', unit='percent',
+                 sensor_period_s=None)))
         self.frequency_samples: List[PowerRow] = []
         self.power_source = dict(getattr(backend, 'power_source', dict(schema=1,
             mode='unspecified', source_id=type(backend).__name__, field_id=None, unit='W')))
         self.power_metadata = []
         self.error: Optional[str] = None
+        self.error_at_s: Optional[float] = None
 
     def start(self) -> None:
         self.stop()
         self.samples = []
         self.utilization_samples = []
+        self.utilization_readings = []
+        self.utilization_errors = []
         self.frequency_samples = []
         self.power_metadata = []
         self.error = None
+        self.error_at_s = None
         self._stop.clear()
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
@@ -101,16 +112,52 @@ class PowerSampler:
             try:
                 sample = self._read()
                 self.samples.append(sample)
-                read_util = getattr(self.backend, "utilization_pct", None)
-                if read_util is not None:
-                    self.utilization_samples.append((
-                        sample[0], [float(read_util(g)) for g in self.gpus]))
+                self._read_utilization()
                 if self.sample_clocks:
                     self.frequency_samples.append((sample[0],[self.backend.current_freq(g) for g in self.gpus]))
             except Exception as exc:
                 self.error = str(exc)
+                self.error_at_s = float(self._clock())
                 return
             self._stop.wait(self.interval)
+
+    def _read_utilization(self) -> None:
+        """A failed optional utilization read must not stop energy sampling."""
+        read = getattr(self.backend, 'utilization_reading', None)
+        scalar = getattr(self.backend, 'utilization_pct', None)
+        if read is None and scalar is None:
+            return
+        rows = []
+        for gpu in self.gpus:
+            started = float(self._clock())
+            try:
+                if read is not None:
+                    row = dict(read(gpu))
+                else:
+                    value = float(scalar(gpu))
+                    finished = float(self._clock())
+                    row = dict(gpu_util_pct=value, t_s=finished, read_started_s=started,
+                               read_finished_s=finished,
+                               source_id=self.utilization_source['source_id'], error=None)
+                value = row.get('gpu_util_pct')
+                a, b = row.get('read_started_s'), row.get('read_finished_s')
+                if (row.get('error') or not isinstance(value, (float, int))
+                        or not math.isfinite(value) or not 0 <= value <= 100
+                        or not all(isinstance(t, (float, int)) and math.isfinite(t)
+                                   for t in (a, b)) or b < a):
+                    raise ValueError('invalid GPU utilization value/acquisition interval')
+                row.update(gpu=gpu, t_s=b, error=None)
+            except Exception as exc:
+                finished = float(self._clock())
+                row = dict(gpu=gpu, gpu_util_pct=None, t_s=finished,
+                           read_started_s=started, read_finished_s=finished,
+                           source_id=self.utilization_source['source_id'], error=str(exc))
+                self.utilization_errors.append(dict(row))
+            self.utilization_readings.append(row)
+            rows.append(row)
+        if rows and all(row['error'] is None for row in rows):
+            self.utilization_samples.append((max(row['t_s'] for row in rows),
+                                             [row['gpu_util_pct'] for row in rows]))
 
     def _read(self) -> PowerRow:
         with gc_read_guard():

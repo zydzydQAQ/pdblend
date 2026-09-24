@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from pdblend.profile import short_domain_collect as short
-from pdblend.profile.long_holdout_only import load_package as load_long
+from pdblend.profile.long_holdout_only import prepare as prepare_long, load_package as load_long
 from pdblend.profile.power_calibration import write_immutable
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -15,22 +15,42 @@ BASES={'7b':'7b-tp1-4ddc49563cef6321c0b5','14b':'14b-tp1-a52c3dc4e13305790e9b','
 
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--out',type=Path,required=True);args=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--out',type=Path,required=True)
+    p.add_argument('--resume-short',action='append',default=[],metavar='MODEL=PATH',
+        help='Retain independently verified windows from an old 7b/14b/32b short directory')
+    args=p.parse_args()
+    resumed={}
+    for value in args.resume_short:
+        model,separator,path=value.partition('=')
+        if not separator or model not in BASES or model in resumed or not path:
+            raise ValueError('resume-short requires one unique 7b/14b/32b=PATH per model')
+        resumed[model]=Path(path).resolve()
     out=args.out.resolve()
     if out.exists():raise FileExistsError('new immutable review directory required')
     report=json.loads((RESULTS/'incremental-wave-closeout-v1/audit.json').read_text())
-    long=RESULTS/'14b-tp1-holdout-only-v1/package';lm,_,_=load_long(long)
     out.mkdir(parents=True);members={}
+    # Bind the current collector/qualification code in a new immutable input
+    # package. This rebuilds only CPU metadata from the same 36 training rows.
+    long=out/'14b-long-package'
+    prepare_long(training=report['members']['14b-tp1-longctx']['root'],out=long)
+    lm,_,_=load_long(long)
     sources=['short_domain.py','short_domain_collect.py','sampling_guard.py','resident_long_holdout.py','resident_domain_job.py']
     for size,tp in (('7b',1),('14b',1),('32b',2)):
         key=f'{size}-tp{tp}-short-resident';training=Path(report['members'][f'{size}-tp{tp}-longctx']['root']);package=out/f'{size}-short-package'
         base=CANDIDATES/BASES[size]/'candidate.json';dataset=ROOT/'datasets/prepared'/f'2026-09-22-{size}-v1/manifest.json'
-        manifest=short.prepare(base_candidate=base,dataset_manifest=dataset,identity_raw=training/'raw.json',out=package)
+        manifest=short.prepare(base_candidate=base,dataset_manifest=dataset,identity_raw=training/'raw.json',
+            out=package,resume_from=resumed.get(size))
         _,plan=short.load_package(package)
         argv=['python','-m','pdblend.profile.resident_domain_job','--model',f'/models/{manifest["model_id"]}',
             '--gpus',*[str(i) for i in range(tp)],'--base-port','{lease_port}','--out','{attempt_dir}',
             '--epochs-root','{coordinator}','--member',key,'--short-package',str(package)]
         roots=[str(package),str(training),str(base.parent),str(dataset.parent)]
+        if size in resumed:
+            # The inherited archive verifies its enclosing attempt manifest,
+            # exact invocation, original package and all frozen source files.
+            roots.append(str(resumed[size].parent))
+            roots.extend(str(Path(path).parent) for path in manifest['inherited_archive']['files_sha256']
+                         if Path(path).is_absolute())
         if size=='14b':
             argv+=['--long-package',str(long)];roots +=[str(long),lm['training']]
         seconds=sum(p['repeats']*(p['settle_s']+p['measure_s']) for phase in ('training','holdout') for p in plan[phase])
@@ -38,6 +58,7 @@ def main():
             system='pdblend',tp=tp,pp=1,gpu_count=tp,exclusive=False,max_attempts=2,timeout_s=7200,
             argv_template=argv,readonly_roots=sorted(set(roots)),required_receipts=['completion.json'],
             package_manifest_sha256=short.digest(package/'manifest.json'),
+            inherited_short_archive=manifest.get('inherited_archive'),
             implementation_sha256={name:short.digest(ROOT/'src/pdblend/profile'/name) for name in sources},
             source_files=['src/pdblend/profile/'+name for name in sources],
             source_freeze_required=True,epochs_controller_required=True,cohort_fixed_membership=True,

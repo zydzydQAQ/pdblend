@@ -261,6 +261,10 @@ async def test_completed_retained_cancel_uses_release_when_pinned_async_abort_fi
     # CUDA. This is the real API/output-processor filter that the old fake
     # abort shortcut bypassed, hiding retained-source leaks.
     package = importlib.util.find_spec('vllm')
+    if package is None:
+        pytest.skip('requires pinned vLLM source; run this contract in the CPU-only campaign image')
+    from importlib.metadata import version
+    assert version('vllm') == '0.10.1.1', 'abort contract must use the campaign-pinned engine source'
     root = Path(next(iter(package.submodule_search_locations)))
     namespace = {'as_list': list}
     for filename, method in [('async_llm.py', 'abort'), ('output_processor.py', 'abort_requests')]:

@@ -59,7 +59,8 @@ def derive(attempt):
            or capabilities[key].get('model_id') != completion['model_id']
            for key in ('source', 'normal_target')):
         raise ValueError('actual native engine/model identity differs')
-    rows = [json.loads(line) for line in (attempt/'events.jsonl').open()]
+    from pdblend.results.journal import iter_journal
+    rows = list(iter_journal(attempt/completion.get('journal_path','events.jsonl')))
     transitions = [row for row in rows if row['event']=='dynamo_transition' and row.get('phase')=='complete']
     if len(transitions) != 1:
         raise ValueError('exactly one complete native transition required')

@@ -1,0 +1,270 @@
+{
+  "source_path": "/home/pdblend4/results/2026-09-22/three-model/queue-attempts/holdout-7b-tp4-22436e6b272c028dd006-shared-bc3b8b870464/attempt-0001-373e3f3f1322460ba85e5ea5818b9cbd/raw.json",
+  "source_sha256": "18cb97e8962e8c41a9b491b99f9cd7fcdc8240cddc8a02b7c8b34d6fd9b65ad5",
+  "prefill": {
+    "freq_mhz": 2100,
+    "input_tokens": 2048,
+    "power_w": 573.333925906807,
+    "runs": 10,
+    "samples_file": "samples/holdout-p-2100-2048.json",
+    "samples_sha256": "0bdbd68503282693594b7192a3280dbda0de0c28c919067fe43ba076d76b23cb",
+    "seconds": 0.22199642658233643
+  },
+  "decode": {
+    "batch": 12,
+    "concurrency": 12,
+    "context_tokens": 2048,
+    "effective_context_tokens": 2427.5833333333335,
+    "freq_mhz": 2100,
+    "frequency_samples": 300,
+    "measured_gpu_ids": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "parallel_layout": {
+      "gpu_count": 4,
+      "gpus": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "instance_count": 1,
+      "instances": [
+        {
+          "gpus": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "instance_id": "i0",
+          "pp": 1,
+          "stage_map": {
+            "0": [
+              0,
+              1,
+              2,
+              3
+            ]
+          },
+          "tp": 4
+        }
+      ],
+      "unique_gpu_count": 4
+    },
+    "power_repeats": [
+      603.84206,
+      603.08318,
+      597.79353
+    ],
+    "power_samples": 300,
+    "power_w": 603.08318,
+    "repeats": [
+      {
+        "batch": 12,
+        "concurrency": 12,
+        "context_tokens": 2048,
+        "effective_context_tokens": 2427.5833333333335,
+        "end_s": 1790138146.0299165,
+        "frequency_samples": 100,
+        "mean_freq_mhz": 2100.0,
+        "measured_gpu_ids": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "min_steps": 401,
+        "parallel_layout": {
+          "gpu_count": 4,
+          "gpus": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "instance_count": 1,
+          "instances": [
+            {
+              "gpus": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "instance_id": "i0",
+              "pp": 1,
+              "stage_map": {
+                "0": [
+                  0,
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "tp": 4
+            }
+          ],
+          "unique_gpu_count": 4
+        },
+        "power_samples": 100,
+        "power_w": 603.84206,
+        "samples_file": "samples/holdout-d-2100-2048-12-r0.json",
+        "samples_sha256": "7029b9c7a25c82efcdfbfa34bd57efead1c82030e724c034d6863e9654e7843f",
+        "start_s": 1790138141.0294933,
+        "steady_window_s": 5.000423192977905,
+        "step_seconds": 0.012469883274259115,
+        "steps": 401
+      },
+      {
+        "batch": 12,
+        "concurrency": 12,
+        "context_tokens": 2048,
+        "effective_context_tokens": 2427.5833333333335,
+        "end_s": 1790138155.949804,
+        "frequency_samples": 100,
+        "mean_freq_mhz": 2100.0,
+        "measured_gpu_ids": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "min_steps": 401,
+        "parallel_layout": {
+          "gpu_count": 4,
+          "gpus": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "instance_count": 1,
+          "instances": [
+            {
+              "gpus": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "instance_id": "i0",
+              "pp": 1,
+              "stage_map": {
+                "0": [
+                  0,
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "tp": 4
+            }
+          ],
+          "unique_gpu_count": 4
+        },
+        "power_samples": 100,
+        "power_w": 603.08318,
+        "samples_file": "samples/holdout-d-2100-2048-12-r1.json",
+        "samples_sha256": "5a9273efb03541e5beb9289512e8e5fd03abff98c5a317ba57eac1a6cbd0cf15",
+        "start_s": 1790138150.9492605,
+        "steady_window_s": 5.000543594360352,
+        "step_seconds": 0.012470183527083172,
+        "steps": 401
+      },
+      {
+        "batch": 12,
+        "concurrency": 12,
+        "context_tokens": 2048,
+        "effective_context_tokens": 2423.0833333333335,
+        "end_s": 1790138165.8719919,
+        "frequency_samples": 100,
+        "mean_freq_mhz": 2100.0,
+        "measured_gpu_ids": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "min_steps": 394,
+        "parallel_layout": {
+          "gpu_count": 4,
+          "gpus": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "instance_count": 1,
+          "instances": [
+            {
+              "gpus": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "instance_id": "i0",
+              "pp": 1,
+              "stage_map": {
+                "0": [
+                  0,
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "tp": 4
+            }
+          ],
+          "unique_gpu_count": 4
+        },
+        "power_samples": 100,
+        "power_w": 597.79353,
+        "samples_file": "samples/holdout-d-2100-2048-12-r2.json",
+        "samples_sha256": "4ddb5c1ee317ace6ab4298152a81e085e460b82ee7ebfd861c4918f90fd51806",
+        "start_s": 1790138160.8717775,
+        "steady_window_s": 5.000214338302612,
+        "step_seconds": 0.012690899335793432,
+        "steps": 394
+      }
+    ],
+    "sampling_method": "legacy_separate_prefill_fallback",
+    "shared_prefill_attempt": {
+      "plan": {
+        "batch": 12,
+        "context_tokens": 2048,
+        "fallback_method": "Profiler._decode_batch",
+        "formal_eligible": false,
+        "freq_mhz": 2100,
+        "independent_prefill_repeats": false,
+        "max_model_len": 8192,
+        "measure_s": 5.0,
+        "model_id": "Qwen2.5-7B-Instruct",
+        "pp": 1,
+        "reason": "missing_same_shape_measured_latency_for_tail_reservation",
+        "repeats": 3,
+        "same_decode_run": true,
+        "schema": 1,
+        "settle_s": 2.0,
+        "status": "fallback_required",
+        "system": "pdblend",
+        "tp": 4
+      },
+      "row": null,
+      "status": "fallback_required"
+    },
+    "steady_window_s": 5.000214338302612,
+    "step_repeats": [
+      0.012469883274259115,
+      0.012470183527083172,
+      0.012690899335793432
+    ],
+    "step_seconds": 0.012470183527083172,
+    "steps": 394,
+    "unseen_shape": true
+  }
+}

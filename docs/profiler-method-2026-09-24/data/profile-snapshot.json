@@ -1,0 +1,2759 @@
+{
+  "bounded_coverage": {
+    "extrapolation": false,
+    "frequency_interpolation": false,
+    "prefill_tokens": [
+      128,
+      7168
+    ]
+  },
+  "decode_overrides": {
+    "1200": {
+      "coefficients": [
+        0.010305349081235352,
+        0.012354064018962965,
+        0.001615185822325052,
+        -0.00017983797224977257,
+        0.009402994754760903,
+        0.00030905072187943915
+      ],
+      "domain": {
+        "batch": [
+          1,
+          256
+        ],
+        "context": [
+          256,
+          4840.0
+        ],
+        "max_batch_context": 2197742.4
+      },
+      "kind": "split_b1_relative",
+      "objective": "squared_relative_error",
+      "validation_status": "training_only"
+    },
+    "1500": {
+      "coefficients": [
+        0.009791801061505265,
+        0.011420226453771016,
+        0.0014466383123358467,
+        -0.00017664495064710075,
+        0.008905984673697907,
+        0.00028391225413190317
+      ],
+      "domain": {
+        "batch": [
+          1,
+          256
+        ],
+        "context": [
+          256,
+          4877.0
+        ],
+        "max_batch_context": 2197742.4
+      },
+      "kind": "split_b1_relative",
+      "objective": "squared_relative_error",
+      "validation_status": "training_only"
+    },
+    "1800": {
+      "coefficients": [
+        0.009489108668196071,
+        0.01098966342677737,
+        0.0013832256834663526,
+        -0.00024997086218664084,
+        0.00855685351079424,
+        0.00036717206639046536
+      ],
+      "domain": {
+        "batch": [
+          1,
+          256
+        ],
+        "context": [
+          256,
+          4903.0
+        ],
+        "max_batch_context": 2197742.4
+      },
+      "kind": "split_b1_relative",
+      "objective": "squared_relative_error",
+      "validation_status": "training_only"
+    },
+    "2100": {
+      "coefficients": [
+        0.009166574558525799,
+        0.010796325799256868,
+        0.001351060610298765,
+        -0.00027857306382476807,
+        0.008398340693699463,
+        0.00021148359535618196
+      ],
+      "domain": {
+        "batch": [
+          1,
+          256
+        ],
+        "context": [
+          256,
+          4931.0
+        ],
+        "max_batch_context": 2197742.4
+      },
+      "kind": "split_b1_relative",
+      "objective": "squared_relative_error",
+      "validation_status": "training_only"
+    },
+    "2520": {
+      "coefficients": [
+        0.008776005366226016,
+        0.01068600649865839,
+        0.0013642022357978315,
+        -0.00035527832016885025,
+        0.008057940827037676,
+        0.000291643068601868
+      ],
+      "domain": {
+        "batch": [
+          1,
+          256
+        ],
+        "context": [
+          256,
+          4953.0
+        ],
+        "max_batch_context": 2197742.4
+      },
+      "kind": "split_b1_relative",
+      "objective": "squared_relative_error",
+      "validation_status": "training_only"
+    },
+    "900": {
+      "coefficients": [
+        0.01126327059963162,
+        0.013951795129494156,
+        0.002095125562700253,
+        -0.0001481258560937666,
+        0.010284854282245244,
+        0.00028420951804864993
+      ],
+      "domain": {
+        "batch": [
+          1,
+          256
+        ],
+        "context": [
+          256,
+          4780.0
+        ],
+        "max_batch_context": 2197742.4
+      },
+      "kind": "split_b1_relative",
+      "objective": "squared_relative_error",
+      "validation_status": "training_only"
+    }
+  },
+  "decode_power": {
+    "1200": [
+      550.1361735054982,
+      0.11911629056667929
+    ],
+    "1500": [
+      568.6671422030646,
+      0.12044285678191091
+    ],
+    "1800": [
+      587.1317821037962,
+      0.1455188775962179
+    ],
+    "2100": [
+      594.672794299895,
+      0.15351874069114507
+    ],
+    "2520": [
+      725.950035344827,
+      0.19809793160014466
+    ],
+    "900": [
+      518.9672104481592,
+      0.09470224719820226
+    ]
+  },
+  "decode_power_overrides": {
+    "1200": {
+      "batch_interpolation": "linear",
+      "kind": "bounded_context_power_v1",
+      "nodes": [
+        {
+          "batch": 1,
+          "context_max": 750.5,
+          "context_min": 746.5,
+          "nominal_context_tokens": 256,
+          "power_w": 613.59789
+        },
+        {
+          "batch": 4,
+          "context_max": 685.25,
+          "context_min": 682.25,
+          "nominal_context_tokens": 256,
+          "power_w": 555.8494566666667
+        },
+        {
+          "batch": 8,
+          "context_max": 656.625,
+          "context_min": 652.625,
+          "nominal_context_tokens": 256,
+          "power_w": 557.0294966666667
+        },
+        {
+          "batch": 16,
+          "context_max": 604.5625,
+          "context_min": 604.0625,
+          "nominal_context_tokens": 256,
+          "power_w": 543.8938965656565
+        },
+        {
+          "batch": 32,
+          "context_max": 537.03125,
+          "context_min": 536.3125,
+          "nominal_context_tokens": 256,
+          "power_w": 540.6933833333334
+        },
+        {
+          "batch": 64,
+          "context_max": 468.015625,
+          "context_min": 468.015625,
+          "nominal_context_tokens": 256,
+          "power_w": 505.74930333333333
+        },
+        {
+          "batch": 128,
+          "context_max": 405.421875,
+          "context_min": 404.515625,
+          "nominal_context_tokens": 256,
+          "power_w": 543.35233
+        },
+        {
+          "batch": 256,
+          "context_max": 352.4765625,
+          "context_min": 349.9765625,
+          "nominal_context_tokens": 256,
+          "power_w": 544.4526333333333
+        },
+        {
+          "batch": 1,
+          "context_max": 1516.0,
+          "context_min": 1513.5,
+          "nominal_context_tokens": 1024,
+          "power_w": 610.8418133333333
+        },
+        {
+          "batch": 4,
+          "context_max": 1452.5,
+          "context_min": 1448.75,
+          "nominal_context_tokens": 1024,
+          "power_w": 555.1915766666667
+        },
+        {
+          "batch": 8,
+          "context_max": 1418.625,
+          "context_min": 1417.625,
+          "nominal_context_tokens": 1024,
+          "power_w": 554.9420014478114
+        },
+        {
+          "batch": 16,
+          "context_max": 1362.5625,
+          "context_min": 1361.5625,
+          "nominal_context_tokens": 1024,
+          "power_w": 543.32398
+        },
+        {
+          "batch": 32,
+          "context_max": 1297.03125,
+          "context_min": 1295.03125,
+          "nominal_context_tokens": 1024,
+          "power_w": 547.9666266666667
+        },
+        {
+          "batch": 64,
+          "context_max": 1228.515625,
+          "context_min": 1228.015625,
+          "nominal_context_tokens": 1024,
+          "power_w": 520.56088
+        },
+        {
+          "batch": 128,
+          "context_max": 1169.5078125,
+          "context_min": 1169.5078125,
+          "nominal_context_tokens": 1024,
+          "power_w": 560.2123333333334
+        },
+        {
+          "batch": 256,
+          "context_max": 1126.890625,
+          "context_min": 1121.890625,
+          "nominal_context_tokens": 1024,
+          "power_w": 563.2547444897959
+        },
+        {
+          "batch": 1,
+          "context_max": 4581.0,
+          "context_min": 4575.5,
+          "nominal_context_tokens": 4096,
+          "power_w": 611.4877
+        },
+        {
+          "batch": 4,
+          "context_max": 4504.75,
+          "context_min": 4504.25,
+          "nominal_context_tokens": 4096,
+          "power_w": 563.490508989899
+        },
+        {
+          "batch": 8,
+          "context_max": 4468.125,
+          "context_min": 4467.625,
+          "nominal_context_tokens": 4096,
+          "power_w": 568.0688533333333
+        },
+        {
+          "batch": 16,
+          "context_max": 4409.5625,
+          "context_min": 4409.0625,
+          "nominal_context_tokens": 4096,
+          "power_w": 563.0904
+        },
+        {
+          "batch": 32,
+          "context_max": 4344.53125,
+          "context_min": 4344.03125,
+          "nominal_context_tokens": 4096,
+          "power_w": 576.6502466666666
+        },
+        {
+          "batch": 64,
+          "context_max": 4283.015625,
+          "context_min": 4283.015625,
+          "nominal_context_tokens": 4096,
+          "power_w": 568.5950133333333
+        },
+        {
+          "batch": 128,
+          "context_max": 4241.0078125,
+          "context_min": 4241.0078125,
+          "nominal_context_tokens": 4096,
+          "power_w": 612.4584533333333
+        },
+        {
+          "batch": 256,
+          "context_max": 4232.03515625,
+          "context_min": 4232.03515625,
+          "nominal_context_tokens": 4096,
+          "power_w": 629.78159
+        }
+      ],
+      "training_raw_sha256": "a2a35871923ab0fe678eada58299e57a7d1bcad8bd1509c4e86aa61b8081fe0d",
+      "validation_status": "training_only"
+    },
+    "1500": {
+      "batch_interpolation": "linear",
+      "kind": "bounded_context_power_v1",
+      "nodes": [
+        {
+          "batch": 1,
+          "context_max": 776.0,
+          "context_min": 775.0,
+          "nominal_context_tokens": 256,
+          "power_w": 633.4194200000001
+        },
+        {
+          "batch": 4,
+          "context_max": 710.5,
+          "context_min": 708.375,
+          "nominal_context_tokens": 256,
+          "power_w": 576.1939533333333
+        },
+        {
+          "batch": 8,
+          "context_max": 680.125,
+          "context_min": 678.625,
+          "nominal_context_tokens": 256,
+          "power_w": 577.5578433333334
+        },
+        {
+          "batch": 16,
+          "context_max": 624.0625,
+          "context_min": 623.5625,
+          "nominal_context_tokens": 256,
+          "power_w": 562.4812033333334
+        },
+        {
+          "batch": 32,
+          "context_max": 550.03125,
+          "context_min": 549.03125,
+          "nominal_context_tokens": 256,
+          "power_w": 555.9453433333333
+        },
+        {
+          "batch": 64,
+          "context_max": 479.515625,
+          "context_min": 479.03125,
+          "nominal_context_tokens": 256,
+          "power_w": 519.1413466666667
+        },
+        {
+          "batch": 128,
+          "context_max": 417.4375,
+          "context_min": 416.0078125,
+          "nominal_context_tokens": 256,
+          "power_w": 556.1289066666667
+        },
+        {
+          "batch": 256,
+          "context_max": 358.5546875,
+          "context_min": 358.4765625,
+          "nominal_context_tokens": 256,
+          "power_w": 564.67692
+        },
+        {
+          "batch": 1,
+          "context_max": 1542.5,
+          "context_min": 1541.5,
+          "nominal_context_tokens": 1024,
+          "power_w": 630.5660144444445
+        },
+        {
+          "batch": 4,
+          "context_max": 1475.375,
+          "context_min": 1473.75,
+          "nominal_context_tokens": 1024,
+          "power_w": 575.5731333333333
+        },
+        {
+          "batch": 8,
+          "context_max": 1441.625,
+          "context_min": 1439.625,
+          "nominal_context_tokens": 1024,
+          "power_w": 577.5469899999999
+        },
+        {
+          "batch": 16,
+          "context_max": 1388.0625,
+          "context_min": 1381.0625,
+          "nominal_context_tokens": 1024,
+          "power_w": 565.9458633333333
+        },
+        {
+          "batch": 32,
+          "context_max": 1309.03125,
+          "context_min": 1307.53125,
+          "nominal_context_tokens": 1024,
+          "power_w": 565.31151
+        },
+        {
+          "batch": 64,
+          "context_max": 1241.015625,
+          "context_min": 1240.015625,
+          "nominal_context_tokens": 1024,
+          "power_w": 537.69237
+        },
+        {
+          "batch": 128,
+          "context_max": 1181.5078125,
+          "context_min": 1181.5078125,
+          "nominal_context_tokens": 1024,
+          "power_w": 580.9211100000001
+        },
+        {
+          "batch": 256,
+          "context_max": 1131.890625,
+          "context_min": 1131.890625,
+          "nominal_context_tokens": 1024,
+          "power_w": 587.3754733333334
+        },
+        {
+          "batch": 1,
+          "context_max": 4605.0,
+          "context_min": 4600.5,
+          "nominal_context_tokens": 4096,
+          "power_w": 628.3583637373737
+        },
+        {
+          "batch": 4,
+          "context_max": 4526.75,
+          "context_min": 4525.75,
+          "nominal_context_tokens": 4096,
+          "power_w": 578.78777
+        },
+        {
+          "batch": 8,
+          "context_max": 4490.75,
+          "context_min": 4490.625,
+          "nominal_context_tokens": 4096,
+          "power_w": 586.0822533333334
+        },
+        {
+          "batch": 16,
+          "context_max": 4428.0625,
+          "context_min": 4427.0625,
+          "nominal_context_tokens": 4096,
+          "power_w": 582.9901633333334
+        },
+        {
+          "batch": 32,
+          "context_max": 4358.03125,
+          "context_min": 4357.03125,
+          "nominal_context_tokens": 4096,
+          "power_w": 596.5033866666666
+        },
+        {
+          "batch": 64,
+          "context_max": 4293.515625,
+          "context_min": 4293.015625,
+          "nominal_context_tokens": 4096,
+          "power_w": 586.1597499999999
+        },
+        {
+          "batch": 128,
+          "context_max": 4250.5078125,
+          "context_min": 4250.5078125,
+          "nominal_context_tokens": 4096,
+          "power_w": 636.8735433333333
+        },
+        {
+          "batch": 256,
+          "context_max": 4237.03515625,
+          "context_min": 4236.53515625,
+          "nominal_context_tokens": 4096,
+          "power_w": 655.5301966666666
+        }
+      ],
+      "training_raw_sha256": "a2a35871923ab0fe678eada58299e57a7d1bcad8bd1509c4e86aa61b8081fe0d",
+      "validation_status": "training_only"
+    },
+    "1800": {
+      "batch_interpolation": "linear",
+      "kind": "bounded_context_power_v1",
+      "nodes": [
+        {
+          "batch": 1,
+          "context_max": 802.5,
+          "context_min": 792.0,
+          "nominal_context_tokens": 256,
+          "power_w": 655.37657
+        },
+        {
+          "batch": 4,
+          "context_max": 722.25,
+          "context_min": 720.25,
+          "nominal_context_tokens": 256,
+          "power_w": 592.0860200000001
+        },
+        {
+          "batch": 8,
+          "context_max": 692.25,
+          "context_min": 691.4375,
+          "nominal_context_tokens": 256,
+          "power_w": 590.5390466666668
+        },
+        {
+          "batch": 16,
+          "context_max": 637.0625,
+          "context_min": 636.0625,
+          "nominal_context_tokens": 256,
+          "power_w": 575.80698
+        },
+        {
+          "batch": 32,
+          "context_max": 559.53125,
+          "context_min": 558.546875,
+          "nominal_context_tokens": 256,
+          "power_w": 570.7143966666666
+        },
+        {
+          "batch": 64,
+          "context_max": 488.015625,
+          "context_min": 487.015625,
+          "nominal_context_tokens": 256,
+          "power_w": 537.50444
+        },
+        {
+          "batch": 128,
+          "context_max": 424.0859375,
+          "context_min": 423.5078125,
+          "nominal_context_tokens": 256,
+          "power_w": 578.5788566666666
+        },
+        {
+          "batch": 256,
+          "context_max": 363.5546875,
+          "context_min": 360.9765625,
+          "nominal_context_tokens": 256,
+          "power_w": 586.5509923232322
+        },
+        {
+          "batch": 1,
+          "context_max": 1563.0,
+          "context_min": 1560.0,
+          "nominal_context_tokens": 1024,
+          "power_w": 659.9801033333333
+        },
+        {
+          "batch": 4,
+          "context_max": 1488.25,
+          "context_min": 1485.75,
+          "nominal_context_tokens": 1024,
+          "power_w": 600.2170933333333
+        },
+        {
+          "batch": 8,
+          "context_max": 1454.125,
+          "context_min": 1451.625,
+          "nominal_context_tokens": 1024,
+          "power_w": 600.6751166666667
+        },
+        {
+          "batch": 16,
+          "context_max": 1394.6875,
+          "context_min": 1393.5625,
+          "nominal_context_tokens": 1024,
+          "power_w": 586.6285133333334
+        },
+        {
+          "batch": 32,
+          "context_max": 1319.03125,
+          "context_min": 1318.03125,
+          "nominal_context_tokens": 1024,
+          "power_w": 583.45942
+        },
+        {
+          "batch": 64,
+          "context_max": 1248.140625,
+          "context_min": 1247.515625,
+          "nominal_context_tokens": 1024,
+          "power_w": 553.3397878787879
+        },
+        {
+          "batch": 128,
+          "context_max": 1187.5078125,
+          "context_min": 1187.5078125,
+          "nominal_context_tokens": 1024,
+          "power_w": 598.60393
+        },
+        {
+          "batch": 256,
+          "context_max": 1136.6484375,
+          "context_min": 1136.390625,
+          "nominal_context_tokens": 1024,
+          "power_w": 613.36288
+        },
+        {
+          "batch": 1,
+          "context_max": 4621.5,
+          "context_min": 4614.5,
+          "nominal_context_tokens": 4096,
+          "power_w": 650.81358
+        },
+        {
+          "batch": 4,
+          "context_max": 4539.75,
+          "context_min": 4539.25,
+          "nominal_context_tokens": 4096,
+          "power_w": 599.1736766666667
+        },
+        {
+          "batch": 8,
+          "context_max": 4505.625,
+          "context_min": 4504.125,
+          "nominal_context_tokens": 4096,
+          "power_w": 608.1218766666667
+        },
+        {
+          "batch": 16,
+          "context_max": 4441.0625,
+          "context_min": 4440.65625,
+          "nominal_context_tokens": 4096,
+          "power_w": 605.5793717508418
+        },
+        {
+          "batch": 32,
+          "context_max": 4367.53125,
+          "context_min": 4366.53125,
+          "nominal_context_tokens": 4096,
+          "power_w": 618.64194
+        },
+        {
+          "batch": 64,
+          "context_max": 4299.515625,
+          "context_min": 4299.515625,
+          "nominal_context_tokens": 4096,
+          "power_w": 607.0783933333333
+        },
+        {
+          "batch": 128,
+          "context_max": 4255.0078125,
+          "context_min": 4255.0078125,
+          "nominal_context_tokens": 4096,
+          "power_w": 660.9011133333333
+        },
+        {
+          "batch": 256,
+          "context_max": 4240.03515625,
+          "context_min": 4234.53515625,
+          "nominal_context_tokens": 4096,
+          "power_w": 674.0003599999999
+        }
+      ],
+      "training_raw_sha256": "a2a35871923ab0fe678eada58299e57a7d1bcad8bd1509c4e86aa61b8081fe0d",
+      "validation_status": "training_only"
+    },
+    "2100": {
+      "batch_interpolation": "linear",
+      "kind": "bounded_context_power_v1",
+      "nodes": [
+        {
+          "batch": 1,
+          "context_max": 805.5,
+          "context_min": 804.0,
+          "nominal_context_tokens": 256,
+          "power_w": 667.2161388552189
+        },
+        {
+          "batch": 4,
+          "context_max": 733.25,
+          "context_min": 723.75,
+          "nominal_context_tokens": 256,
+          "power_w": 601.7683000000001
+        },
+        {
+          "batch": 8,
+          "context_max": 701.625,
+          "context_min": 700.625,
+          "nominal_context_tokens": 256,
+          "power_w": 601.2089833333333
+        },
+        {
+          "batch": 16,
+          "context_max": 648.0625,
+          "context_min": 642.5625,
+          "nominal_context_tokens": 256,
+          "power_w": 584.5685333333332
+        },
+        {
+          "batch": 32,
+          "context_max": 566.03125,
+          "context_min": 562.03125,
+          "nominal_context_tokens": 256,
+          "power_w": 577.6309637373738
+        },
+        {
+          "batch": 64,
+          "context_max": 495.28125,
+          "context_min": 494.515625,
+          "nominal_context_tokens": 256,
+          "power_w": 545.0997143771043
+        },
+        {
+          "batch": 128,
+          "context_max": 427.0859375,
+          "context_min": 415.0078125,
+          "nominal_context_tokens": 256,
+          "power_w": 583.4870433333334
+        },
+        {
+          "batch": 256,
+          "context_max": 366.9765625,
+          "context_min": 366.18359375,
+          "nominal_context_tokens": 256,
+          "power_w": 596.6541333333333
+        },
+        {
+          "batch": 1,
+          "context_max": 1577.5,
+          "context_min": 1576.5,
+          "nominal_context_tokens": 1024,
+          "power_w": 667.1923233333333
+        },
+        {
+          "batch": 4,
+          "context_max": 1503.0,
+          "context_min": 1502.5,
+          "nominal_context_tokens": 1024,
+          "power_w": 605.9149766666666
+        },
+        {
+          "batch": 8,
+          "context_max": 1470.875,
+          "context_min": 1470.125,
+          "nominal_context_tokens": 1024,
+          "power_w": 606.5359739393939
+        },
+        {
+          "batch": 16,
+          "context_max": 1408.5625,
+          "context_min": 1407.0625,
+          "nominal_context_tokens": 1024,
+          "power_w": 593.066998080808
+        },
+        {
+          "batch": 32,
+          "context_max": 1327.03125,
+          "context_min": 1325.53125,
+          "nominal_context_tokens": 1024,
+          "power_w": 591.1856833333333
+        },
+        {
+          "batch": 64,
+          "context_max": 1255.015625,
+          "context_min": 1254.640625,
+          "nominal_context_tokens": 1024,
+          "power_w": 563.3445135690235
+        },
+        {
+          "batch": 128,
+          "context_max": 1190.5078125,
+          "context_min": 1190.5078125,
+          "nominal_context_tokens": 1024,
+          "power_w": 602.4914666666667
+        },
+        {
+          "batch": 256,
+          "context_max": 1139.1484375,
+          "context_min": 1138.890625,
+          "nominal_context_tokens": 1024,
+          "power_w": 619.72842
+        },
+        {
+          "batch": 1,
+          "context_max": 4642.0,
+          "context_min": 4636.0,
+          "nominal_context_tokens": 4096,
+          "power_w": 661.7997499999999
+        },
+        {
+          "batch": 4,
+          "context_max": 4555.0,
+          "context_min": 4554.25,
+          "nominal_context_tokens": 4096,
+          "power_w": 608.6062366666666
+        },
+        {
+          "batch": 8,
+          "context_max": 4520.625,
+          "context_min": 4520.125,
+          "nominal_context_tokens": 4096,
+          "power_w": 618.0319866666667
+        },
+        {
+          "batch": 16,
+          "context_max": 4454.09375,
+          "context_min": 4453.0625,
+          "nominal_context_tokens": 4096,
+          "power_w": 614.4350302356903
+        },
+        {
+          "batch": 32,
+          "context_max": 4373.53125,
+          "context_min": 4371.03125,
+          "nominal_context_tokens": 4096,
+          "power_w": 624.6614527891156
+        },
+        {
+          "batch": 64,
+          "context_max": 4305.0078125,
+          "context_min": 4304.03125,
+          "nominal_context_tokens": 4096,
+          "power_w": 614.1653966666667
+        },
+        {
+          "batch": 128,
+          "context_max": 4257.5078125,
+          "context_min": 4257.0078125,
+          "nominal_context_tokens": 4096,
+          "power_w": 664.8214208080808
+        },
+        {
+          "batch": 256,
+          "context_max": 4242.03515625,
+          "context_min": 4241.53515625,
+          "nominal_context_tokens": 4096,
+          "power_w": 700.53521
+        }
+      ],
+      "training_raw_sha256": "a2a35871923ab0fe678eada58299e57a7d1bcad8bd1509c4e86aa61b8081fe0d",
+      "validation_status": "training_only"
+    },
+    "2520": {
+      "batch_interpolation": "linear",
+      "kind": "bounded_context_power_v1",
+      "nodes": [
+        {
+          "batch": 1,
+          "context_max": 829.0,
+          "context_min": 827.0,
+          "nominal_context_tokens": 256,
+          "power_w": 808.5921933333333
+        },
+        {
+          "batch": 4,
+          "context_max": 752.75,
+          "context_min": 752.75,
+          "nominal_context_tokens": 256,
+          "power_w": 727.7324976430976
+        },
+        {
+          "batch": 8,
+          "context_max": 724.625,
+          "context_min": 723.625,
+          "nominal_context_tokens": 256,
+          "power_w": 729.5171799999999
+        },
+        {
+          "batch": 16,
+          "context_max": 662.0625,
+          "context_min": 661.5625,
+          "nominal_context_tokens": 256,
+          "power_w": 713.5047533333333
+        },
+        {
+          "batch": 32,
+          "context_max": 575.5625,
+          "context_min": 575.53125,
+          "nominal_context_tokens": 256,
+          "power_w": 703.73248
+        },
+        {
+          "batch": 64,
+          "context_max": 501.859375,
+          "context_min": 500.5234375,
+          "nominal_context_tokens": 256,
+          "power_w": 665.9467836734694
+        },
+        {
+          "batch": 128,
+          "context_max": 432.0859375,
+          "context_min": 431.5078125,
+          "nominal_context_tokens": 256,
+          "power_w": 721.4299325925926
+        },
+        {
+          "batch": 256,
+          "context_max": 370.4765625,
+          "context_min": 370.0546875,
+          "nominal_context_tokens": 256,
+          "power_w": 734.2029833333332
+        },
+        {
+          "batch": 1,
+          "context_max": 1593.5,
+          "context_min": 1592.0,
+          "nominal_context_tokens": 1024,
+          "power_w": 811.2192
+        },
+        {
+          "batch": 4,
+          "context_max": 1515.25,
+          "context_min": 1514.75,
+          "nominal_context_tokens": 1024,
+          "power_w": 737.4222266666667
+        },
+        {
+          "batch": 8,
+          "context_max": 1486.125,
+          "context_min": 1484.125,
+          "nominal_context_tokens": 1024,
+          "power_w": 745.0666919865321
+        },
+        {
+          "batch": 16,
+          "context_max": 1420.0625,
+          "context_min": 1419.0625,
+          "nominal_context_tokens": 1024,
+          "power_w": 728.3093733333334
+        },
+        {
+          "batch": 32,
+          "context_max": 1335.53125,
+          "context_min": 1335.15625,
+          "nominal_context_tokens": 1024,
+          "power_w": 725.7948533333333
+        },
+        {
+          "batch": 64,
+          "context_max": 1261.515625,
+          "context_min": 1261.140625,
+          "nominal_context_tokens": 1024,
+          "power_w": 688.00804
+        },
+        {
+          "batch": 128,
+          "context_max": 1194.5078125,
+          "context_min": 1189.0078125,
+          "nominal_context_tokens": 1024,
+          "power_w": 735.18048
+        },
+        {
+          "batch": 256,
+          "context_max": 1142.51953125,
+          "context_min": 1142.390625,
+          "nominal_context_tokens": 1024,
+          "power_w": 762.4257633333333
+        },
+        {
+          "batch": 1,
+          "context_max": 4653.5,
+          "context_min": 4652.0,
+          "nominal_context_tokens": 4096,
+          "power_w": 808.2724066666666
+        },
+        {
+          "batch": 4,
+          "context_max": 4572.0,
+          "context_min": 4569.25,
+          "nominal_context_tokens": 4096,
+          "power_w": 742.4553566666667
+        },
+        {
+          "batch": 8,
+          "context_max": 4535.6875,
+          "context_min": 4534.25,
+          "nominal_context_tokens": 4096,
+          "power_w": 753.3446333333333
+        },
+        {
+          "batch": 16,
+          "context_max": 4464.5625,
+          "context_min": 4464.0625,
+          "nominal_context_tokens": 4096,
+          "power_w": 748.6334466666667
+        },
+        {
+          "batch": 32,
+          "context_max": 4378.53125,
+          "context_min": 4378.53125,
+          "nominal_context_tokens": 4096,
+          "power_w": 762.2320666666666
+        },
+        {
+          "batch": 64,
+          "context_max": 4309.515625,
+          "context_min": 4309.015625,
+          "nominal_context_tokens": 4096,
+          "power_w": 751.2898166666668
+        },
+        {
+          "batch": 128,
+          "context_max": 4260.0078125,
+          "context_min": 4255.0078125,
+          "nominal_context_tokens": 4096,
+          "power_w": 804.5224099999999
+        },
+        {
+          "batch": 256,
+          "context_max": 4243.53515625,
+          "context_min": 4237.53515625,
+          "nominal_context_tokens": 4096,
+          "power_w": 838.5985690909091
+        }
+      ],
+      "training_raw_sha256": "a2a35871923ab0fe678eada58299e57a7d1bcad8bd1509c4e86aa61b8081fe0d",
+      "validation_status": "training_only"
+    },
+    "900": {
+      "batch_interpolation": "linear",
+      "kind": "bounded_context_power_v1",
+      "nodes": [
+        {
+          "batch": 1,
+          "context_max": 708.5,
+          "context_min": 706.0,
+          "nominal_context_tokens": 256,
+          "power_w": 578.68526
+        },
+        {
+          "batch": 4,
+          "context_max": 647.25,
+          "context_min": 645.75,
+          "nominal_context_tokens": 256,
+          "power_w": 527.646568047138
+        },
+        {
+          "batch": 8,
+          "context_max": 619.125,
+          "context_min": 617.125,
+          "nominal_context_tokens": 256,
+          "power_w": 527.29125
+        },
+        {
+          "batch": 16,
+          "context_max": 574.0625,
+          "context_min": 573.0625,
+          "nominal_context_tokens": 256,
+          "power_w": 515.5745160269361
+        },
+        {
+          "batch": 32,
+          "context_max": 515.03125,
+          "context_min": 514.03125,
+          "nominal_context_tokens": 256,
+          "power_w": 512.9785651178452
+        },
+        {
+          "batch": 64,
+          "context_max": 448.515625,
+          "context_min": 448.515625,
+          "nominal_context_tokens": 256,
+          "power_w": 479.08202666666665
+        },
+        {
+          "batch": 128,
+          "context_max": 387.0078125,
+          "context_min": 386.58203125,
+          "nominal_context_tokens": 256,
+          "power_w": 510.65159666666665
+        },
+        {
+          "batch": 256,
+          "context_max": 343.5546875,
+          "context_min": 343.4765625,
+          "nominal_context_tokens": 256,
+          "power_w": 519.4893266666667
+        },
+        {
+          "batch": 1,
+          "context_max": 1478.5,
+          "context_min": 1477.5,
+          "nominal_context_tokens": 1024,
+          "power_w": 578.9880766666666
+        },
+        {
+          "batch": 4,
+          "context_max": 1413.75,
+          "context_min": 1413.5,
+          "nominal_context_tokens": 1024,
+          "power_w": 525.6301199999999
+        },
+        {
+          "batch": 8,
+          "context_max": 1382.125,
+          "context_min": 1381.625,
+          "nominal_context_tokens": 1024,
+          "power_w": 524.6791366666666
+        },
+        {
+          "batch": 16,
+          "context_max": 1331.5625,
+          "context_min": 1330.5625,
+          "nominal_context_tokens": 1024,
+          "power_w": 515.1393533333334
+        },
+        {
+          "batch": 32,
+          "context_max": 1274.53125,
+          "context_min": 1274.03125,
+          "nominal_context_tokens": 1024,
+          "power_w": 519.7603033333334
+        },
+        {
+          "batch": 64,
+          "context_max": 1209.515625,
+          "context_min": 1208.515625,
+          "nominal_context_tokens": 1024,
+          "power_w": 489.80655
+        },
+        {
+          "batch": 128,
+          "context_max": 1152.0078125,
+          "context_min": 1151.5078125,
+          "nominal_context_tokens": 1024,
+          "power_w": 523.4170366666666
+        },
+        {
+          "batch": 256,
+          "context_max": 1117.890625,
+          "context_min": 1117.890625,
+          "nominal_context_tokens": 1024,
+          "power_w": 533.5293066666667
+        },
+        {
+          "batch": 1,
+          "context_max": 4541.5,
+          "context_min": 4537.5,
+          "nominal_context_tokens": 4096,
+          "power_w": 578.5179066666667
+        },
+        {
+          "batch": 4,
+          "context_max": 4465.5,
+          "context_min": 4463.25,
+          "nominal_context_tokens": 4096,
+          "power_w": 527.66567
+        },
+        {
+          "batch": 8,
+          "context_max": 4429.625,
+          "context_min": 4428.625,
+          "nominal_context_tokens": 4096,
+          "power_w": 531.0804132659933
+        },
+        {
+          "batch": 16,
+          "context_max": 4377.5625,
+          "context_min": 4377.0625,
+          "nominal_context_tokens": 4096,
+          "power_w": 527.29938
+        },
+        {
+          "batch": 32,
+          "context_max": 4319.53125,
+          "context_min": 4319.03125,
+          "nominal_context_tokens": 4096,
+          "power_w": 544.246
+        },
+        {
+          "batch": 64,
+          "context_max": 4263.515625,
+          "context_min": 4262.515625,
+          "nominal_context_tokens": 4096,
+          "power_w": 532.3960533333333
+        },
+        {
+          "batch": 128,
+          "context_max": 4225.5078125,
+          "context_min": 4225.5078125,
+          "nominal_context_tokens": 4096,
+          "power_w": 574.0457133333334
+        },
+        {
+          "batch": 256,
+          "context_max": 4223.53515625,
+          "context_min": 4220.53515625,
+          "nominal_context_tokens": 4096,
+          "power_w": 583.12215
+        }
+      ],
+      "training_raw_sha256": "a2a35871923ab0fe678eada58299e57a7d1bcad8bd1509c4e86aa61b8081fe0d",
+      "validation_status": "training_only"
+    }
+  },
+  "decode_time": {
+    "1200": [
+      0.01029865161487423,
+      0.00018500018608518683,
+      2.3927570250635546e-08,
+      0.0
+    ],
+    "1500": [
+      0.009795009540810118,
+      0.0001692903436956852,
+      2.147795653102235e-08,
+      6.740325825001025e-09
+    ],
+    "1800": [
+      0.0095593489443527,
+      0.0001595477697813214,
+      2.051618150226612e-08,
+      0.0
+    ],
+    "2100": [
+      0.009289812885405443,
+      0.0001544411185137291,
+      2.0128960865673914e-08,
+      0.0
+    ],
+    "2520": [
+      0.009013259623083997,
+      0.00014774486051758032,
+      2.039532179993829e-08,
+      0.0
+    ],
+    "900": [
+      0.011241736771453585,
+      0.00021212299735180214,
+      3.070250218689742e-08,
+      0.0
+    ]
+  },
+  "freq_switch_s": 0.0372617244720459,
+  "freqs": [
+    900,
+    1200,
+    1500,
+    1800,
+    2100,
+    2520
+  ],
+  "kv_bytes_per_token": 57344,
+  "kv_capacity_tokens": 2441936,
+  "model": "/models/Qwen2.5-7B-Instruct",
+  "pp": 1,
+  "prefill_power": {
+    "1200": [
+      520.5072725611628,
+      -6.758207574232279
+    ],
+    "1500": [
+      507.0753702709612,
+      33.441203258805906
+    ],
+    "1800": [
+      526.6737738695148,
+      40.990195159600596
+    ],
+    "2100": [
+      540.5426341082236,
+      45.247872670543586
+    ],
+    "2520": [
+      623.5761184457422,
+      115.20946944844383
+    ],
+    "900": [
+      496.93481207008494,
+      -18.168057783850607
+    ]
+  },
+  "prefill_time": {
+    "1200": [
+      0.012485922672840061,
+      0.00012833430589257106,
+      1.4642290004002364e-09
+    ],
+    "1500": [
+      0.011566005399705273,
+      0.00011662706277000902,
+      1.120060154840988e-09
+    ],
+    "1800": [
+      0.011435509455012188,
+      0.00010753529249855537,
+      1.1532656781540289e-09
+    ],
+    "2100": [
+      0.011564827461248772,
+      0.00010130532532450107,
+      1.0844802344927725e-09
+    ],
+    "2520": [
+      0.01175298154979388,
+      9.443555066832943e-05,
+      1.1701036516071872e-09
+    ],
+    "900": [
+      0.014534262987267411,
+      0.00014876346915516993,
+      1.8721837635185433e-09
+    ]
+  },
+  "profile_key": {
+    "engine_revision": "vllm-0.10.1.1",
+    "frequency_mhz": null,
+    "hardware_id": "8xL20-lease",
+    "model_id": "Qwen2.5-7B-Instruct",
+    "pp": 1,
+    "role": "mixed",
+    "system": "pdblend",
+    "tp": 4,
+    "workload_shape": "default"
+  },
+  "quality": {
+    "calibration": {
+      "independent_holdout": false,
+      "status": "training_only",
+      "training_profile_sha256": "34ca83494d3c430c3775d1346bafdf52b6f564c1bf8313e8f5e1b12ee6e7c41b",
+      "training_raw_sha256": "a2a35871923ab0fe678eada58299e57a7d1bcad8bd1509c4e86aa61b8081fe0d"
+    },
+    "decode_power@1200": {
+      "excluded": [
+        {
+          "batch": 1,
+          "context_tokens": 746.5,
+          "cv": 0.0050826434438458286,
+          "reason": "diagnostic_b1"
+        },
+        {
+          "batch": 1,
+          "context_tokens": 1514.5,
+          "cv": 0.0022133040616658726,
+          "reason": "diagnostic_b1"
+        },
+        {
+          "batch": 1,
+          "context_tokens": 4577.5,
+          "cv": 0.004620803994288566,
+          "reason": "diagnostic_b1"
+        }
+      ],
+      "mape": 0.03324678987233046,
+      "max": 0.10196569331584862,
+      "samples": 21
+    },
+    "decode_power@1500": {
+      "excluded": [
+        {
+          "batch": 1,
+          "context_tokens": 776.0,
+          "cv": 0.0017796327459521255,
+          "reason": "diagnostic_b1"
+        },
+        {
+          "batch": 1,
+          "context_tokens": 1542.0,
+          "cv": 0.0008621461599700919,
+          "reason": "diagnostic_b1"
+        },
+        {
+          "batch": 1,
+          "context_tokens": 4604.0,
+          "cv": 0.0007518071279254734,
+          "reason": "diagnostic_b1"
+        }
+      ],
+      "mape": 0.0347118126333208,
+      "max": 0.10921193901728092,
+      "samples": 21
+    },
+    "decode_power@1800": {
+      "excluded": [
+        {
+          "batch": 1,
+          "context_tokens": 794.0,
+          "cv": 0.0013670353356245234,
+          "reason": "diagnostic_b1"
+        },
+        {
+          "batch": 1,
+          "context_tokens": 1562.5,
+          "cv": 0.0028509304607871335,
+          "reason": "diagnostic_b1"
+        },
+        {
+          "batch": 1,
+          "context_tokens": 4614.5,
+          "cv": 0.0037614421220558605,
+          "reason": "diagnostic_b1"
+        }
+      ],
+      "mape": 0.03590218233748964,
+      "max": 0.10992980869233566,
+      "samples": 21
+    },
+    "decode_power@2100": {
+      "excluded": [
+        {
+          "batch": 1,
+          "context_tokens": 804.5,
+          "cv": 0.0005692786937270464,
+          "reason": "diagnostic_b1"
+        },
+        {
+          "batch": 1,
+          "context_tokens": 1577.0,
+          "cv": 0.0007350670221203681,
+          "reason": "diagnostic_b1"
+        },
+        {
+          "batch": 1,
+          "context_tokens": 4638.0,
+          "cv": 0.00266706512007009,
+          "reason": "diagnostic_b1"
+        }
+      ],
+      "mape": 0.03746203101666449,
+      "max": 0.1087326036980499,
+      "samples": 21
+    },
+    "decode_power@2520": {
+      "excluded": [
+        {
+          "batch": 1,
+          "context_tokens": 829.0,
+          "cv": 0.003002613160613423,
+          "reason": "diagnostic_b1"
+        },
+        {
+          "batch": 1,
+          "context_tokens": 1593.0,
+          "cv": 0.0015317939553425512,
+          "reason": "diagnostic_b1"
+        },
+        {
+          "batch": 1,
+          "context_tokens": 4652.0,
+          "cv": 0.002987447830497099,
+          "reason": "diagnostic_b1"
+        }
+      ],
+      "mape": 0.034545274880134445,
+      "max": 0.1083091385293369,
+      "samples": 21
+    },
+    "decode_power@900": {
+      "excluded": [
+        {
+          "batch": 1,
+          "context_tokens": 708.5,
+          "cv": 0.0010344588478082809,
+          "reason": "diagnostic_b1"
+        },
+        {
+          "batch": 1,
+          "context_tokens": 1478.5,
+          "cv": 0.0012797909935480139,
+          "reason": "diagnostic_b1"
+        },
+        {
+          "batch": 1,
+          "context_tokens": 4537.5,
+          "cv": 0.005259871816253953,
+          "reason": "diagnostic_b1"
+        }
+      ],
+      "mape": 0.029443285298480264,
+      "max": 0.09642829603305576,
+      "samples": 21
+    },
+    "decode_power_b1@1200": {
+      "mape": 0.10021727761500694,
+      "max": 0.10395789547003603,
+      "samples": 3
+    },
+    "decode_power_b1@1500": {
+      "mape": 0.09817110664534677,
+      "max": 0.1013757702302827,
+      "samples": 3
+    },
+    "decode_power_b1@1800": {
+      "mape": 0.10365251058271259,
+      "max": 0.11067148097533809,
+      "samples": 3
+    },
+    "decode_power_b1@2100": {
+      "mape": 0.10542672398590802,
+      "max": 0.10829575807625055,
+      "samples": 3
+    },
+    "decode_power_b1@2520": {
+      "mape": 0.10234303278921915,
+      "max": 0.10455463137592025,
+      "samples": 3
+    },
+    "decode_power_b1@900": {
+      "mape": 0.10258632589691337,
+      "max": 0.10398909521606314,
+      "samples": 3
+    },
+    "decode_power_calibration": {
+      "base_candidate_sha256": "d1f43359fff727c4eaaa3bbfc92428dc991ad8e00e514c589b8eae6c25c61fe4",
+      "independent_holdout": false,
+      "status": "training_only",
+      "training_raw_sha256": "a2a35871923ab0fe678eada58299e57a7d1bcad8bd1509c4e86aa61b8081fe0d"
+    },
+    "decode_time@1200": {
+      "mape": 0.025714141537262213,
+      "max": 0.11084107295336755,
+      "samples": 24
+    },
+    "decode_time@1500": {
+      "mape": 0.03194554801433174,
+      "max": 0.11367968056606707,
+      "samples": 24
+    },
+    "decode_time@1800": {
+      "mape": 0.03255148728884941,
+      "max": 0.1252355608115176,
+      "samples": 24
+    },
+    "decode_time@2100": {
+      "mape": 0.03253284474626854,
+      "max": 0.1255656305605537,
+      "samples": 24
+    },
+    "decode_time@2520": {
+      "mape": 0.034711157457348145,
+      "max": 0.13058697231463262,
+      "samples": 24
+    },
+    "decode_time@900": {
+      "mape": 0.023329673115554162,
+      "max": 0.11520508849337716,
+      "samples": 24
+    },
+    "mixed": {
+      "invalid": 0,
+      "missing_base": 0,
+      "rows": [
+        {
+          "additive_pred_s": 0.07059443021257637,
+          "alone_prefill_s": 0.060410261154174805,
+          "base_step_s": 0.01018416905840157,
+          "batch": 8,
+          "chunk_tokens": 512,
+          "concurrency": 8,
+          "context_tokens": 1024,
+          "decode_max_stall_s": 0.060479164123535156,
+          "freq_mhz": 2520,
+          "interference": "decode_with_chunked_prefill",
+          "measured_gpu_ids": [
+            4,
+            5,
+            6,
+            7
+          ],
+          "parallel_layout": {
+            "gpu_count": 8,
+            "gpus": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "instance_count": 2,
+            "instances": [
+              {
+                "gpus": [
+                  0,
+                  1,
+                  2,
+                  3
+                ],
+                "instance_id": "i0",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "tp": 4
+              },
+              {
+                "gpus": [
+                  4,
+                  5,
+                  6,
+                  7
+                ],
+                "instance_id": "i1",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    4,
+                    5,
+                    6,
+                    7
+                  ]
+                },
+                "tp": 4
+              }
+            ],
+            "unique_gpu_count": 8
+          },
+          "probe_ttft_p95": 0.07306385040283203,
+          "probe_ttft_s": 0.06934285163879395,
+          "probe_ttft_samples": [
+            0.07306385040283203,
+            0.06934285163879395,
+            0.0691213607788086
+          ],
+          "samples_file": "samples/mixed-2520-8-512.json",
+          "samples_sha256": "302059953baef99183190e473f02e135d4dd99c62582fbab7df7d3ec99a0e9b9",
+          "stable_end_s": 1790096336.0876021,
+          "stable_start_s": 1790096335.7737439,
+          "stable_tokens": 16,
+          "valid": true
+        },
+        {
+          "additive_pred_s": 0.22088456178148508,
+          "alone_prefill_s": 0.2107003927230835,
+          "base_step_s": 0.01018416905840157,
+          "batch": 8,
+          "chunk_tokens": 2048,
+          "concurrency": 8,
+          "context_tokens": 1024,
+          "decode_max_stall_s": 0.21201395988464355,
+          "freq_mhz": 2520,
+          "interference": "decode_with_chunked_prefill",
+          "measured_gpu_ids": [
+            4,
+            5,
+            6,
+            7
+          ],
+          "parallel_layout": {
+            "gpu_count": 8,
+            "gpus": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "instance_count": 2,
+            "instances": [
+              {
+                "gpus": [
+                  0,
+                  1,
+                  2,
+                  3
+                ],
+                "instance_id": "i0",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "tp": 4
+              },
+              {
+                "gpus": [
+                  4,
+                  5,
+                  6,
+                  7
+                ],
+                "instance_id": "i1",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    4,
+                    5,
+                    6,
+                    7
+                  ]
+                },
+                "tp": 4
+              }
+            ],
+            "unique_gpu_count": 8
+          },
+          "probe_ttft_p95": 0.22677111625671387,
+          "probe_ttft_s": 0.2208085060119629,
+          "probe_ttft_samples": [
+            0.22677111625671387,
+            0.2208085060119629,
+            0.22073101997375488
+          ],
+          "samples_file": "samples/mixed-2520-8-2048.json",
+          "samples_sha256": "2d441d2548127838b9c7ae6c8013949b6a1fc3db04661afe9ca0bbb6b89b4c49",
+          "stable_end_s": 1790096340.0372767,
+          "stable_start_s": 1790096339.2641964,
+          "stable_tokens": 16,
+          "valid": true
+        },
+        {
+          "additive_pred_s": 0.07584367048593216,
+          "alone_prefill_s": 0.060410261154174805,
+          "base_step_s": 0.015433409331757346,
+          "batch": 32,
+          "chunk_tokens": 512,
+          "concurrency": 32,
+          "context_tokens": 1024,
+          "decode_max_stall_s": 0.06575798988342285,
+          "freq_mhz": 2520,
+          "interference": "decode_with_chunked_prefill",
+          "measured_gpu_ids": [
+            4,
+            5,
+            6,
+            7
+          ],
+          "parallel_layout": {
+            "gpu_count": 8,
+            "gpus": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "instance_count": 2,
+            "instances": [
+              {
+                "gpus": [
+                  0,
+                  1,
+                  2,
+                  3
+                ],
+                "instance_id": "i0",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "tp": 4
+              },
+              {
+                "gpus": [
+                  4,
+                  5,
+                  6,
+                  7
+                ],
+                "instance_id": "i1",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    4,
+                    5,
+                    6,
+                    7
+                  ]
+                },
+                "tp": 4
+              }
+            ],
+            "unique_gpu_count": 8
+          },
+          "probe_ttft_p95": 0.0848243236541748,
+          "probe_ttft_s": 0.08042120933532715,
+          "probe_ttft_samples": [
+            0.0848243236541748,
+            0.08042120933532715,
+            0.07912945747375488
+          ],
+          "samples_file": "samples/mixed-2520-32-512.json",
+          "samples_sha256": "017ed279e458cb3bf08def9cada7d6e4c01814d9ddddd0e4cfb55854f146c303",
+          "stable_end_s": 1790096346.116005,
+          "stable_start_s": 1790096345.7667146,
+          "stable_tokens": 16,
+          "valid": true
+        },
+        {
+          "additive_pred_s": 0.22613380205484085,
+          "alone_prefill_s": 0.2107003927230835,
+          "base_step_s": 0.015433409331757346,
+          "batch": 32,
+          "chunk_tokens": 2048,
+          "concurrency": 32,
+          "context_tokens": 1024,
+          "decode_max_stall_s": 0.21883797645568848,
+          "freq_mhz": 2520,
+          "interference": "decode_with_chunked_prefill",
+          "measured_gpu_ids": [
+            4,
+            5,
+            6,
+            7
+          ],
+          "parallel_layout": {
+            "gpu_count": 8,
+            "gpus": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "instance_count": 2,
+            "instances": [
+              {
+                "gpus": [
+                  0,
+                  1,
+                  2,
+                  3
+                ],
+                "instance_id": "i0",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "tp": 4
+              },
+              {
+                "gpus": [
+                  4,
+                  5,
+                  6,
+                  7
+                ],
+                "instance_id": "i1",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    4,
+                    5,
+                    6,
+                    7
+                  ]
+                },
+                "tp": 4
+              }
+            ],
+            "unique_gpu_count": 8
+          },
+          "probe_ttft_p95": 0.23317909240722656,
+          "probe_ttft_s": 0.2322835922241211,
+          "probe_ttft_samples": [
+            0.22640132904052734,
+            0.2322835922241211,
+            0.23317909240722656
+          ],
+          "samples_file": "samples/mixed-2520-32-2048.json",
+          "samples_sha256": "520663d36f2a312357ae672233a93c39f9ba65ee5db63d051247bd031bc1731d",
+          "stable_end_s": 1790096352.6435544,
+          "stable_start_s": 1790096351.8451068,
+          "stable_tokens": 16,
+          "valid": true
+        },
+        {
+          "additive_pred_s": 0.0836629451267303,
+          "alone_prefill_s": 0.07232356071472168,
+          "base_step_s": 0.01133938441200862,
+          "batch": 8,
+          "chunk_tokens": 512,
+          "concurrency": 8,
+          "context_tokens": 1024,
+          "decode_max_stall_s": 0.07378244400024414,
+          "freq_mhz": 1500,
+          "interference": "decode_with_chunked_prefill",
+          "measured_gpu_ids": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "parallel_layout": {
+            "gpu_count": 8,
+            "gpus": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "instance_count": 2,
+            "instances": [
+              {
+                "gpus": [
+                  0,
+                  1,
+                  2,
+                  3
+                ],
+                "instance_id": "i0",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "tp": 4
+              },
+              {
+                "gpus": [
+                  4,
+                  5,
+                  6,
+                  7
+                ],
+                "instance_id": "i1",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    4,
+                    5,
+                    6,
+                    7
+                  ]
+                },
+                "tp": 4
+              }
+            ],
+            "unique_gpu_count": 8
+          },
+          "probe_ttft_p95": 0.08470988273620605,
+          "probe_ttft_s": 0.08402395248413086,
+          "probe_ttft_samples": [
+            0.08470988273620605,
+            0.08402395248413086,
+            0.08322477340698242
+          ],
+          "samples_file": "samples/mixed-1500-8-512.json",
+          "samples_sha256": "fa8781972eabaefe732e02ad800de77a6dc74fe423aba500ce2d5f03662bd498",
+          "stable_end_s": 1790096669.6921947,
+          "stable_start_s": 1790096669.3376598,
+          "stable_tokens": 16,
+          "valid": true
+        },
+        {
+          "additive_pred_s": 0.2651780427448333,
+          "alone_prefill_s": 0.2538386583328247,
+          "base_step_s": 0.01133938441200862,
+          "batch": 8,
+          "chunk_tokens": 2048,
+          "concurrency": 8,
+          "context_tokens": 1024,
+          "decode_max_stall_s": 0.2565648555755615,
+          "freq_mhz": 1500,
+          "interference": "decode_with_chunked_prefill",
+          "measured_gpu_ids": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "parallel_layout": {
+            "gpu_count": 8,
+            "gpus": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "instance_count": 2,
+            "instances": [
+              {
+                "gpus": [
+                  0,
+                  1,
+                  2,
+                  3
+                ],
+                "instance_id": "i0",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "tp": 4
+              },
+              {
+                "gpus": [
+                  4,
+                  5,
+                  6,
+                  7
+                ],
+                "instance_id": "i1",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    4,
+                    5,
+                    6,
+                    7
+                  ]
+                },
+                "tp": 4
+              }
+            ],
+            "unique_gpu_count": 8
+          },
+          "probe_ttft_p95": 0.26703548431396484,
+          "probe_ttft_s": 0.2661612033843994,
+          "probe_ttft_samples": [
+            0.26703548431396484,
+            0.2661612033843994,
+            0.26581358909606934
+          ],
+          "samples_file": "samples/mixed-1500-8-2048.json",
+          "samples_sha256": "ee7f3f9e6d3794b89d426d5d94cb42f42af9a7f82106d66e386b43b008f0f661",
+          "stable_end_s": 1790096673.9620037,
+          "stable_start_s": 1790096673.0584095,
+          "stable_tokens": 16,
+          "valid": true
+        },
+        {
+          "additive_pred_s": 0.0893311630300924,
+          "alone_prefill_s": 0.07232356071472168,
+          "base_step_s": 0.01700760231537073,
+          "batch": 32,
+          "chunk_tokens": 512,
+          "concurrency": 32,
+          "context_tokens": 1024,
+          "decode_max_stall_s": 0.08062005043029785,
+          "freq_mhz": 1500,
+          "interference": "decode_with_chunked_prefill",
+          "measured_gpu_ids": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "parallel_layout": {
+            "gpu_count": 8,
+            "gpus": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "instance_count": 2,
+            "instances": [
+              {
+                "gpus": [
+                  0,
+                  1,
+                  2,
+                  3
+                ],
+                "instance_id": "i0",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "tp": 4
+              },
+              {
+                "gpus": [
+                  4,
+                  5,
+                  6,
+                  7
+                ],
+                "instance_id": "i1",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    4,
+                    5,
+                    6,
+                    7
+                  ]
+                },
+                "tp": 4
+              }
+            ],
+            "unique_gpu_count": 8
+          },
+          "probe_ttft_p95": 0.10109114646911621,
+          "probe_ttft_s": 0.09701371192932129,
+          "probe_ttft_samples": [
+            0.10109114646911621,
+            0.09660482406616211,
+            0.09701371192932129
+          ],
+          "samples_file": "samples/mixed-1500-32-512.json",
+          "samples_sha256": "a650b8499cbe3a7430f7a6afc1f34a46b685931b808e48d36ededab3fd124eac",
+          "stable_end_s": 1790096680.7583663,
+          "stable_start_s": 1790096680.3591106,
+          "stable_tokens": 16,
+          "valid": true
+        },
+        {
+          "additive_pred_s": 0.27084626064819545,
+          "alone_prefill_s": 0.2538386583328247,
+          "base_step_s": 0.01700760231537073,
+          "batch": 32,
+          "chunk_tokens": 2048,
+          "concurrency": 32,
+          "context_tokens": 1024,
+          "decode_max_stall_s": 0.26436281204223633,
+          "freq_mhz": 1500,
+          "interference": "decode_with_chunked_prefill",
+          "measured_gpu_ids": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "parallel_layout": {
+            "gpu_count": 8,
+            "gpus": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "instance_count": 2,
+            "instances": [
+              {
+                "gpus": [
+                  0,
+                  1,
+                  2,
+                  3
+                ],
+                "instance_id": "i0",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "tp": 4
+              },
+              {
+                "gpus": [
+                  4,
+                  5,
+                  6,
+                  7
+                ],
+                "instance_id": "i1",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    4,
+                    5,
+                    6,
+                    7
+                  ]
+                },
+                "tp": 4
+              }
+            ],
+            "unique_gpu_count": 8
+          },
+          "probe_ttft_p95": 0.2791891098022461,
+          "probe_ttft_s": 0.27904367446899414,
+          "probe_ttft_samples": [
+            0.27106308937072754,
+            0.2791891098022461,
+            0.27904367446899414
+          ],
+          "samples_file": "samples/mixed-1500-32-2048.json",
+          "samples_sha256": "3abcbc2d8c60ad41d67316b7b9b79952fbef4fcd9a5d88c566864578cbaeeba6",
+          "stable_end_s": 1790096688.0793169,
+          "stable_start_s": 1790096687.143866,
+          "stable_tokens": 16,
+          "valid": true
+        },
+        {
+          "additive_pred_s": 0.07429396552878594,
+          "alone_prefill_s": 0.06374466419219971,
+          "base_step_s": 0.010549301336586225,
+          "batch": 8,
+          "chunk_tokens": 512,
+          "concurrency": 8,
+          "context_tokens": 1024,
+          "decode_max_stall_s": 0.06383490562438965,
+          "freq_mhz": 2100,
+          "interference": "decode_with_chunked_prefill",
+          "measured_gpu_ids": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "parallel_layout": {
+            "gpu_count": 8,
+            "gpus": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "instance_count": 2,
+            "instances": [
+              {
+                "gpus": [
+                  0,
+                  1,
+                  2,
+                  3
+                ],
+                "instance_id": "i0",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "tp": 4
+              },
+              {
+                "gpus": [
+                  4,
+                  5,
+                  6,
+                  7
+                ],
+                "instance_id": "i1",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    4,
+                    5,
+                    6,
+                    7
+                  ]
+                },
+                "tp": 4
+              }
+            ],
+            "unique_gpu_count": 8
+          },
+          "probe_ttft_p95": 0.07810664176940918,
+          "probe_ttft_s": 0.07353973388671875,
+          "probe_ttft_samples": [
+            0.07810664176940918,
+            0.07353973388671875,
+            0.0732579231262207
+          ],
+          "samples_file": "samples/mixed-2100-8-512.json",
+          "samples_sha256": "405c830d7514dcbafc7bbb58987d0b28a6253fef748188256c4e1611bee7b6f3",
+          "stable_end_s": 1790096691.6754513,
+          "stable_start_s": 1790096691.3476152,
+          "stable_tokens": 16,
+          "valid": true
+        },
+        {
+          "additive_pred_s": 0.23433994693595145,
+          "alone_prefill_s": 0.22379064559936523,
+          "base_step_s": 0.010549301336586225,
+          "batch": 8,
+          "chunk_tokens": 2048,
+          "concurrency": 8,
+          "context_tokens": 1024,
+          "decode_max_stall_s": 0.2244272232055664,
+          "freq_mhz": 2100,
+          "interference": "decode_with_chunked_prefill",
+          "measured_gpu_ids": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "parallel_layout": {
+            "gpu_count": 8,
+            "gpus": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "instance_count": 2,
+            "instances": [
+              {
+                "gpus": [
+                  0,
+                  1,
+                  2,
+                  3
+                ],
+                "instance_id": "i0",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "tp": 4
+              },
+              {
+                "gpus": [
+                  4,
+                  5,
+                  6,
+                  7
+                ],
+                "instance_id": "i1",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    4,
+                    5,
+                    6,
+                    7
+                  ]
+                },
+                "tp": 4
+              }
+            ],
+            "unique_gpu_count": 8
+          },
+          "probe_ttft_p95": 0.2334589958190918,
+          "probe_ttft_s": 0.23338675498962402,
+          "probe_ttft_samples": [
+            0.23030519485473633,
+            0.23338675498962402,
+            0.2334589958190918
+          ],
+          "samples_file": "samples/mixed-2100-8-2048.json",
+          "samples_sha256": "8e7ec3f23b590a92d5483e4d0e9624ae8e09bd603f4045fe59f5dcd49789e934",
+          "stable_end_s": 1790096695.7030613,
+          "stable_start_s": 1790096694.9018657,
+          "stable_tokens": 16,
+          "valid": true
+        },
+        {
+          "additive_pred_s": 0.07962061450594948,
+          "alone_prefill_s": 0.06374466419219971,
+          "base_step_s": 0.01587595031374977,
+          "batch": 32,
+          "chunk_tokens": 512,
+          "concurrency": 32,
+          "context_tokens": 1024,
+          "decode_max_stall_s": 0.06883454322814941,
+          "freq_mhz": 2100,
+          "interference": "decode_with_chunked_prefill",
+          "measured_gpu_ids": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "parallel_layout": {
+            "gpu_count": 8,
+            "gpus": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "instance_count": 2,
+            "instances": [
+              {
+                "gpus": [
+                  0,
+                  1,
+                  2,
+                  3
+                ],
+                "instance_id": "i0",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "tp": 4
+              },
+              {
+                "gpus": [
+                  4,
+                  5,
+                  6,
+                  7
+                ],
+                "instance_id": "i1",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    4,
+                    5,
+                    6,
+                    7
+                  ]
+                },
+                "tp": 4
+              }
+            ],
+            "unique_gpu_count": 8
+          },
+          "probe_ttft_p95": 0.08547306060791016,
+          "probe_ttft_s": 0.08419156074523926,
+          "probe_ttft_samples": [
+            0.08547306060791016,
+            0.08371615409851074,
+            0.08419156074523926
+          ],
+          "samples_file": "samples/mixed-2100-32-512.json",
+          "samples_sha256": "051a02fceab0720638fae806908825d5d879de5bbfbaeb3975131fee74d17e15",
+          "stable_end_s": 1790096701.9755845,
+          "stable_start_s": 1790096701.6170182,
+          "stable_tokens": 16,
+          "valid": true
+        },
+        {
+          "additive_pred_s": 0.239666595913115,
+          "alone_prefill_s": 0.22379064559936523,
+          "base_step_s": 0.01587595031374977,
+          "batch": 32,
+          "chunk_tokens": 2048,
+          "concurrency": 32,
+          "context_tokens": 1024,
+          "decode_max_stall_s": 0.23183035850524902,
+          "freq_mhz": 2100,
+          "interference": "decode_with_chunked_prefill",
+          "measured_gpu_ids": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "parallel_layout": {
+            "gpu_count": 8,
+            "gpus": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "instance_count": 2,
+            "instances": [
+              {
+                "gpus": [
+                  0,
+                  1,
+                  2,
+                  3
+                ],
+                "instance_id": "i0",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    0,
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "tp": 4
+              },
+              {
+                "gpus": [
+                  4,
+                  5,
+                  6,
+                  7
+                ],
+                "instance_id": "i1",
+                "pp": 1,
+                "stage_map": {
+                  "0": [
+                    4,
+                    5,
+                    6,
+                    7
+                  ]
+                },
+                "tp": 4
+              }
+            ],
+            "unique_gpu_count": 8
+          },
+          "probe_ttft_p95": 0.25485849380493164,
+          "probe_ttft_s": 0.24537086486816406,
+          "probe_ttft_samples": [
+            0.25485849380493164,
+            0.24537086486816406,
+            0.24513578414916992
+          ],
+          "samples_file": "samples/mixed-2100-32-2048.json",
+          "samples_sha256": "6f2fff6783f0c5108298112afa2870b9078778f8e2b5cd2920f80f396610f633",
+          "stable_end_s": 1790096708.7433076,
+          "stable_start_s": 1790096707.891333,
+          "stable_tokens": 16,
+          "valid": true
+        }
+      ],
+      "valid": 12
+    },
+    "prefill_power@1200": {
+      "mape": 0.010072768215905054,
+      "max": 0.018085825095586018,
+      "samples": 6
+    },
+    "prefill_power@1500": {
+      "mape": 0.007979937922295541,
+      "max": 0.01895173561780021,
+      "samples": 6
+    },
+    "prefill_power@1800": {
+      "mape": 0.009204287112946354,
+      "max": 0.01735885856695201,
+      "samples": 6
+    },
+    "prefill_power@2100": {
+      "mape": 0.010015913038397264,
+      "max": 0.01803374785543671,
+      "samples": 6
+    },
+    "prefill_power@2520": {
+      "mape": 0.014392966058481225,
+      "max": 0.023720215905847223,
+      "samples": 6
+    },
+    "prefill_power@900": {
+      "mape": 0.010824282240403224,
+      "max": 0.01963211539416125,
+      "samples": 6
+    },
+    "prefill_time@1200": {
+      "mape": 0.002564709759344205,
+      "max": 0.00608160412065795,
+      "samples": 6
+    },
+    "prefill_time@1500": {
+      "mape": 0.004467018999459926,
+      "max": 0.01228761425724597,
+      "samples": 6
+    },
+    "prefill_time@1800": {
+      "mape": 0.00446547386716735,
+      "max": 0.010271554006669443,
+      "samples": 6
+    },
+    "prefill_time@2100": {
+      "mape": 0.007569641459185184,
+      "max": 0.028157625349770878,
+      "samples": 6
+    },
+    "prefill_time@2520": {
+      "mape": 0.009272602640788025,
+      "max": 0.035221081016447296,
+      "samples": 6
+    },
+    "prefill_time@900": {
+      "mape": 0.0033393763273705628,
+      "max": 0.008891558011978827,
+      "samples": 6
+    },
+    "transfer": {
+      "mape": 0.06315710356721499,
+      "max": 0.09381413184333577,
+      "samples": 3
+    }
+  },
+  "residuals": {
+    "decode_power@1200": 0.10196569331584862,
+    "decode_power@1500": 0.10921193901728092,
+    "decode_power@1800": 0.10992980869233566,
+    "decode_power@2100": 0.1087326036980499,
+    "decode_power@2520": 0.1083091385293369,
+    "decode_power@900": 0.09642829603305576,
+    "decode_time@1200": 0.11084107295336755,
+    "decode_time@1500": 0.11367968056606707,
+    "decode_time@1800": 0.1252355608115176,
+    "decode_time@2100": 0.1255656305605537,
+    "decode_time@2520": 0.13058697231463262,
+    "decode_time@900": 0.11520508849337716,
+    "prefill_power@1200": 0.018085825095586018,
+    "prefill_power@1500": 0.01895173561780021,
+    "prefill_power@1800": 0.01735885856695201,
+    "prefill_power@2100": 0.01803374785543671,
+    "prefill_power@2520": 0.023720215905847223,
+    "prefill_power@900": 0.01963211539416125,
+    "prefill_time@1200": 0.00608160412065795,
+    "prefill_time@1500": 0.01228761425724597,
+    "prefill_time@1800": 0.010271554006669443,
+    "prefill_time@2100": 0.028157625349770878,
+    "prefill_time@2520": 0.035221081016447296,
+    "prefill_time@900": 0.008891558011978827,
+    "transfer": 0.09381413184333577
+  },
+  "static": {
+    "active_idle@1200": {
+      "power_w": 278.2815977564327,
+      "wake_s": 0.0
+    },
+    "active_idle@1500": {
+      "power_w": 280.2184541197897,
+      "wake_s": 0.0
+    },
+    "active_idle@1800": {
+      "power_w": 282.6681709617962,
+      "wake_s": 0.0
+    },
+    "active_idle@2100": {
+      "power_w": 286.2029232843982,
+      "wake_s": 0.0
+    },
+    "active_idle@2520": {
+      "power_w": 327.96981004392615,
+      "wake_s": 0.0
+    },
+    "active_idle@900": {
+      "power_w": 283.01353924323837,
+      "wake_s": 0.0
+    },
+    "active_idle_reset": {
+      "power_w": 326.79477366093056,
+      "wake_s": 0.0
+    },
+    "off": {
+      "power_w": 150.4275278674909,
+      "wake_s": 41.07350420951843
+    },
+    "parked": {
+      "power_w": 152.9068850473523,
+      "wake_s": 0.10694241523742676
+    }
+  },
+  "system": "pdblend",
+  "tp": 4,
+  "transfer": [
+    0.01860069542480029,
+    18512803203.51711
+  ]
+}

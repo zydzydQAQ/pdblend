@@ -8,6 +8,7 @@ from pdblend.bench.rate_anchor import next_rate
 from pdblend.bench.native_mixed import metrics
 from pdblend.bench import native_mixed
 from pdblend.bench.client import Request
+from pdblend.results.journal import iter_journal
 
 
 def test_anchor_brackets_without_promoting_a_failed_window():
@@ -30,11 +31,14 @@ def test_failed_and_tail_requests_count_in_slo():
 
 
 def test_native_mixed_routes_and_releases_after_actual_transport_failure(monkeypatch, tmp_path):
-    async def generate(session, url, payload):
+    async def generate(session, url, payload, observe=None):
         if payload['request_id'].endswith('-1'):
             raise RuntimeError('stream failed')
         now = native_mixed.time.time()
-        return dict(events=[dict(received_s=now, token_ids=[1, 2], finished=True)], token_ids=[1,2])
+        event = dict(received_s=now, token_ids=[1, 2], finished=True)
+        if observe is not None:
+            observe(event)
+        return dict(events=[event], token_ids=[1,2])
     monkeypatch.setattr(native_mixed, 'generate', generate)
     # The unreachable cancel endpoint must become an explicit error receipt;
     # it must not leak the admission count or hide the failed request.
@@ -44,5 +48,6 @@ def test_native_mixed_routes_and_releases_after_actual_transport_failure(monkeyp
                                              slo=(1., .1), seed=9701))
     assert result['counts_reclaimed']
     assert result['metrics']['success_rate'] == .5
-    rows = [json.loads(line) for line in (tmp_path/'out/outcomes.jsonl').read_text().splitlines()]
+    rows = list(iter_journal(tmp_path/'out/outcomes.jsonl'))
     assert any(r.get('cancel_error') for r in rows)
+    assert all('events' not in row and 'token_ids' not in row for row in rows)

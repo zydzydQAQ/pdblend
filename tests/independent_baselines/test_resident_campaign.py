@@ -5,6 +5,7 @@ from types import SimpleNamespace as NS
 
 import pytest
 from pdblend_baselines import resident_campaign as rc
+from pdblend.results.power_archive import read_power_archive
 
 MODEL = 'Qwen2.5-7B-Instruct'
 
@@ -69,7 +70,7 @@ def test_owned_pair_starts_once_no_intermediate_unload_and_archives_power(tmp_pa
     assert events.index(('system','eco')) < events.index(('stop','resident-P'))
     assert result['energy_samples']==2 and result['energy_j']==210.
     assert len(result['power_artifact_sha256'])==64
-    assert json.loads((tmp_path/'run/power.json').read_text())['frequency_samples']
+    assert read_power_archive(tmp_path/'run/power.json')['frequency_samples']
     if cleanup_failure: assert result['status']=='failed' and result['cleanup_errors']
 
 

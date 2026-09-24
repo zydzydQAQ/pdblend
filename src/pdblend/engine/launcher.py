@@ -5,6 +5,7 @@ import json
 import os
 import signal
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -39,6 +40,7 @@ class InstanceSpec:
     generation: int = 0
     pool_id: str = ""
     profile_key: str = ""
+    native_control: bool = False
 
     def __post_init__(self):
         if self.tp < 1 or self.pp < 1 or len(self.gpus) != self.tp * self.pp:
@@ -100,6 +102,8 @@ class InstanceSpec:
         if kv_config:
             cmd += ["--kv-transfer-config", json.dumps(kv_config)]
         cmd += list(self.extra_args)
+        if self.native_control:
+            cmd = [sys.executable, '-m', 'pdblend_runtime.serve', *cmd[2:]]
         return cmd
 
     def environment(self) -> dict[str, str]:

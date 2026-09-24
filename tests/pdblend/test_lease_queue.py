@@ -178,6 +178,49 @@ def test_unready_formal_reservation_does_not_idle_independent_work(tmp_path):
     assert q.claim(owner_pid=os.getpid(), lock_mode=False).job_id == 'independent'
 
 
+def test_explicit_ready_prerequisite_precedes_reservation_across_worker_modes(tmp_path):
+    q = GPULeaseQueue(tmp_path/'queue.json', gpu_probe=probe)
+    q.enqueue('formal', {'gpu_count':2,'exclusive':True,'reserve_host':True}, priority=798)
+    q.enqueue('prerequisite', {'gpu_count':1,'precedes_host_reservations':True}, priority=799)
+    q.enqueue('ordinary', {'gpu_count':1}, priority=999)
+    assert q.claim(owner_pid=os.getpid(), lock_mode=True) is None
+    first=q.claim(owner_pid=os.getpid(), lock_mode=False)
+    assert first.job_id=='prerequisite'
+    # Existing host reservation again blocks ordinary backfill; no lease is
+    # interrupted to start the eight-GPU measurement prematurely.
+    assert q.claim(owner_pid=os.getpid(), lock_mode=False) is None
+    assert q.claim(owner_pid=os.getpid(), lock_mode=True) is None
+    q.complete(first.lease_id,first.token)
+    assert q.claim(owner_pid=os.getpid(), lock_mode=True).job_id=='formal'
+
+
+@pytest.mark.parametrize('kind',['equal_priority','lower_priority','unready','non_boolean_flag'])
+def test_prerequisite_override_requires_explicit_ready_higher_priority(tmp_path,kind):
+    q=GPULeaseQueue(tmp_path/'queue.json',gpu_probe=probe)
+    q.enqueue('formal',{'gpu_count':2,'exclusive':True,'reserve_host':True},priority=10)
+    priority={'equal_priority':10,'lower_priority':9}.get(kind,11)
+    q.enqueue('prerequisite',{'gpu_count':1,'precedes_host_reservations':'true' if kind=='non_boolean_flag' else True},
+        priority=priority,depends_on=['missing'] if kind=='unready' else [])
+    assert q.claim(owner_pid=os.getpid(),lock_mode=False) is None
+    assert q.claim(owner_pid=os.getpid(),lock_mode=True).job_id=='formal'
+
+
+def test_prerequisite_override_never_splits_an_active_sampling_cohort(tmp_path):
+    q=GPULeaseQueue(tmp_path/'queue.json',gpu_probe=probe)
+    q.enqueue('peer-a',{'gpu_count':1,'sampling_cohort':'wave'})
+    first=q.claim(owner_pid=os.getpid(),lock_mode=False)
+    q.enqueue('formal',{'gpu_count':2,'exclusive':True,'reserve_host':True},priority=10)
+    q.enqueue('prerequisite',{'gpu_count':1,'precedes_host_reservations':True},priority=11)
+    q.enqueue('peer-b',{'gpu_count':1,'sampling_cohort':'wave'})
+    assert q.claim(owner_pid=os.getpid(),lock_mode=True) is None
+    second=q.claim(owner_pid=os.getpid(),lock_mode=False)
+    assert second.job_id=='peer-b'
+    q.complete(first.lease_id,first.token)
+    assert q.claim(owner_pid=os.getpid(),lock_mode=False) is None
+    q.complete(second.lease_id,second.token)
+    assert q.claim(owner_pid=os.getpid(),lock_mode=False).job_id=='prerequisite'
+
+
 def test_sampling_cohort_rejects_unknown_peer_but_admits_barrier_members(tmp_path):
     q = GPULeaseQueue(tmp_path/'queue.json', gpu_probe=probe)
     q.enqueue('profile-a', {'gpu_count':1, 'sampling_cohort':'wave'})

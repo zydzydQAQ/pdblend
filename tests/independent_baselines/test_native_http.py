@@ -1,5 +1,6 @@
 """Real ASGI serialization/admission tests; no GPU qualification is implied."""
 import importlib.util
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -25,13 +26,13 @@ class Engine:
             self.accepting=payload.get('accepting',self.accepting)
         return dict(generation=self.generation,acknowledged_generation=self.generation,
             native_evidence_complete=True,all_queue=[],running=[],waiting=[],tp=2,pp=1,
-            accepting=self.accepting,acknowledged=True)
+            accepting=self.accepting,acknowledged=True,native_at_s=time.time())
     async def collective_rpc(self,method,kwargs):
         self.calls.append((method,kwargs))
         if method=='native_generation_set':self.worker_generation=kwargs['generation']
         rows=[dict(rank=i,generation=self.worker_generation,acknowledged=True,
              native_evidence_complete=True,transfer_allocations={},pending_transfers=0,
-             healthy=True,retained_kv_supported=True) for i in range(2)]
+             healthy=True,retained_kv_supported=True,at_s=time.time()) for i in range(2)]
         if method=='native_kv_operation':
             for row in rows:
                 row.update(transaction_id='tx',target_request_id='kv',expected_layers=28,loaded_layers=28)

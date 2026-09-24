@@ -152,6 +152,7 @@ async def profile_target(args, target, journal):
                       batch=1, settle_s=2., measure_s=5., repeats=3, independent_holdout=True),
         artifacts={}, holdout=[], errors=[])
     journal('dynamo_target_profile_started', **result)
+    journal.checkpoint()
     try:
         profile = await collect_profile(options)
         completion = json.loads((output/'completion.json').read_text())
@@ -193,7 +194,7 @@ async def profile_target(args, target, journal):
 async def execute(args):
     output = args.out
     output.mkdir(parents=True, exist_ok=True)
-    if (output / 'completion.json').exists() or (output / 'events.jsonl').exists():
+    if any((output/name).exists() for name in ('completion.json','events.jsonl','events.jsonl.gz')):
         raise FileExistsError('refusing to overwrite Dynamo transition artifacts')
     journal = Journal(output / 'events.jsonl')
     telemetry = transport = lifecycle = transitions = None
@@ -293,6 +294,7 @@ async def execute(args):
             # qualification is separate from the proved transition primitive.
             try:
                 await hooks._gate(target['id'], True)
+                journal.checkpoint()
                 result['target_profile'] = await profile_target(args, target, journal)
                 profile_cleanup = result['target_profile'].get('collector_completion', {}).get('cleanup_errors', [])
                 if profile_cleanup:
@@ -332,7 +334,8 @@ async def execute(args):
                       golden_source_sha256=golden['source_sha256'] if golden else None)
         journal.close()
         save(output / 'outcomes.json', outcomes)
-        result['artifacts'] = {name: sha(output / name) for name in ('events.jsonl', 'outcomes.json',
+        result['journal_path'] = journal.path.name
+        result['artifacts'] = {name: sha(output / name) for name in (journal.path.name, 'outcomes.json',
             'config.json', 'capabilities.json', 'transferred-capability.json', 'golden-raw.json',
             'goldens.json', 'transition.json', 'receipt-audit.json', 'target-profile-summary.json',
             'loaded-drain.json') if (output / name).is_file()}

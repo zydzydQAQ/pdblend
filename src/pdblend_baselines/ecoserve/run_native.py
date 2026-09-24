@@ -20,6 +20,7 @@ import time
 from .runtime import EcoServeRuntime, validate_native_state
 from .mechanism_four import ObservedTransport, tokens
 from ..native_profile import audit as audit_profile
+from pdblend.results.journal import CompactJournal, payload_receipt
 
 
 def sha(path):
@@ -134,7 +135,12 @@ class VerifiedTransport(ObservedTransport):
         return result
 
     async def _instance_call(self, identifier, method, path, body=None):
-        result = await super()._instance_call(identifier, method, path, body)
+        lifecycle = getattr(self, 'comparison_lifecycle', None)
+        if lifecycle is None:
+            result = await super()._instance_call(identifier, method, path, body)
+        else:
+            with lifecycle.http_scope(identifier, method, path, body):
+                result = await super()._instance_call(identifier, method, path, body)
         if path in ('/baseline/clock', '/baseline/park'):
             uuids = {self.uuid_map[g] for g in self.specs[identifier]['gpus']}
             rows = result.get('gpus', [])
@@ -170,7 +176,7 @@ def automatic_actions(journal):
 async def execute(config, endpoints, trace_path, out, duration=100.0):
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
-    if (out/'completion.json').exists() or (out/'events.jsonl').exists():
+    if any((out/name).exists() for name in ('completion.json', 'events.jsonl', 'events.jsonl.gz')):
         raise FileExistsError('refusing to overwrite EcoServe execution evidence')
     artifact = dict(schema='ecoserve-native-run-v2', system='ecoserve', model_id=config.get('model_id'),
         seed=701, duration_s=duration, status='failed', complete=False, formal_eligible=False,
@@ -179,15 +185,22 @@ async def execute(config, endpoints, trace_path, out, duration=100.0):
         endpoints=endpoints, outcomes=[], actions=[], automatic_policy_triggered=False,
         trace_sha256=sha(trace_path), config_sha256=hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest())
     journal, tasks, verified = [], [], []
-    runtime = transport = None
-    raw = (out/'events.jsonl').open('x')
+    runtime = transport = lifecycle = None
+    raw = CompactJournal(out/'events.jsonl.gz')
     def emit(kind, **fields):
+        if lifecycle is not None and kind == 'eco_http_receipt':
+            fields = lifecycle.decorate_http(fields)
         fields.setdefault('at_s', time.time())
         row = dict(kind=kind, **fields)
+        raw.write(row)
+        if isinstance(row.get('payload'), dict):
+            row = dict(row, payload={key:value for key,value in row['payload'].items()
+                                    if key not in ('text', 'choices')})
         journal.append(row)
-        raw.write(json.dumps(row, allow_nan=False)+'\n')
-        raw.flush()
     try:
+        if 'eco_comparison_lifecycle' in config:
+            from .comparison_lifecycle import ComparisonLifecycle
+            lifecycle = ComparisonLifecycle(config['eco_comparison_lifecycle'], emit)
         _, rows = load_trace(Path(trace_path), duration)
         specs = {row['id']:dict(row) for row in config['instances']}
         if len(specs) != len(config['instances']) or set(specs) != set(endpoints):
@@ -209,6 +222,8 @@ async def execute(config, endpoints, trace_path, out, duration=100.0):
         artifact['profile'] = validate_profile(config, expected, next(iter(specs.values()))['tp'])
         artifact['gpu_uuids'] = {g:physical[g] for g in groups}
         transport = VerifiedTransport(endpoints, emit, specs, artifact['gpu_uuids'])
+        if lifecycle is not None:
+            transport.comparison_lifecycle = lifecycle
         runtime = EcoServeRuntime(config, transport, emit)
         artifact['capabilities'] = {}
         for iid, spec in specs.items():
@@ -235,7 +250,9 @@ async def execute(config, endpoints, trace_path, out, duration=100.0):
                 async with aclosing(runtime.handle(dict(prompt=prompt, max_tokens=count, seed=701,
                                                         temperature=0, ignore_eos=True), rid)) as stream:
                     async for event in stream:
-                        row['events'].append(event)
+                        row['events'].append({key:value for key,value in event.items()
+                                              if key not in ('text', 'choices')})
+                        emit('eco_client_sse', request_id=rid, payload=event)
                         if event.get('token_ids'):
                             row.setdefault('first_token_s', time.time())
                 row['token_ids'] = tokens(row['events'])
@@ -249,11 +266,19 @@ async def execute(config, endpoints, trace_path, out, duration=100.0):
                 row['error'] = repr(exc)
             finally:
                 row['finished_s'] = time.time()
+                row.update(payload_receipt(row.pop('events'), journal_path='events.jsonl.gz', request_id=rid))
+                row.pop('token_ids', None)
+                row.pop('native_token_ids', None)
                 artifact['outcomes'].append(row)
                 emit('eco_request_outcome', **row)
-        tasks = [asyncio.create_task(request(i, *row)) for i, row in enumerate(rows)]
+        tasks = [asyncio.create_task(request(i, *row)) if lifecycle is None else
+                 lifecycle.create_request_task(request(i, *row), f'ecoserve-701-{i}')
+                 for i, row in enumerate(rows)]
         await asyncio.sleep(duration)
-        await asyncio.wait_for(asyncio.gather(*tasks), float(config.get('request_timeout_s', 120)))
+        if lifecycle is None:
+            await asyncio.wait_for(asyncio.gather(*tasks), float(config.get('request_timeout_s', 120)))
+        else:
+            await lifecycle.wait_cohort(tasks, float(config.get('request_timeout_s', 120)))
         artifact['service_finished_s'] = time.time()
         if runtime.controller.failure or runtime.controller.quarantined:
             raise RuntimeError('EcoServe background controller failed or quarantined an instance')
@@ -262,14 +287,17 @@ async def execute(config, endpoints, trace_path, out, duration=100.0):
     except BaseException as exc:
         artifact['error'] = repr(exc)
     finally:
-        for task in tasks:
-            if not task.done():
-                task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
+        if lifecycle is None:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+        else:
+            await lifecycle.cancel_cohort(tasks, error=artifact.get('error'))
         cleanup = []
         if runtime is not None:
             try:
-                await asyncio.wait_for(runtime.close(), 30)
+                await asyncio.wait_for(runtime.close() if lifecycle is None else lifecycle.close(runtime), 30)
             except BaseException as exc:
                 cleanup.append(dict(component='controller_close', error=repr(exc)))
             if runtime.controller.failure or runtime.controller.quarantined:
@@ -291,8 +319,11 @@ async def execute(config, endpoints, trace_path, out, duration=100.0):
                 except BaseException as exc:
                     cleanup.append(dict(component='clock_reset', instance_id=iid, error=repr(exc)))
         artifact['cleanup_errors'] = cleanup
+        if lifecycle is not None:
+            artifact['comparison_lifecycle'] = lifecycle.summary()
         artifact['drain_kv_released'] = bool(verified) and set(artifact['drain_receipts']) == set(endpoints)
-        artifact['journal'] = journal
+        artifact['journal_path'] = 'events.jsonl.gz'
+        artifact['journal_rows'] = len(journal)
         artifact['actions'] = sorted({row['kind'] for row in journal})
         artifact['automatic_actions'] = automatic_actions(journal)
         artifact['automatic_policy_triggered'] = bool(artifact['automatic_actions'])
@@ -305,7 +336,7 @@ async def execute(config, endpoints, trace_path, out, duration=100.0):
         artifact['status'] = 'passed' if functional else 'failed'
         artifact['complete'] = artifact['status'] == 'passed'
         raw.close()
-        artifact['events_sha256'] = sha(out/'events.jsonl')
+        artifact['events_sha256'] = sha(out/'events.jsonl.gz')
         (out/'completion.json').write_text(json.dumps(artifact, indent=2, allow_nan=False)+'\n')
     return artifact
 

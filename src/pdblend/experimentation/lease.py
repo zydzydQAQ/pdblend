@@ -389,7 +389,16 @@ class GPULeaseQueue:
                 and (j['payload'].get('exclusive') or j['payload'].get('global_lock'))
                 and int(j['payload'].get('gpu_count', 0)) == len(visible)]
             if reservations:
-                jobs = reservations[:1]
+                reservation = reservations[0]
+                # An explicitly scheduled prerequisite may precede a ready
+                # whole-host measurement. Ordinary jobs, including higher
+                # priorities, retain the existing no-backfill behavior.
+                # Resolve this before worker-mode filtering so shared and
+                # exclusive workers cannot choose conflicting priority orders.
+                prerequisites = [j for j in jobs
+                    if j.get('payload', {}).get('precedes_host_reservations') is True
+                    and int(j.get('priority', 0)) > int(reservation.get('priority', 0))]
+                jobs = prerequisites[:1] or [reservation]
             if lock_mode is not None:
                 jobs = [j for j in jobs if bool(j.get("payload", {}).get("global_lock", j.get("payload", {}).get("exclusive", False))) == lock_mode]
             available = tuple(g.uuid for g in visible.values() if g.uuid not in used)

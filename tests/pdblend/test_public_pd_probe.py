@@ -52,6 +52,8 @@ async def test_whole_probe_covers_three_lengths_pd_mixed_and_proxy_single(tmp_pa
         assert all(single['reference_checks'].values()) and all(single['checks'].values())
         assert all(single['proxy']['checks'].values()) and single['proxy']['record']['path']=='P_ONLY'
         assert len(result['router_records'])==7
+        assert all(row['engine_instances']==sorted(row['engine_instances']) for row in result['router_records'])
+        assert result['router_records'][-1]['engine_instances']==['i0']
         assert json.loads(output.read_text())==result
         # Both one-token client and proxy calls are untagged ordinary P work.
         assert servers[0].seen_request_ids[-2]=='public-single-client'

@@ -1,0 +1,218 @@
+{
+  "version_id": "Qwen2.5-7B-Instruct-tp4-pp1-7fb147fd57ccc4f9df63",
+  "registry_sha256": "db0d4ef4c781fab0b9eb1800540aa7c4558d7886ffa97e1b84374243705048f5",
+  "input": {
+    "model": "Qwen2.5-7B-Instruct",
+    "tp": 4,
+    "pp": 1,
+    "frequency_mhz": 2100,
+    "prompt_tokens": 2048,
+    "batch": 12,
+    "effective_context": 2112,
+    "mean_output_tokens": 128
+  },
+  "prefill": {
+    "time_s": 0.22358677351128092,
+    "power_w": 585.7905067787672,
+    "energy_estimate_j": 130.9750093642027,
+    "marginal_time_s": 0.21202194605003216
+  },
+  "decode": {
+    "step_s": 0.011703572532000347,
+    "power_w": 603.4786045834289,
+    "energy_per_token_j": 0.5885713016877098
+  },
+  "interpolation": [
+    {
+      "batch": 8,
+      "left": {
+        "batch": 8,
+        "context_max": 1470.875,
+        "context_min": 1470.125,
+        "nominal_context_tokens": 1024,
+        "power_w": 606.5359739393939
+      },
+      "right": {
+        "batch": 8,
+        "context_max": 4520.625,
+        "context_min": 4520.125,
+        "nominal_context_tokens": 4096,
+        "power_w": 618.0319866666667
+      },
+      "weight": 0.21025662048044602,
+      "power_w": 608.9530867244305
+    },
+    {
+      "batch": 16,
+      "left": {
+        "batch": 16,
+        "context_max": 1408.5625,
+        "context_min": 1407.0625,
+        "nominal_context_tokens": 1024,
+        "power_w": 593.066998080808
+      },
+      "right": {
+        "batch": 16,
+        "context_max": 4454.09375,
+        "context_min": 4453.0625,
+        "nominal_context_tokens": 4096,
+        "power_w": 614.4350302356903
+      },
+      "weight": 0.23105189686319594,
+      "power_w": 598.0041224424274
+    }
+  ],
+  "mixed": {
+    "illustrative_load": true,
+    "measured_mixed_result": false,
+    "instances": 1,
+    "rate_rps": 2.968591825958405,
+    "horizon_s": 60,
+    "busy_fraction": 0.6294066159679195,
+    "queue_wait_s": 0.1800464084414572,
+    "tpot_s": 0.03158062997419086,
+    "ttft_proxy_s": 0.435213811926929,
+    "power_w": 592.3455988012872,
+    "window_energy_j": 35540.735928077236,
+    "fixed_point_batch": 11.999999999999998
+  },
+  "holdout_comparisons": [
+    {
+      "kind": "prefill_time",
+      "observed_s": 0.22199642658233643,
+      "predicted_s": 0.22358677351128092,
+      "error": 0.007163840217737194
+    },
+    {
+      "kind": "decode_time",
+      "observed_s": 0.012470183527083172,
+      "predicted_s": 0.011781643615545291,
+      "effective_context": 2427.5833333333335,
+      "error": 0.055214898003905555
+    }
+  ],
+  "qualification": {
+    "usage": "development",
+    "calibration_components_passed": true,
+    "consumer_loader_available": true,
+    "planner_automatically_wired": false,
+    "planner_protocol_available": true,
+    "planner_blocked_runtime_components": [
+      "capacity",
+      "static",
+      "transfer",
+      "clock_transition"
+    ],
+    "full_profile_qualified": false,
+    "formal_eligible": false,
+    "energy_comparable": false,
+    "missing_gates": [
+      "full_profile_provenance_revalidation",
+      "mixed_power_if_required",
+      "transfer_protocol_revalidation",
+      "native_system_mechanisms",
+      "campaign_acceptance",
+      "planner_version_loader"
+    ],
+    "immutable_registry_unchanged": true,
+    "validated_timing_scope": {
+      "kind": "original_prefill_decode_and_mixed_timing",
+      "mixed_timing_median": 0.01995167356921712,
+      "original_timing_passed": true,
+      "timing_max": 0.08031945269623453
+    },
+    "limits": [
+      "No extrapolation or frequency interpolation.",
+      "Independent baseline profiles cannot consume this PDBlend version.",
+      "Fresh timing overlay checks do not qualify unmeasured long-context or batch regimes."
+    ],
+    "consumer_implementation_sha256": "4e21d976f949cce80d9c6fdd8b01d3a534bc61f2dd5d9398cb7a96128a7bb54c",
+    "consumer_implementation_files": {
+      "__init__.py": "3d76fc6b11e3ffafbda4adaed059400c9229565c1ca8fa8854e1abe9d9763ff3",
+      "compatibility.py": "50663bd8b6b446bc1570812b50cd44a53435c7ebe97345791b934381f15500ae",
+      "composition.py": "842a35cc1ee943a632f1b974b8ec714a092b758746f8c2b48a5b5df94268aa52",
+      "decode.py": "6a81c594c63294e502757d7cd60868b0b8acf5e01f3d9c5d92f52ab873a6237c",
+      "index.py": "ca4611d1a58ce0eb29e4642ce8f9242eed7cbbc003fbd453c33178bc0693efd2",
+      "long_context.py": "cad936e8b440a7c814fbaa065ad882d73326e3e98427d4cc98e4fa1e69abbde8",
+      "long_domain.py": "0ed5b6e3fb1d96633219a85d560fabe1b84afc5a800977890c9912c5e0ed6c1e",
+      "model.py": "5f6e74ca28e428689510671c2c8ff2866f8b3baf5b05d48039e4af52311bf92f",
+      "native_composition.py": "b6717f9acd03c733dd40e4827a15782f3b0e651dd0fe789b0b2a57892d1e7308",
+      "native_cycle_model.py": "80eb72cb4a617ceb43a2a4fb2cafa1461c2cc3e951f854260b9cae288aa8b0ed",
+      "native_layout_model.py": "6a60b97d3dad5f1aca8db606ac91e501abc8521cf268045687ff0219cba57b75",
+      "native_layout_profile.py": "1cd1b961bee884d6fea35ef070c391147c9eddb9775a9b4e801f677148b2ee29",
+      "native_online_shadow.py": "47ca8845cd76fae6508fdca85b89fc2fd5fdbc2e17cdaa703d71f55e80a622e0",
+      "native_power_components.py": "b476ab7c28501d2993cf89aa1ef88c8ac27364eb0531c3aeb99b86aa70ab5bb6",
+      "native_query_replay.py": "5656276d0074bbb2343c287f7703f8f37aa8ef3e4d3fe1e99731e4b9e9cc241a",
+      "native_serving_holdout.py": "04036c77ffe05157ece02ce71a5b37e8cfb9b8f38998c23fa958fbd1ea152326",
+      "native_timing.py": "99aad91b1495c8b9cc1cda0610932d5c44d20a4583a012dcfca4fee5aa61cd91",
+      "optimization.py": "fd105c895b10e0356f36c2850efef875314759dadd84a130eb36d625fe4f9347",
+      "power_table.py": "674c90ee5f2d1f13d4a53b6a04250fd26e64a2f9b969584824544e6df14acf59",
+      "runtime.py": "04b48d5ccd64554484b33fda5396a790c7c399818929760a20e27aa81a9edba7",
+      "timing.py": "0341c5ac39b15deca792afc90e468b75ae7f4c6d1b9210e6b78b9bd3f21e52bd",
+      "versions.py": "cc5272866e06ae8023eb395505f50e763e8b7c870bd1ae1babc9547c55a47dd1"
+    },
+    "validated_numerical_source": {
+      "pdblend/profile/model.py": "565c2ad14de6fff5f23e886bd175dee7ac0c3f9dce87e5e008ee50439d3daf40",
+      "pdblend/profile/decode_fit.py": "138b1ffe01525aff4be1d31a93664bc8ccbac830fa8d74e174f1cff925eb92d0",
+      "pdblend/profile/power_table.py": "fa2613897eca3890fb2fe3d9e1ec7f0647d5ee4525a7603990e5ff83675b97fe"
+    },
+    "numerical_compatibility": {
+      "passed": true,
+      "reference": "checksum_bound_frozen_numerical_source",
+      "scalar_checks": 5439,
+      "relative_tolerance": 1e-13,
+      "absolute_tolerance": 1e-14
+    },
+    "query_index": {
+      "qualified": true,
+      "complexity": "O(1)",
+      "max_breakpoints_per_bucket": 4,
+      "index_bytes": 875593,
+      "compiled_at": "construction_or_table_assignment"
+    }
+  },
+  "coefficients": {
+    "prefill_time": [
+      0.011564827461248772,
+      0.00010130532532450107,
+      1.0844802344927725e-09
+    ],
+    "prefill_power": [
+      540.5426341082236,
+      45.247872670543586
+    ],
+    "decode_overrides": {
+      "coefficients": [
+        0.009166574558525799,
+        0.010796325799256868,
+        0.001351060610298765,
+        -0.00027857306382476807,
+        0.008398340693699463,
+        0.00021148359535618196
+      ],
+      "domain": {
+        "batch": [
+          1,
+          256
+        ],
+        "context": [
+          256,
+          4931.0
+        ],
+        "max_batch_context": 2197742.4
+      },
+      "kind": "split_b1_relative",
+      "objective": "squared_relative_error",
+      "validation_status": "training_only"
+    }
+  },
+  "source_files": {
+    "results/2026-09-23/calibration-versions-v1/registry.json": "db0d4ef4c781fab0b9eb1800540aa7c4558d7886ffa97e1b84374243705048f5",
+    "results/2026-09-23/power-pair-resident-v2/7b-package/candidate.json": "43253e2a2d9e8976b700dd62fc36ae2dbf14f446e216c9cef8a6f8e02315f1fb",
+    "results/2026-09-22/three-model/queue-attempts/holdout-7b-tp4-22436e6b272c028dd006-shared-bc3b8b870464/attempt-0001-373e3f3f1322460ba85e5ea5818b9cbd/raw.json": "18cb97e8962e8c41a9b491b99f9cd7fcdc8240cddc8a02b7c8b34d6fd9b65ad5",
+    "src/pdblend/profile/query/model.py": "5f6e74ca28e428689510671c2c8ff2866f8b3baf5b05d48039e4af52311bf92f",
+    "src/pdblend/profile/query/decode.py": "6a81c594c63294e502757d7cd60868b0b8acf5e01f3d9c5d92f52ab873a6237c",
+    "src/pdblend/profile/query/power_table.py": "674c90ee5f2d1f13d4a53b6a04250fd26e64a2f9b969584824544e6df14acf59",
+    "src/pdblend/planner/pool.py": "e17bfb56a444a8068c7eb5c56ccfe62cf036f21adfcf68beaca426b512407752"
+  }
+}

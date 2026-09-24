@@ -195,7 +195,8 @@ async def test_nccl_failure_retires_partial_target_and_rebuilds_uncertain_source
     assert not any(row[0] == 'activate' for row in calls)
     source_starts = [row for row in calls if row[:2] == ('start', 'dynamo-probe-source')]
     assert len(source_starts) == 2 and all(row[2] is False for row in source_starts)
-    events = [json.loads(line) for line in (tmp_path/'result'/'events.jsonl').read_text().splitlines()]
+    from pdblend.results.journal import iter_journal
+    events = list(iter_journal(tmp_path/'result'/'events.jsonl'))
     assert any(row['event'] == 'dynamo_gpu_recovery' for row in events)
     assert any(row['event'] == 'dynamo_transition' and row.get('source_restored') is True for row in events)
 
@@ -204,7 +205,8 @@ async def test_nccl_failure_retires_partial_target_and_rebuilds_uncertain_source
 async def test_receipt_audit_rejects_missing_rank_even_after_coordinator_complete(tmp_path, monkeypatch):
     mock_hardware(monkeypatch)
     result = await probe.execute(args(tmp_path))
-    events = [json.loads(line) for line in (tmp_path/'result'/'events.jsonl').read_text().splitlines()]
+    from pdblend.results.journal import iter_journal
+    events = list(iter_journal(tmp_path/'result'/'events.jsonl'))
     transition = probe.Transition(**json.loads((tmp_path/'result'/'transition.json').read_text())['transition'])
     golden = json.loads((tmp_path/'result'/'goldens.json').read_text())['2']
     for row in events:
@@ -250,7 +252,8 @@ async def test_optional_profile_reuses_activated_target_only_after_retire_and_au
         assert ('stop', 'dynamo-probe-source') in calls and ('close', iid) in calls
         assert calls[-1] == ('resume', iid)
         assert json.loads((work.out/'receipt-audit.json').read_text())['passed']
-        events = [json.loads(line) for line in (work.out/'events.jsonl').read_text().splitlines()]
+        from pdblend.results.journal import iter_journal
+        events = list(iter_journal(work.out/'events.jsonl'))
         assert any(row['event'] == 'dynamo_probe_output' and row['stage'] == 'after_activate'
                    and row['ok'] for row in events)
         calls.append(('collect', iid))

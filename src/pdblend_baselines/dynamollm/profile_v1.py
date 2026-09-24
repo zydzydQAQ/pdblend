@@ -28,6 +28,17 @@ from .validation import MODELS
 FREQUENCIES = (900, 1200, 1500, 1800, 2100, 2520)
 
 
+def capacity_limit(point, state):
+    """A native inventory refusal is evidence of unsupported geometry, not a fit."""
+    capacity = state.get('total_kv_tokens')
+    if type(capacity) is not int or capacity <= 0:
+        raise ValueError('actual positive native KV capacity required before profile submission')
+    required = point['batch'] * (point['input_tokens'] + point['output_tokens'])
+    return dict(supported=required <= capacity, required_kv_tokens=required,
+                actual_total_kv_tokens=capacity, policy_max_num_seqs_unchanged=True,
+                measured=False, formal_eligible=False)
+
+
 def measurement_points(args, model_id):
     """Explicit sparse missing cells; never expand them to a Cartesian rerun."""
     path = getattr(args, 'points_file', None)
@@ -342,9 +353,15 @@ async def collect(args):
             artifacts, windows = {}, []
             try:
                 state = await transport.state(iid)
-                capacity = state.get('total_kv_tokens')
-                if capacity is not None and batch*(n+o)>capacity:
-                    raise ValueError('unsupported_memory: sparse point exceeds actual native KV capacity')
+                limit = capacity_limit(point, state)
+                if not limit['supported']:
+                    path = output/'unsupported'/f'{key}.json'
+                    save(path, dict(point=point, capacity=limit, native_state=state,
+                        observed_s=time.time(), identity=metadata, reason='unsupported_memory'))
+                    failures.append(dict(point=point, reason='unsupported_memory', capacity=limit,
+                        evidence_path=str(path.resolve()), evidence_sha256=sha(path)))
+                    save(output/'failures.json', failures)
+                    continue
                 telemetry.clock(args.gpus, frequency)
                 for repeat in range(3):
                     window = await measured_repeat(point, repeat)
@@ -441,6 +458,7 @@ async def collect(args):
         save(output/'completion.json', dict(status='passed' if points and not failures and not cleanup else 'inconclusive',
             complete=bool(points and not failures and not cleanup),
             points=len(points), missing_points=failures, cleanup_errors=cleanup,
+            unsupported_points=[row for row in failures if row.get('reason') == 'unsupported_memory'],
             formal_eligible=False, energy_comparable=False, hardware_qualified=False))
     return profile
 

@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "immutable": true,
+  "entries": [
+    {
+      "model_id": "Qwen2.5-14B-Instruct",
+      "predictor_qualified": false,
+      "asset_path": "/home/pdblend4/artifacts/predictors/82ae4c91ec2d9a62272a197f0493adc1a3dd7e94e78d8b0a9f72516651938983",
+      "compatibility_path": "/home/pdblend4/results/2026-09-22/three-model/queue-attempts/native-predictor-14b-43501eaf2094bb36/attempt-0001-3d3b8c6e18934ddbb7c2665ed3108a5d/predictor",
+      "manifest_sha256": "cb676ab68a32733e67c39ca220d84a7ae78f6c59dd7928a85f6a4c2e4e38de61",
+      "weight_sha256": "82ae4c91ec2d9a62272a197f0493adc1a3dd7e94e78d8b0a9f72516651938983",
+      "weight_bytes": 438786460,
+      "method": "hardlink",
+      "reclaimed_bytes": 0,
+      "files": {
+        "classifier.pt": "82ae4c91ec2d9a62272a197f0493adc1a3dd7e94e78d8b0a9f72516651938983",
+        "encoder_config.json": "73d56b7a1d542f126b601732d6b1dbf012dec53fa06493eabc02b5b713159513",
+        "tokenizer/special_tokens_map.json": "b6d346be366a7d1d48332dbc9fdf3bf8960b5d879522b7799ddba59e76237ee3",
+        "tokenizer/tokenizer.json": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+        "tokenizer/vocab.txt": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3",
+        "tokenizer/tokenizer_config.json": "1f92c93d2e31974acffab86d48e80a9357acb18c68346c5472ef1d12c72d5d77",
+        "manifest.json": "cb676ab68a32733e67c39ca220d84a7ae78f6c59dd7928a85f6a4c2e4e38de61"
+      }
+    },
+    {
+      "model_id": "Qwen2.5-32B-Instruct",
+      "predictor_qualified": false,
+      "asset_path": "/home/pdblend4/artifacts/predictors/b7d12e144726ea54b073541d8bbf14a6a5633bec7e9f1dc82d6ed054a49d4679",
+      "compatibility_path": "/home/pdblend4/results/2026-09-22/three-model/queue-attempts/native-predictor-32b-ee21e0de3bbaf1e2/attempt-0001-dec91d0554fa41fca7dd84a14c3c466a/predictor",
+      "manifest_sha256": "fa66f10ab73ea70a373a7a1b49c9cf3d1ef55c1ccd8656f1f7237d8c19c3dfcf",
+      "weight_sha256": "b7d12e144726ea54b073541d8bbf14a6a5633bec7e9f1dc82d6ed054a49d4679",
+      "weight_bytes": 438786460,
+      "method": "hardlink",
+      "reclaimed_bytes": 0,
+      "files": {
+        "classifier.pt": "b7d12e144726ea54b073541d8bbf14a6a5633bec7e9f1dc82d6ed054a49d4679",
+        "encoder_config.json": "73d56b7a1d542f126b601732d6b1dbf012dec53fa06493eabc02b5b713159513",
+        "tokenizer/special_tokens_map.json": "b6d346be366a7d1d48332dbc9fdf3bf8960b5d879522b7799ddba59e76237ee3",
+        "tokenizer/tokenizer.json": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+        "tokenizer/vocab.txt": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3",
+        "tokenizer/tokenizer_config.json": "1f92c93d2e31974acffab86d48e80a9357acb18c68346c5472ef1d12c72d5d77",
+        "manifest.json": "fa66f10ab73ea70a373a7a1b49c9cf3d1ef55c1ccd8656f1f7237d8c19c3dfcf"
+      }
+    },
+    {
+      "model_id": "Qwen2.5-7B-Instruct",
+      "predictor_qualified": false,
+      "asset_path": "/home/pdblend4/artifacts/predictors/85eee3e64a073267c607e52df5b148038e539833c8fbc178353c6260dcb32b99",
+      "compatibility_path": "/home/pdblend4/results/2026-09-22/three-model/queue-attempts/native-predictor-7b-1c0032a85c1aea8d/attempt-0001-c65efc1925674c688ccc1a8107173174/predictor",
+      "manifest_sha256": "15416f2f95ddc426d08e4bbebdb35c710969b856717e9b4056d11d98ce271067",
+      "weight_sha256": "85eee3e64a073267c607e52df5b148038e539833c8fbc178353c6260dcb32b99",
+      "weight_bytes": 438786460,
+      "method": "hardlink",
+      "reclaimed_bytes": 0,
+      "files": {
+        "classifier.pt": "85eee3e64a073267c607e52df5b148038e539833c8fbc178353c6260dcb32b99",
+        "encoder_config.json": "73d56b7a1d542f126b601732d6b1dbf012dec53fa06493eabc02b5b713159513",
+        "tokenizer/special_tokens_map.json": "b6d346be366a7d1d48332dbc9fdf3bf8960b5d879522b7799ddba59e76237ee3",
+        "tokenizer/tokenizer.json": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+        "tokenizer/vocab.txt": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3",
+        "tokenizer/tokenizer_config.json": "1f92c93d2e31974acffab86d48e80a9357acb18c68346c5472ef1d12c72d5d77",
+        "manifest.json": "15416f2f95ddc426d08e4bbebdb35c710969b856717e9b4056d11d98ce271067"
+      }
+    }
+  ],
+  "reclaimed_bytes": 0,
+  "note": "Existing result paths are compatibility hardlinks; neither weights nor manifests may be edited in place."
+}

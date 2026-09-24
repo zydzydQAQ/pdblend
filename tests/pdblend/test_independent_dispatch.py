@@ -51,6 +51,35 @@ def test_missing_formal_gate_prevents_any_native_execution(tmp_path):
         asyncio.run(execute(point,inputs,resources,tmp_path/'out',runner_overrides={'mixed':native}))
 
 
+def test_dynamo_short_comparison_preserves_full_mechanism_preflight(tmp_path, monkeypatch):
+    point,inputs,resources = prepared(tmp_path,'dynamollm')
+    calls = []
+    def preflight(config, **kwargs):
+        assert config['dynamo_require_full_mechanisms'] is True
+        assert kwargs == dict(mode='comparison', duration_s=300, seed=701)
+        calls.append('preflight')
+        return dict(ready=True)
+    monkeypatch.setattr('pdblend_baselines.dynamollm.validation.preflight', preflight)
+    monkeypatch.setattr('pdblend_baselines.dynamollm.run_v1.load_trace', lambda *a: [])
+    async def native(config, trace, **kwargs):
+        assert kwargs['mode'] == 'comparison'
+        assert config['dynamo_require_full_mechanisms'] is True
+        calls.append('native')
+        return dict(native='dynamollm')
+    result = asyncio.run(execute(point,inputs,resources,tmp_path/'out',runner_overrides={'dynamollm':native}))
+    assert result['native']=='dynamollm' and calls == ['preflight', 'native']
+
+
+def test_dynamo_missing_original_cycle_receipt_prevents_execution(tmp_path, monkeypatch):
+    point,inputs,resources = prepared(tmp_path,'dynamollm')
+    monkeypatch.setattr('pdblend_baselines.dynamollm.validation.preflight',
+                        lambda *a, **kw: dict(ready=False, missing=['original_cycle_mechanisms_receipt']))
+    async def native(*args, **kwargs):
+        pytest.fail('missing Dynamo mechanism proof reached GPU runner')
+    with pytest.raises(ValueError, match='original_cycle_mechanisms_receipt'):
+        asyncio.run(execute(point,inputs,resources,tmp_path/'out',runner_overrides={'dynamollm':native}))
+
+
 def test_cross_system_profile_and_evaluation_selected_layout_are_rejected(tmp_path):
     point,inputs,resources = prepared(tmp_path,'pdblend')
     from pathlib import Path

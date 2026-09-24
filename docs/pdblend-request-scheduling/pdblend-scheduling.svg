@@ -1,0 +1,192 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1490" viewBox="0 0 1800 1490">
+<title>PDBlend: request routing and per-instance scheduling</title>
+<desc>Default single-pool PDBlend with vLLM V1 continuous batching. The router uses input length and lexicographic load selection. Local waiting queues default to FCFS; running requests are scheduled first. P sends KV and the first token to continue on D. Mixed batches can contain prefill and decode together. Numerical loads and timelines are illustrative, not benchmark measurements.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#161616"/></marker></defs>
+<rect width="1800" height="1490" fill="white"/>
+<text x="900" y="43" font-family="Liberation Serif, Times New Roman, serif" font-size="34" font-weight="bold" font-style="normal" fill="#161616" text-anchor="middle">PDBlend: request routing and per-instance scheduling</text>
+<rect x="450" y="68" width="28" height="20" fill="#a2cc83" stroke="#161616" stroke-width="1.5"/>
+<text x="490" y="86" font-family="Liberation Serif, Times New Roman, serif" font-size="23" font-weight="normal" font-style="normal" fill="#161616" text-anchor="start">Prefill</text>
+<rect x="660" y="68" width="28" height="20" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<text x="700" y="86" font-family="Liberation Serif, Times New Roman, serif" font-size="23" font-weight="normal" font-style="normal" fill="#161616" text-anchor="start">Decode</text>
+<rect x="880" y="68" width="28" height="20" fill="#d2d2d2" stroke="#161616" stroke-width="1.5"/>
+<text x="920" y="86" font-family="Liberation Serif, Times New Roman, serif" font-size="23" font-weight="normal" font-style="normal" fill="#161616" text-anchor="start">Wait / KV transfer</text>
+<rect x="1220" y="68" width="28" height="20" fill="#ffe080" stroke="#161616" stroke-width="1.5"/>
+<text x="1260" y="86" font-family="Liberation Serif, Times New Roman, serif" font-size="23" font-weight="normal" font-style="normal" fill="#161616" text-anchor="start">Output token</text>
+<text x="900" y="116" font-family="Liberation Serif, Times New Roman, serif" font-size="21" font-weight="normal" font-style="normal" fill="#535353" text-anchor="middle">Default single-pool path  ·  TP1 / PP1 illustration  ·  vLLM V1</text>
+<path d="M40,133 L1760,133" fill="none" stroke="#777" stroke-width="1"/>
+<text x="40" y="164" font-family="Liberation Serif, Times New Roman, serif" font-size="27" font-weight="bold" font-style="normal" fill="#161616" text-anchor="start">(a) Global routing: length threshold, then lexicographic instance load</text>
+<rect x="40" y="194" width="300" height="144" fill="white" stroke="#161616" stroke-width="1.5"/>
+<text x="190" y="224" font-family="Liberation Serif, Times New Roman, serif" font-size="26" font-weight="bold" font-style="normal" fill="#161616" text-anchor="middle">Incoming requests</text>
+<rect x="57" y="239" width="266" height="37" fill="#f6f6f6" stroke="#161616" stroke-width="1.5"/>
+<text x="190.0" y="265.66" font-family="Liberation Serif, Times New Roman, serif" font-size="24" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">R1: L = 512 tokens</text>
+<rect x="57" y="286" width="266" height="37" fill="#f6f6f6" stroke="#161616" stroke-width="1.5"/>
+<text x="190.0" y="312.66" font-family="Liberation Serif, Times New Roman, serif" font-size="24" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">R2: L = 2048, K = 64</text>
+<path d="M340,266 L405,266" fill="none" stroke="#161616" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="405" y="211" width="337" height="220" fill="#fafafa" stroke="#161616" stroke-width="2"/>
+<text x="573" y="247" font-family="Liberation Serif, Times New Roman, serif" font-size="29" font-weight="bold" font-style="normal" fill="#161616" text-anchor="middle">PDBlend Router</text>
+<text x="573" y="280" font-family="Liberation Serif, Times New Roman, serif" font-size="23" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">Example threshold: τ = 1024</text>
+<path d="M425,295 L722,295" fill="none" stroke="#777" stroke-width="1"/>
+<text x="430" y="327" font-family="Liberation Serif, Times New Roman, serif" font-size="25" font-weight="normal" font-style="normal" fill="#161616" text-anchor="start">L &lt; τ    →    Mixed path</text>
+<text x="430" y="367" font-family="Liberation Serif, Times New Roman, serif" font-size="25" font-weight="normal" font-style="normal" fill="#161616" text-anchor="start">L ≥ τ    →    P + D path</text>
+<text x="573" y="409" font-family="Liberation Serif, Times New Roman, serif" font-size="22" font-weight="normal" font-style="normal" fill="#535353" text-anchor="middle">Bind endpoints at dispatch</text>
+<rect x="40" y="371" width="300" height="86" fill="#fafafa" stroke="#161616" stroke-width="1.5" stroke-dasharray="7 5"/>
+<text x="190" y="402" font-family="Liberation Serif, Times New Roman, serif" font-size="24" font-weight="bold" font-style="normal" fill="#161616" text-anchor="middle">Planner + Controller</text>
+<text x="190" y="433" font-family="Liberation Serif, Times New Roman, serif" font-size="21" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">Publish roles, admission and τ</text>
+<path d="M340,411 L405,411" fill="none" stroke="#161616" stroke-width="1.5" stroke-dasharray="6 5" marker-end="url(#arrow)"/>
+<path d="M742,326 L779,326 L779,251 L815,251" fill="none" stroke="#161616" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="815" y="191" width="945" height="133" fill="white" stroke="#161616" stroke-width="1.5"/>
+<text x="837" y="224" font-family="Liberation Serif, Times New Roman, serif" font-size="27" font-weight="bold" font-style="normal" fill="#161616" text-anchor="start">Mixed: choose min (N_M, U_M)</text>
+<text x="837" y="258" font-family="Liberation Serif, Times New Roman, serif" font-size="24" font-weight="normal" font-style="normal" fill="#161616" text-anchor="start">M0 (3, 2048)    M1 (1, 1024)    M2 (1, 0)    M3 (2, 0)</text>
+<text x="837" y="294" font-family="Liberation Serif, Times New Roman, serif" font-size="24" font-weight="normal" font-style="normal" fill="#161616" text-anchor="start">R1 → M2: fewer unfinished requests; then less prefill load</text>
+<path d="M742,367 L815,367" fill="none" stroke="#161616" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="815" y="348" width="945" height="155" fill="white" stroke="#161616" stroke-width="1.5"/>
+<text x="837" y="383" font-family="Liberation Serif, Times New Roman, serif" font-size="27" font-weight="bold" font-style="normal" fill="#161616" text-anchor="start">PD: choose min (U_P, N_D, U_D, pair IDs)</text>
+<text x="837" y="417" font-family="Liberation Serif, Times New Roman, serif" font-size="24" font-weight="normal" font-style="normal" fill="#161616" text-anchor="start">P0: U = 3072    P1: U = 1024     |     D0: N = 4    D1: N = 2</text>
+<text x="837" y="451" font-family="Liberation Serif, Times New Roman, serif" font-size="24" font-weight="normal" font-style="normal" fill="#161616" text-anchor="start">R2 → P1 → D1; both D instances have U = 0</text>
+<text x="837" y="484" font-family="Liberation Serif, Times New Roman, serif" font-size="24" font-weight="normal" font-style="normal" fill="#161616" text-anchor="start">P generates y1; D generates the remaining 63 tokens</text>
+<text x="40" y="533" font-family="Liberation Serif, Times New Roman, serif" font-size="22" font-weight="normal" font-style="normal" fill="#535353" text-anchor="start">N = unfinished sequences; U = prompt tokens awaiting first output. Counts include engine waiting and running work.</text>
+<text x="40" y="563" font-family="Liberation Serif, Times New Roman, serif" font-size="21" font-weight="normal" font-style="normal" fill="#535353" text-anchor="start">Only accepting instances; PD endpoints must be compatible. If a path is unavailable, use the other; if neither is available, reject.</text>
+<path d="M40,586 L1760,586" fill="none" stroke="#777" stroke-width="1"/>
+<text x="40" y="617" font-family="Liberation Serif, Times New Roman, serif" font-size="27" font-weight="bold" font-style="normal" fill="#161616" text-anchor="start">(b) Inside each engine: continuous batching; FCFS applies to the waiting queue</text>
+<rect x="40" y="644" width="505" height="104" fill="white" stroke="#161616" stroke-width="1.5"/>
+<text x="292" y="676" font-family="Liberation Serif, Times New Roman, serif" font-size="27" font-weight="bold" font-style="normal" fill="#161616" text-anchor="middle">1. RUNNING first</text>
+<text x="292" y="706" font-family="Liberation Serif, Times New Roman, serif" font-size="23" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">Active decode + unfinished prefill chunks</text>
+<text x="292" y="733" font-family="Liberation Serif, Times New Roman, serif" font-size="21" font-weight="normal" font-style="normal" fill="#535353" text-anchor="middle">Advance eligible requests within the budget</text>
+<path d="M545,696 L595,696" fill="none" stroke="#161616" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="595" y="644" width="450" height="104" fill="white" stroke="#161616" stroke-width="1.5"/>
+<text x="820" y="676" font-family="Liberation Serif, Times New Roman, serif" font-size="27" font-weight="bold" font-style="normal" fill="#161616" text-anchor="middle">2. WAITING next</text>
+<text x="820" y="706" font-family="Liberation Serif, Times New Roman, serif" font-size="24" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">Default order: FCFS</text>
+<text x="820" y="733" font-family="Liberation Serif, Times New Roman, serif" font-size="20" font-weight="normal" font-style="normal" fill="#535353" text-anchor="middle">Admit when token / sequence / KV limits allow</text>
+<path d="M1045,696 L1095,696" fill="none" stroke="#161616" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="1095" y="644" width="665" height="104" fill="white" stroke="#161616" stroke-width="1.5"/>
+<text x="1427" y="676" font-family="Liberation Serif, Times New Roman, serif" font-size="26" font-weight="bold" font-style="normal" fill="#161616" text-anchor="middle">3. One iteration may mix P and D</text>
+<rect x="1120" y="696" width="78" height="37" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<text x="1159.0" y="721.98" font-family="Liberation Serif, Times New Roman, serif" font-size="22" font-weight="normal" font-style="normal" fill="white" text-anchor="middle">D(A)</text>
+<rect x="1198" y="696" width="78" height="37" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<text x="1237.0" y="721.98" font-family="Liberation Serif, Times New Roman, serif" font-size="22" font-weight="normal" font-style="normal" fill="white" text-anchor="middle">D(B)</text>
+<rect x="1276" y="696" width="460" height="37" fill="#a2cc83" stroke="#161616" stroke-width="1.5"/>
+<text x="1506.0" y="722.66" font-family="Liberation Serif, Times New Roman, serif" font-size="24" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">Prefill chunk of C</text>
+<text x="40" y="782" font-family="Liberation Serif, Times New Roman, serif" font-size="23" font-weight="normal" font-style="normal" fill="#161616" text-anchor="start">Launcher defaults: 8192 scheduled tokens per iteration; 256 running requests; chunked prefill enabled.</text>
+<text x="40" y="812" font-family="Liberation Serif, Times New Roman, serif" font-size="22" font-weight="normal" font-style="normal" fill="#535353" text-anchor="start">This is not request-by-request execution to completion. KV pressure may cause preemption and recomputation.</text>
+<path d="M40,836 L1760,836" fill="none" stroke="#777" stroke-width="1"/>
+<text x="40" y="867" font-family="Liberation Serif, Times New Roman, serif" font-size="27" font-weight="bold" font-style="normal" fill="#161616" text-anchor="start">(c) Example execution: separate P/D engines overlap; a Mixed engine can co-batch P and D</text>
+<text x="1760" y="899" font-family="Liberation Serif, Times New Roman, serif" font-size="22" font-weight="normal" font-style="italic" fill="#535353" text-anchor="end">Time (schematic, not to scale)</text>
+<path d="M350,911 L1760,911" fill="none" stroke="#161616" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M350,904 L350,1383" fill="none" stroke="#999" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="338" y="928" font-family="Liberation Serif, Times New Roman, serif" font-size="20" font-weight="normal" font-style="normal" fill="#535353" text-anchor="end">arrival</text>
+<text x="40" y="970" font-family="Liberation Serif, Times New Roman, serif" font-size="27" font-weight="bold" font-style="normal" fill="#161616" text-anchor="start">P1 instance</text>
+<text x="40" y="999" font-family="Liberation Serif, Times New Roman, serif" font-size="22" font-weight="normal" font-style="normal" fill="#535353" text-anchor="start">Prefill + first token</text>
+<rect x="350" y="940" width="95" height="48" fill="#d2d2d2" stroke="#161616" stroke-width="1.5"/>
+<text x="397" y="971" font-family="Liberation Serif, Times New Roman, serif" font-size="21" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">wait</text>
+<rect x="445" y="940" width="400" height="48" fill="#a2cc83" stroke="#161616" stroke-width="1.5"/>
+<text x="645.0" y="973.18" font-family="Liberation Serif, Times New Roman, serif" font-size="27" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">Prefill R2 → y1</text>
+<rect x="865" y="940" width="340" height="48" fill="#a2cc83" stroke="#161616" stroke-width="1.5"/>
+<text x="1035.0" y="972.5" font-family="Liberation Serif, Times New Roman, serif" font-size="25" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">Prefill R4 → first token</text>
+<rect x="1225" y="940" width="380" height="48" fill="#a2cc83" stroke="#161616" stroke-width="1.5"/>
+<text x="1415.0" y="972.5" font-family="Liberation Serif, Times New Roman, serif" font-size="25" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">More prefill requests …</text>
+<path d="M1605,964 L1758,964" fill="none" stroke="#161616" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="40" y="1042" font-family="Liberation Serif, Times New Roman, serif" font-size="24" font-weight="bold" font-style="normal" fill="#161616" text-anchor="start">P2P KV transfer</text>
+<text x="350" y="1042" font-family="Liberation Serif, Times New Roman, serif" font-size="22" font-weight="normal" font-style="normal" fill="#535353" text-anchor="start">May overlap prefill</text>
+<rect x="650" y="1015" width="175" height="36" fill="#d2d2d2" stroke="#161616" stroke-width="1.5"/>
+<text x="737" y="1041" font-family="Liberation Serif, Times New Roman, serif" font-size="23" font-weight="bold" font-style="normal" fill="#161616" text-anchor="middle">Layer-wise KV</text>
+<path d="M670,987 L670,1014" fill="none" stroke="#161616" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M825,1033 L1008,1033 L1008,1088" fill="none" stroke="#161616" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="1043" y="1043" font-family="Liberation Serif, Times New Roman, serif" font-size="23" font-weight="normal" font-style="normal" fill="#161616" text-anchor="start">D receives X + y1; reuses KV(X)</text>
+<text x="40" y="1122" font-family="Liberation Serif, Times New Roman, serif" font-size="27" font-weight="bold" font-style="normal" fill="#161616" text-anchor="start">D1 instance</text>
+<text x="40" y="1151" font-family="Liberation Serif, Times New Roman, serif" font-size="22" font-weight="normal" font-style="normal" fill="#535353" text-anchor="start">Batched token steps</text>
+<rect x="350" y="1089" width="495" height="48" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<text x="597.5" y="1121.84" font-family="Liberation Serif, Times New Roman, serif" font-size="26" font-weight="normal" font-style="normal" fill="white" text-anchor="middle">Decode other requests …</text>
+<path d="M405,1090 L405,1100" fill="none" stroke="white" stroke-width="1"/>
+<path d="M405,1127 L405,1136" fill="none" stroke="white" stroke-width="1"/>
+<path d="M460,1090 L460,1100" fill="none" stroke="white" stroke-width="1"/>
+<path d="M460,1127 L460,1136" fill="none" stroke="white" stroke-width="1"/>
+<path d="M515,1090 L515,1100" fill="none" stroke="white" stroke-width="1"/>
+<path d="M515,1127 L515,1136" fill="none" stroke="white" stroke-width="1"/>
+<path d="M570,1090 L570,1100" fill="none" stroke="white" stroke-width="1"/>
+<path d="M570,1127 L570,1136" fill="none" stroke="white" stroke-width="1"/>
+<path d="M625,1090 L625,1100" fill="none" stroke="white" stroke-width="1"/>
+<path d="M625,1127 L625,1136" fill="none" stroke="white" stroke-width="1"/>
+<path d="M680,1090 L680,1100" fill="none" stroke="white" stroke-width="1"/>
+<path d="M680,1127 L680,1136" fill="none" stroke="white" stroke-width="1"/>
+<path d="M735,1090 L735,1100" fill="none" stroke="white" stroke-width="1"/>
+<path d="M735,1127 L735,1136" fill="none" stroke="white" stroke-width="1"/>
+<path d="M790,1090 L790,1100" fill="none" stroke="white" stroke-width="1"/>
+<path d="M790,1127 L790,1136" fill="none" stroke="white" stroke-width="1"/>
+<rect x="845" y="1089" width="163" height="48" fill="#d2d2d2" stroke="#161616" stroke-width="1.5"/>
+<text x="926.5" y="1120.82" font-family="Liberation Serif, Times New Roman, serif" font-size="23" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">handoff / wait</text>
+<rect x="1008" y="1089" width="75" height="48" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<text x="1045.5" y="1121.5" font-family="Liberation Serif, Times New Roman, serif" font-size="25" font-weight="normal" font-style="normal" fill="white" text-anchor="middle">y2</text>
+<rect x="1083" y="1089" width="75" height="48" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<text x="1120.5" y="1121.5" font-family="Liberation Serif, Times New Roman, serif" font-size="25" font-weight="normal" font-style="normal" fill="white" text-anchor="middle">y3</text>
+<rect x="1158" y="1089" width="75" height="48" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<text x="1195.5" y="1121.5" font-family="Liberation Serif, Times New Roman, serif" font-size="25" font-weight="normal" font-style="normal" fill="white" text-anchor="middle">y4</text>
+<rect x="1233" y="1089" width="75" height="48" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<text x="1270.5" y="1121.5" font-family="Liberation Serif, Times New Roman, serif" font-size="25" font-weight="normal" font-style="normal" fill="white" text-anchor="middle">y5</text>
+<rect x="1308" y="1089" width="75" height="48" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<text x="1345.5" y="1121.5" font-family="Liberation Serif, Times New Roman, serif" font-size="25" font-weight="normal" font-style="normal" fill="white" text-anchor="middle">y6</text>
+<rect x="1383" y="1089" width="75" height="48" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<text x="1420.5" y="1121.5" font-family="Liberation Serif, Times New Roman, serif" font-size="25" font-weight="normal" font-style="normal" fill="white" text-anchor="middle">y7</text>
+<rect x="1458" y="1089" width="75" height="48" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<text x="1495.5" y="1121.5" font-family="Liberation Serif, Times New Roman, serif" font-size="25" font-weight="normal" font-style="normal" fill="white" text-anchor="middle">y8</text>
+<rect x="1533" y="1089" width="110" height="48" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<text x="1588.0" y="1121.16" font-family="Liberation Serif, Times New Roman, serif" font-size="24" font-weight="normal" font-style="normal" fill="white" text-anchor="middle">… y64</text>
+<path d="M1643,1113 L1758,1113" fill="none" stroke="#161616" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="1015" y="1170" font-family="Liberation Serif, Times New Roman, serif" font-size="23" font-weight="normal" font-style="normal" fill="#161616" text-anchor="start">First D step consumes y1 to produce y2</text>
+<text x="40" y="1245" font-family="Liberation Serif, Times New Roman, serif" font-size="27" font-weight="bold" font-style="normal" fill="#161616" text-anchor="start">M2 instance</text>
+<text x="40" y="1274" font-family="Liberation Serif, Times New Roman, serif" font-size="22" font-weight="normal" font-style="normal" fill="#535353" text-anchor="start">Local prefill + decode</text>
+<rect x="350" y="1210" width="200" height="64" fill="#a2cc83" stroke="#161616" stroke-width="1.5"/>
+<text x="450.0" y="1250.84" font-family="Liberation Serif, Times New Roman, serif" font-size="26" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">Prefill R1</text>
+<rect x="550" y="1210" width="50" height="64" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<text x="575.0" y="1249.82" font-family="Liberation Serif, Times New Roman, serif" font-size="23" font-weight="normal" font-style="normal" fill="white" text-anchor="middle">D</text>
+<rect x="600" y="1210" width="50" height="64" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<text x="625.0" y="1249.82" font-family="Liberation Serif, Times New Roman, serif" font-size="23" font-weight="normal" font-style="normal" fill="white" text-anchor="middle">D</text>
+<rect x="650" y="1210" width="50" height="64" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<text x="675.0" y="1249.82" font-family="Liberation Serif, Times New Roman, serif" font-size="23" font-weight="normal" font-style="normal" fill="white" text-anchor="middle">D</text>
+<rect x="700" y="1210" width="50" height="64" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<text x="725.0" y="1249.82" font-family="Liberation Serif, Times New Roman, serif" font-size="23" font-weight="normal" font-style="normal" fill="white" text-anchor="middle">D</text>
+<rect x="750" y="1210" width="100" height="32" fill="#a2cc83" stroke="#161616" stroke-width="1.5"/>
+<text x="800.0" y="1233.14" font-family="Liberation Serif, Times New Roman, serif" font-size="21" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">P: R3</text>
+<rect x="750" y="1242" width="100" height="32" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<text x="800.0" y="1265.14" font-family="Liberation Serif, Times New Roman, serif" font-size="21" font-weight="normal" font-style="normal" fill="white" text-anchor="middle">D: R1</text>
+<rect x="850" y="1210" width="100" height="32" fill="#a2cc83" stroke="#161616" stroke-width="1.5"/>
+<text x="900.0" y="1233.14" font-family="Liberation Serif, Times New Roman, serif" font-size="21" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">P: R3</text>
+<rect x="850" y="1242" width="100" height="32" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<text x="900.0" y="1265.14" font-family="Liberation Serif, Times New Roman, serif" font-size="21" font-weight="normal" font-style="normal" fill="white" text-anchor="middle">D: R1</text>
+<text x="850" y="1198" font-family="Liberation Serif, Times New Roman, serif" font-size="22" font-weight="normal" font-style="normal" fill="#b43831" text-anchor="middle">R3 joins the batch</text>
+<rect x="950" y="1210" width="100" height="64" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<rect x="1050" y="1210" width="100" height="64" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<rect x="1150" y="1210" width="100" height="64" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<rect x="1250" y="1210" width="100" height="64" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<rect x="1350" y="1210" width="100" height="64" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<rect x="1450" y="1210" width="100" height="64" fill="#4b78bf" stroke="#161616" stroke-width="1.5"/>
+<text x="1250" y="1250" font-family="Liberation Serif, Times New Roman, serif" font-size="24" font-weight="normal" font-style="normal" fill="white" text-anchor="middle">Decode R1 + R3 (continuous batches)</text>
+<path d="M1550,1242 L1758,1242" fill="none" stroke="#161616" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="350" y="1306" font-family="Liberation Serif, Times New Roman, serif" font-size="22" font-weight="normal" font-style="normal" fill="#535353" text-anchor="start">Stacked green / blue blocks = requests in one batch, not independent parallel GPU streams.</text>
+<text x="40" y="1380" font-family="Liberation Serif, Times New Roman, serif" font-size="25" font-weight="bold" font-style="normal" fill="#161616" text-anchor="start">Client: R2 tokens</text>
+<path d="M350,1384 L1760,1384" fill="none" stroke="#161616" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="837" y="1358" width="17" height="26" fill="#ffe080" stroke="#161616" stroke-width="1.5"/>
+<text x="845" y="1410" font-family="Liberation Serif, Times New Roman, serif" font-size="20" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">y1</text>
+<rect x="1075" y="1358" width="17" height="26" fill="#ffe080" stroke="#161616" stroke-width="1.5"/>
+<text x="1083" y="1410" font-family="Liberation Serif, Times New Roman, serif" font-size="20" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">y2</text>
+<rect x="1150" y="1358" width="17" height="26" fill="#ffe080" stroke="#161616" stroke-width="1.5"/>
+<text x="1158" y="1410" font-family="Liberation Serif, Times New Roman, serif" font-size="20" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">y3</text>
+<rect x="1225" y="1358" width="17" height="26" fill="#ffe080" stroke="#161616" stroke-width="1.5"/>
+<text x="1233" y="1410" font-family="Liberation Serif, Times New Roman, serif" font-size="20" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">y4</text>
+<rect x="1300" y="1358" width="17" height="26" fill="#ffe080" stroke="#161616" stroke-width="1.5"/>
+<text x="1308" y="1410" font-family="Liberation Serif, Times New Roman, serif" font-size="20" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">y5</text>
+<rect x="1375" y="1358" width="17" height="26" fill="#ffe080" stroke="#161616" stroke-width="1.5"/>
+<text x="1383" y="1410" font-family="Liberation Serif, Times New Roman, serif" font-size="20" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">y6</text>
+<rect x="1450" y="1358" width="17" height="26" fill="#ffe080" stroke="#161616" stroke-width="1.5"/>
+<text x="1458" y="1410" font-family="Liberation Serif, Times New Roman, serif" font-size="20" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">y7</text>
+<rect x="1525" y="1358" width="17" height="26" fill="#ffe080" stroke="#161616" stroke-width="1.5"/>
+<text x="1533" y="1410" font-family="Liberation Serif, Times New Roman, serif" font-size="20" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">y8</text>
+<text x="1650" y="1378" font-family="Liberation Serif, Times New Roman, serif" font-size="23" font-weight="normal" font-style="normal" fill="#161616" text-anchor="start">… y64</text>
+<path d="M350,1342 L845,1342" fill="none" stroke="#161616" stroke-width="1.5" stroke-dasharray="6 5" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<text x="597" y="1334" font-family="Liberation Serif, Times New Roman, serif" font-size="23" font-weight="normal" font-style="italic" fill="#487c36" text-anchor="middle">TTFT</text>
+<path d="M845,1342 L1083,1342" fill="none" stroke="#161616" stroke-width="1.5" stroke-dasharray="6 5" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<text x="964" y="1334" font-family="Liberation Serif, Times New Roman, serif" font-size="19" font-weight="normal" font-style="normal" fill="#535353" text-anchor="middle">handoff + first D step</text>
+<path d="M1158,1342 L1233,1342" fill="none" stroke="#161616" stroke-width="1.5" stroke-dasharray="6 5" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<text x="1195" y="1334" font-family="Liberation Serif, Times New Roman, serif" font-size="22" font-weight="normal" font-style="italic" fill="#4b78bf" text-anchor="middle">TPOT</text>
+<text x="900" y="1452" font-family="Liberation Serif, Times New Roman, serif" font-size="22" font-weight="normal" font-style="normal" fill="#161616" text-anchor="middle">Figure. Default PDBlend scheduling. Panel (a) is a load snapshot; panel (c) is a separate illustrative schedule, not a measured trace.</text>
+<text x="900" y="1478" font-family="Liberation Serif, Times New Roman, serif" font-size="20" font-weight="normal" font-style="normal" fill="#535353" text-anchor="middle">Stable roles shown. Optional resident-pool / energy routing is outside this figure. FCFS does not imply global completion order.</text>
+</svg>

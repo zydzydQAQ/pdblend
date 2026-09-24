@@ -23,6 +23,7 @@ import uvicorn
 from pdblend_baselines.ecoserve import run_native
 from pdblend_baselines.native_profile import ECO_LENGTHS, _sha
 from pdblend_runtime import serve
+from pdblend.results.journal import iter_journal, request_events
 
 _spec = importlib.util.spec_from_file_location('eco_campaign_native_fixture', Path(__file__).with_name('test_ecoserve_native_http.py'))
 _fixture = importlib.util.module_from_spec(_spec)
@@ -170,12 +171,18 @@ async def test_real_http_functional_success_quiet_policy_inconclusive_and_exact_
     assert not result['complete_reproduction']
     assert result['service_finished_s']-result['service_started_s'] >= .08
     assert result['outcomes'][0]['submitted_s']-result['service_started_s'] >= .009
-    startup = next(r for r in result['journal'] if r['kind'] == 'eco_startup')
+    journal = list(iter_journal(tmp_path/'run'/result['journal_path']))
+    startup = next(r for r in journal if r['kind'] == 'eco_startup')
     assert startup['at_s'] < result['service_started_s']
-    assert result['outcomes'][0]['token_ids'] == result['outcomes'][0]['native_token_ids'] == [100,101,102,103]
+    request_id = result['outcomes'][0]['request_id']
+    client = request_events(tmp_path/'run'/result['journal_path'], request_id, 'eco_client_sse')
+    native = request_events(tmp_path/'run'/result['journal_path'], request_id, 'eco_native_sse')
+    assert [t for e in client for t in e['token_ids']] == [t for e in native for t in e['token_ids']] == [100,101,102,103]
+    assert all('events' not in row and 'token_ids' not in row for row in result['outcomes'])
+    assert 'journal' not in json.loads((tmp_path/'run/completion.json').read_text())
     assert result['drain_receipts']['eco0']['acknowledged'] and result['drain_kv_released']
     assert not result['cleanup_errors'] and ('eco0', None) in calls
-    assert any(r['kind'] == 'eco_scale_observation' for r in result['journal'])
+    assert any(r['kind'] == 'eco_scale_observation' for r in journal)
     assert all(not engine.scheduler.requests for engine in engines.values())
 
 

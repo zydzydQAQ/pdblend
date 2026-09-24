@@ -1,0 +1,153 @@
+{
+  "status": "historical GPU run, not a new run of the current working tree",
+  "archive_path": "/home/pdblend4/results/archive/2026-09-21-migration-preclean/sharegpt-x0.5-pdblend-cold-head.tar.gz",
+  "archive_sha256": "fe03664fa320f032002daf5ea367c09233a276574b6b8685507cda1605c87510",
+  "members": {
+    "controller.jsonl": {
+      "path": "results/v2/eval-7b-v2/sharegpt-x0.5-pdblend/controller.jsonl",
+      "sha256": "80725df9f862be548f8b93c1daab2235633bf4e5ee22812f66133f300a96d37c"
+    },
+    "summary.json": {
+      "path": "results/v2/eval-7b-v2/sharegpt-x0.5-pdblend/summary.json",
+      "sha256": "482c0360ef3c5e06f06773eea5c6640f5b65e5645349ea760547540b949435cb"
+    },
+    "outcomes.jsonl": {
+      "path": "results/v2/eval-7b-v2/sharegpt-x0.5-pdblend/outcomes.jsonl",
+      "sha256": "0d0df1a2e20fba0fa8ed8d2c340e63eb2235aba60f51089223b63cf8e7fec7c9"
+    }
+  },
+  "model": "Qwen2.5-7B-Instruct",
+  "gpus": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "tp": 1,
+  "trace_meta": {
+    "dataset": "sharegpt",
+    "seed": 701,
+    "scale": 0.5,
+    "source": "poisson"
+  },
+  "controller_line_numbers": {
+    "previous_plan": 16,
+    "forecast": 18,
+    "reroute": 19,
+    "new_plan": 20
+  },
+  "change_timestamp": 1789969080.0294619,
+  "change_time_Asia_Shanghai": "2026-09-21T13:38:00.029462+08:00",
+  "seconds_since_first_controller_plan": 72.1471803188324,
+  "before_counts": {
+    "P": 1,
+    "D": 2,
+    "M": 1,
+    "L1": 4
+  },
+  "after_counts": {
+    "P": 1,
+    "D": 3,
+    "M": 0,
+    "L1": 4
+  },
+  "forecast": {
+    "t": 1789969080.0155394,
+    "kind": "forecast",
+    "rate_rps": 6.883190711829165,
+    "trend_rps": 3.601582189102992,
+    "input_mean": 779.055900621118,
+    "input_p95": 1024.0,
+    "output_mean": 291.0888888888889,
+    "inflight": 78,
+    "shield_level": 0,
+    "pressure": {
+      "prefill": false,
+      "decode": false,
+      "ttft_p90": 0.47778987884521484,
+      "tpot_p90": 0.04297946013656317,
+      "stuck": 0
+    }
+  },
+  "old_mixed_requests_bound_to_i7_at_change": 37,
+  "old_request_count_method": "submitted_s < reroute.t < finished_s and path=M and prefill=decode=i7; submitted unfinished requests, not native running-sequence count",
+  "selected_outcome_original_line_numbers": [
+    354,
+    376,
+    380,
+    387,
+    396,
+    397,
+    401,
+    404,
+    407,
+    410,
+    416,
+    418,
+    422,
+    425,
+    429,
+    431,
+    433,
+    435,
+    439,
+    440,
+    441,
+    444,
+    445,
+    446,
+    447,
+    448,
+    452,
+    453,
+    455,
+    460,
+    462,
+    463,
+    467,
+    471,
+    472,
+    477,
+    478,
+    512
+  ],
+  "old_request_example": {
+    "idx": 353,
+    "arrival_s": 47.308451339789315,
+    "input_tokens": 808,
+    "max_tokens": 512,
+    "submitted_s": 1789969062.5779133,
+    "first_token_s": 1789969062.7782226,
+    "finished_s": 1789969080.845745,
+    "completion_tokens": 512,
+    "path": "M",
+    "prefill": "i7",
+    "decode": "i7",
+    "error": null
+  },
+  "first_subsequent_pd_request_to_i7": {
+    "idx": 511,
+    "arrival_s": 68.3606358439899,
+    "input_tokens": 1024,
+    "max_tokens": 512,
+    "submitted_s": 1789969083.6304076,
+    "first_token_s": 1789969084.4620688,
+    "finished_s": 1789969098.219038,
+    "completion_tokens": 512,
+    "path": "PD",
+    "prefill": "i4",
+    "decode": "i7",
+    "error": null
+  },
+  "first_subsequent_pd_request_original_line": 512,
+  "old_request353_finishes_after_change_s": 0.8162832260131836,
+  "limitations": [
+    "Historical policy differs from current defaults; do not infer current minimum M floor or 30-second dwell compliance.",
+    "No before/after counterfactual objective was logged; no measured energy saving or root bottleneck is inferred.",
+    "Timestamps of reroute and plan logging are not a measurement of full hardware transition latency."
+  ]
+}

@@ -2,7 +2,7 @@
 
 `pdblend-method-bilingual.pdf` 是 12 页最终文档，包含五张方法图、两段主算法及一个请求执行辅助过程。正文以理想 selective PD 设计为主，各技术章末注明与当前代码的差异。说明性数字不代表实测结果。
 
-`pdblend-method-source.zip` 包含下列可编辑源文件、字体与许可，解压后可独立重建。PDF 已检查逐页排版、文字抽取与四章书签；不存在额外 GPU 实验。
+下列可编辑源文件、字体与许可直接保存在本目录。重复的源文件 ZIP 和逐页预览已清理；运行构建脚本可按需重新生成 `pdblend-method-source.zip`。PDF 已检查逐页排版、文字抽取与四章书签；不存在额外 GPU 实验。
 
 ## 编辑与重建
 
@@ -11,7 +11,7 @@
 - `build_figures.py` / `figures/`：五张可编辑 SVG 方法图及其生成脚本。
 - `build_pdf.py`：合稿、生成 PDF、书签、预览与结构验证。
 - `evidence.json`：取证时间、代码版本、工作区变更、关键文件 SHA-256 与设计边界。
-- `validation.json` / `preview/`：页数、文字抽取、页面边界检查及逐页预览。
+- `validation.json`：保留的页数、文字抽取和页面边界检查；`preview/` 为构建时按需生成的逐页预览。
 
 在独立 Python 环境安装 `requirements.txt` 后，运行：
 
